@@ -5,8 +5,9 @@ Visor web de mensajes **SYNOP** de estaciones argentinas, con ploteo tipo modelo
 ## Qué incluye
 
 - Mapa interactivo (Leaflet) centrado en Argentina
-- Ploteo SYNOP: barbas de viento, cobertura nubosa, temperatura, rocío, presión, tendencia, ww, Nh/CL/CM/CH
-- Hover sobre estaciones (y tip de tipos de nube)
+- Ploteo SYNOP con PNGs (`img/barbs`, `img/simbolos`): barbas, N, T/Td, presión, tendencia, ww, Nh/CL/CM/CH
+- **Dos grupos de nubosidad** cuando existen: sección 1 (`8NhCLCMCH`) y capas de sección 3 (`8NsChshs`)
+- Hover sobre estaciones / tipos de nube / capas sec.3
 - Panel con el mensaje crudo y campos decodificados
 - Selector de hora UTC
 - Catálogo de 121 estaciones del SMN (coordenadas)
@@ -42,5 +43,7 @@ Alternativas iguales de simples: [Railway](https://railway.app) o [Fly.io](https
 ## Notas
 
 - OGIMET a veces tarda o limita; el backend tiene timeout y muestra el error en pantalla.
-- Los símbolos se dibujan en **SVG** (no dependen de PNGs del sistema original). Si más adelante subís `img/barbs` e `img/simbolos`, se pueden enchufar como íconos alternativos.
+- Los iconos viven en `img/barbs` e `img/simbolos` (se sirven en `/img/...`).
+- Si un SYNOP trae grupo 8 en sección 1 y uno o más `8NsChshs` en sección 3, el plot y el hover muestran **ambos**.
 - Zona horaria de consulta: **UTC**.
+- Nota: en `simbolos/` hay ww 56–99; si falta un código bajo, se muestra el número en texto.

@@ -7,7 +7,7 @@ import logging
 import os
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from ogimet_client import fetch_argentina_synops, resolve_synop_hour
 
@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 
 BASE = Path(__file__).resolve().parent
 STATIONS_PATH = BASE / "data" / "stations.json"
+IMG_PATH = BASE / "img"
 
 app = Flask(__name__)
 
@@ -31,6 +32,12 @@ STATIONS = load_stations()
 @app.get("/")
 def index():
     return render_template("index.html")
+
+
+@app.get("/img/<path:filename>")
+def img_files(filename: str):
+    """Sirve barbas y símbolos meteorológicos."""
+    return send_from_directory(IMG_PATH, filename)
 
 
 @app.get("/api/stations")

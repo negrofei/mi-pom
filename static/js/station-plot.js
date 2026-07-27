@@ -1,8 +1,10 @@
 /**
- * Ploteo de estación SYNOP (modelo de estación) como SVG para Leaflet.
+ * Ploteo de estación SYNOP usando PNGs de /img (barbs + simbolos).
+ * Incluye grupo 8 de sección 1 (NhCLCMCH) y capas 8NsChshs de sección 3.
  */
 (function (global) {
   const S = () => global.SynopSymbols;
+  const IMG = "/img";
 
   function fmtTemp(v) {
     if (v == null || Number.isNaN(Number(v))) return "";
@@ -10,77 +12,166 @@
     return (Math.round(n * 10) / 10).toFixed(1).replace(/\.0$/, "");
   }
 
-  function buildStationSvg(obs) {
-    const size = 110;
-    const cx = size / 2;
-    const cy = size / 2;
-    const parts = [];
+  function codeOr(v, fallback) {
+    if (v == null || v === "" || v === "/") return fallback;
+    return String(v);
+  }
 
-    // Barbas de viento (atrás)
-    parts.push(S().windBarb(obs.wind_speed_kt, obs.wind_dir, cx, cy, 36));
+  function png(path, cls, style, title) {
+    const t = title ? ` title="${S().esc(title)}"` : "";
+    const st = style ? ` style="${style}"` : "";
+    return `<img class="${cls}" src="${IMG}/${path}" alt="" draggable="false"${st}${t} />`;
+  }
 
-    // Cobertura nubosa central
-    parts.push(S().cloudCoverSymbol(obs.total_cloud, cx, cy, 8));
+  function hasImgCode(v) {
+    return v != null && v !== "" && v !== "/";
+  }
 
-    // Temperatura (roja, arriba-izquierda)
-    if (obs.temp_c != null) {
-      parts.push(
-        `<text x="${cx - 28}" y="${cy - 14}" text-anchor="end" font-size="11" fill="#c62828">${S().esc(fmtTemp(obs.temp_c))}</text>`
-      );
+  function barbSrc(obs) {
+    const key = obs.wind_barb || "0";
+    return `barbs/barb_${key}.png`;
+  }
+
+  function wwSrc(ww) {
+    if (!hasImgCode(ww)) return null;
+    const code = String(ww).padStart(2, "0");
+    // Hay PNGs 56-99 (+9999); el resto cae a SVG/texto en fallback
+    return `simbolos/${code}.png`;
+  }
+
+  function buildStationHtml(obs) {
+    if (obs.nil) {
+      return `<div class="plot plot-nil">NIL</div>`;
     }
 
-    // Rocío (marrón, abajo-izquierda)
-    if (obs.dewpoint_c != null) {
-      parts.push(
-        `<text x="${cx - 28}" y="${cy + 22}" text-anchor="end" font-size="11" fill="#6d4c41">${S().esc(fmtTemp(obs.dewpoint_c))}</text>`
+    const dir = obs.wind_dir != null ? Number(obs.wind_dir) : 0;
+    const nCode = codeOr(obs.total_cloud, "9999");
+    const ww = wwSrc(obs.present_weather);
+    const aCode = codeOr(obs.tendency_char, "9999");
+
+    const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
+    const layerHtml = layers
+      .map((layer, idx) => {
+        const label = [
+          layer.ns != null ? `${layer.ns}/8` : null,
+          layer.genus_name || (layer.genus != null ? `C${layer.genus}` : null),
+          layer.height_m != null ? `${layer.height_m} m` : layer.hs != null ? `hs ${layer.hs}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const tip = `Sección 3 · ${layer.raw || ""} · ${label}`;
+        return `<div class="plot-layer" data-layer="${idx}" title="${S().esc(tip)}">
+          <span class="plot-layer-ns">${S().esc(layer.ns ?? "/")}</span>
+          <span class="plot-layer-c">${S().esc(layer.genus ?? "/")}</span>
+          <span class="plot-layer-hs">${S().esc(layer.height_m != null ? String(layer.height_m) : layer.hs ?? "/")}</span>
+        </div>`;
+      })
+      .join("");
+
+    return `
+      <div class="plot">
+        <img class="plot-barb" src="${IMG}/${barbSrc(obs)}" alt=""
+             style="transform: rotate(${dir}deg);" draggable="false" />
+        ${png(`simbolos/N${nCode}.png`, "plot-n", "", `N=${nCode}`)}
+        ${
+          ww
+            ? png(ww, "plot-ww", "", `ww=${obs.present_weather}`)
+            : obs.present_weather
+              ? `<span class="plot-ww-txt">${S().esc(obs.present_weather)}</span>`
+              : ""
+        }
+        ${
+          obs.temp_c != null
+            ? `<span class="plot-temp">${S().esc(fmtTemp(obs.temp_c))}</span>`
+            : ""
+        }
+        ${
+          obs.dewpoint_c != null
+            ? `<span class="plot-td">${S().esc(fmtTemp(obs.dewpoint_c))}</span>`
+            : ""
+        }
+        ${
+          obs.pressure_plot
+            ? `<span class="plot-pres">${S().esc(obs.pressure_plot)}</span>`
+            : ""
+        }
+        ${png(`simbolos/a${aCode}.png`, "plot-a", "", `a=${aCode}`)}
+        ${
+          obs.tendency_val
+            ? `<span class="plot-app">${S().esc(obs.tendency_val)}</span>`
+            : ""
+        }
+        ${
+          obs.visibility
+            ? `<span class="plot-vis">${S().esc(obs.visibility)}</span>`
+            : ""
+        }
+        ${
+          obs.cloud_base_h
+            ? `<span class="plot-h">${S().esc(obs.cloud_base_h)}</span>`
+            : ""
+        }
+        ${
+          hasImgCode(obs.nh)
+            ? `<span class="plot-nh">${S().esc(obs.nh)}</span>`
+            : ""
+        }
+        ${
+          hasImgCode(obs.cl)
+            ? png(`simbolos/CL${obs.cl}.png`, "plot-cl", "", S().cloudLabel("CL", obs.cl))
+            : ""
+        }
+        ${
+          hasImgCode(obs.cm)
+            ? png(`simbolos/CM${obs.cm}.png`, "plot-cm", "", S().cloudLabel("CM", obs.cm))
+            : ""
+        }
+        ${
+          hasImgCode(obs.ch)
+            ? png(`simbolos/CH${obs.ch}.png`, "plot-ch", "", S().cloudLabel("CH", obs.ch))
+            : ""
+        }
+        ${
+          layers.length
+            ? `<div class="plot-sec3" title="Nubosidad sección 3 (8NsChshs)">${layerHtml}</div>`
+            : ""
+        }
+      </div>
+    `;
+  }
+
+  function cloudSectionHtml(obs) {
+    const lines = [];
+    lines.push(
+      `<b>Cobertura N:</b> ${S().esc(obs.total_cloud ?? "—")} oktas · <b>h:</b> ${S().esc(obs.cloud_base_h ?? "—")}`
+    );
+    if (obs.nh || obs.cl || obs.cm || obs.ch) {
+      lines.push(
+        `<b>Sección 1 · 8NhCLCMCH:</b> Nh=${S().esc(obs.nh ?? "/")} CL=${S().esc(obs.cl ?? "/")} CM=${S().esc(obs.cm ?? "/")} CH=${S().esc(obs.ch ?? "/")}`
       );
+      if (obs.cl) lines.push(S().cloudLabel("CL", obs.cl));
+      if (obs.cm) lines.push(S().cloudLabel("CM", obs.cm));
+      if (obs.ch) lines.push(S().cloudLabel("CH", obs.ch));
+    } else {
+      lines.push("<b>Sección 1 · 8NhCLCMCH:</b> (ausente)");
     }
 
-    // Presión (azul, arriba-derecha)
-    if (obs.pressure_plot) {
-      parts.push(
-        `<text x="${cx + 28}" y="${cy - 14}" text-anchor="start" font-size="11" fill="#1565c0">${S().esc(obs.pressure_plot)}</text>`
-      );
+    const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
+    if (layers.length) {
+      lines.push(`<b>Sección 3 · capas 8NsChshs (${layers.length}):</b>`);
+      layers.forEach((layer, i) => {
+        const bits = [
+          `Ns=${layer.ns ?? "/"}`,
+          `C=${layer.genus ?? "/"}${layer.genus_name ? " (" + layer.genus_name + ")" : ""}`,
+          layer.height_m != null ? `base≈${layer.height_m} m` : `hs=${layer.hs ?? "/"}`,
+          layer.raw ? `[${layer.raw}]` : "",
+        ];
+        lines.push(`&nbsp;&nbsp;${i + 1}. ${S().esc(bits.filter(Boolean).join(" · "))}`);
+      });
+    } else {
+      lines.push("<b>Sección 3 · 8NsChshs:</b> (ausente)");
     }
-
-    // Tendencia
-    parts.push(S().tendencySymbol(obs.tendency_char, cx + 34, cy + 2));
-    if (obs.tendency_val) {
-      parts.push(
-        `<text x="${cx + 46}" y="${cy + 5}" text-anchor="start" font-size="9" fill="#1565c0">${S().esc(obs.tendency_val)}</text>`
-      );
-    }
-
-    // Visibilidad (izquierda del círculo)
-    if (obs.visibility) {
-      parts.push(
-        `<text x="${cx - 30}" y="${cy + 4}" text-anchor="end" font-size="9" fill="#111">${S().esc(obs.visibility)}</text>`
-      );
-    }
-
-    // Tiempo presente (izquierda del N)
-    parts.push(S().presentWeather(obs.present_weather, cx - 18, cy - 1));
-
-    // Nh
-    if (obs.nh) {
-      parts.push(
-        `<text x="${cx + 14}" y="${cy + 20}" text-anchor="middle" font-size="9" fill="#333366">${S().esc(obs.nh)}</text>`
-      );
-    }
-
-    // h (base nubes bajas) bajo el círculo un poco a la izquierda
-    if (obs.cloud_base_h) {
-      parts.push(
-        `<text x="${cx - 2}" y="${cy + 24}" text-anchor="middle" font-size="9" fill="#333366">${S().esc(obs.cloud_base_h)}</text>`
-      );
-    }
-
-    // CL / CM / CH
-    parts.push(S().cloudType("CL", obs.cl, cx + 2, cy + 34));
-    parts.push(S().cloudType("CM", obs.cm, cx + 2, cy + 46));
-    parts.push(S().cloudType("CH", obs.ch, cx + 2, cy + 56));
-
-    return `<svg class="station-svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">${parts.join("")}</svg>`;
+    return lines.join("<br/>");
   }
 
   function hoverHtml(obs) {
@@ -105,14 +196,26 @@
       );
     }
     if (obs.present_weather) lines.push(`Tiempo presente (ww): ${S().esc(obs.present_weather)}`);
-    if (obs.cl) lines.push(S().cloudLabel("CL", obs.cl));
-    if (obs.cm) lines.push(S().cloudLabel("CM", obs.cm));
-    if (obs.ch) lines.push(S().cloudLabel("CH", obs.ch));
+    lines.push(cloudSectionHtml(obs));
     lines.push(`<div class="synop-line">${S().esc(obs.raw)}</div>`);
     return lines.filter(Boolean).join("<br/>");
   }
 
   function detailHtml(obs) {
+    const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
+    const layerRows = layers.length
+      ? layers
+          .map((layer, i) => {
+            const val = [
+              `Ns=${layer.ns ?? "/"}`,
+              `C=${layer.genus ?? "/"}${layer.genus_name ? " " + layer.genus_name : ""}`,
+              layer.height_m != null ? `≈${layer.height_m} m` : `hs=${layer.hs ?? "/"}`,
+              layer.raw || "",
+            ].join(" · ");
+            return [`Capa sec.3 #${i + 1}`, val];
+          })
+      : [["Capas sec.3", "(ausente)"]];
+
     const rows = [
       ["Estación", `${obs.omm} — ${obs.nombre || ""}`],
       ["UTC", obs.utc || "—"],
@@ -120,12 +223,18 @@
       ["Punto de rocío", obs.dewpoint_c != null ? `${fmtTemp(obs.dewpoint_c)} °C` : "—"],
       ["Presión MSL", obs.msl_pressure != null ? `${obs.msl_pressure.toFixed(1)} hPa` : "—"],
       ["Presión estación", obs.station_pressure != null ? `${obs.station_pressure.toFixed(1)} hPa` : "—"],
-      ["Viento", `${obs.wind_dir != null ? obs.wind_dir + "°" : "—"} · ${obs.wind_speed_kt != null ? obs.wind_speed_kt + " kt" : "—"}`],
-      ["N (oktas)", obs.total_cloud ?? "—"],
+      [
+        "Viento",
+        `${obs.wind_dir != null ? obs.wind_dir + "°" : "—"} · ${
+          obs.wind_speed_kt != null ? obs.wind_speed_kt + " kt" : "—"
+        }`,
+      ],
+      ["N (cobertura)", obs.total_cloud ?? "—"],
       ["Visibilidad VV", obs.visibility ?? "—"],
-      ["h (base)", obs.cloud_base_h ?? "—"],
+      ["h (base, sec.1)", obs.cloud_base_h ?? "—"],
       ["ww", obs.present_weather ?? "—"],
-      ["Nh / CL / CM / CH", `${obs.nh ?? "/"} ${obs.cl ?? "/"} ${obs.cm ?? "/"} ${obs.ch ?? "/"}`],
+      ["Nh / CL / CM / CH (sec.1)", `${obs.nh ?? "/"} ${obs.cl ?? "/"} ${obs.cm ?? "/"} ${obs.ch ?? "/"}`],
+      ...layerRows,
       ["Tendencia", `${obs.tendency_char ?? "—"} ${obs.tendency_val ?? ""}`],
     ];
     const dl = rows
@@ -140,5 +249,12 @@
     `;
   }
 
-  global.StationPlot = { buildStationSvg, hoverHtml, detailHtml, fmtTemp };
+  global.StationPlot = {
+    buildStationHtml,
+    buildStationSvg: buildStationHtml, // compat
+    hoverHtml,
+    detailHtml,
+    cloudSectionHtml,
+    fmtTemp,
+  };
 })(window);
