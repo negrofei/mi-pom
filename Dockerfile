@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py ogimet_client.py synop_parser.py ./
 COPY data ./data
+COPY img ./img
 COPY static ./static
 COPY templates ./templates
 

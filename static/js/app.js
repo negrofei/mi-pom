@@ -19,9 +19,6 @@
     attribution: "&copy; OpenStreetMap",
   }).addTo(map);
 
-  // Argenmap / IGN si está disponible (fallback OSM ya cargado)
-  // Se mantiene OSM por simplicidad y cero keys.
-
   let layerGroup = L.layerGroup().addTo(map);
 
   function pad(n) {
@@ -29,8 +26,6 @@
   }
 
   function toLocalInputValue(utcDate) {
-    // datetime-local es local; mostramos la hora UTC en el control
-    // usando los componentes UTC directamente.
     return `${utcDate.getUTCFullYear()}-${pad(utcDate.getUTCMonth() + 1)}-${pad(utcDate.getUTCDate())}T${pad(utcDate.getUTCHours())}:00`;
   }
 
@@ -94,22 +89,15 @@
       layerGroup.clearLayers();
       hideHover();
 
-      const bounds = [];
       for (const obs of data.synops) {
         if (obs.lat == null || obs.lng == null) continue;
 
-        let html;
-        if (obs.nil) {
-          html = `<svg class="station-svg" width="72" height="28" viewBox="0 0 72 28" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="70" height="26" rx="4" fill="#fff" stroke="#666"/><text x="36" y="18" text-anchor="middle" font-size="11" fill="#666" font-family="IBM Plex Mono, monospace">NIL</text></svg>`;
-        } else {
-          html = StationPlot.buildStationSvg(obs);
-        }
-
+        const html = StationPlot.buildStationHtml(obs);
         const icon = L.divIcon({
           className: "station-icon",
           html,
-          iconSize: obs.nil ? [72, 28] : [110, 110],
-          iconAnchor: obs.nil ? [36, 14] : [55, 55],
+          iconSize: obs.nil ? [72, 28] : [120, 130],
+          iconAnchor: obs.nil ? [36, 14] : [60, 50],
         });
 
         const marker = L.marker([obs.lat, obs.lng], {
@@ -127,13 +115,9 @@
         if (!obs.nil) addCloudHotspots(obs);
 
         marker.addTo(layerGroup);
-        bounds.push([obs.lat, obs.lng]);
       }
 
       statusEl.textContent = `${data.hour_label} · ${data.count} estaciones`;
-      if (bounds.length > 5) {
-        // No auto-zoom agresivo: Argentina completa se ve bien en zoom 4
-      }
     } catch (err) {
       console.error(err);
       statusEl.textContent = `Error: ${err.message}`;
@@ -143,27 +127,53 @@
   }
 
   function addCloudHotspots(obs) {
-    // Hotspots cerca del plot para tooltips de tipos de nube (como el original)
     const offsets = [];
     if (obs.cl && obs.cl !== "0") {
-      offsets.push({ dlat: -0.035, dlng: 0.02, html: SynopSymbols.cloudLabel("CL", obs.cl) });
+      offsets.push({
+        dlat: -0.04,
+        dlng: 0.01,
+        html: `<b>Sección 1 · CL</b><br/>${SynopSymbols.cloudLabel("CL", obs.cl)}`,
+      });
     }
     if (obs.cm && obs.cm !== "0") {
-      offsets.push({ dlat: -0.055, dlng: 0.02, html: SynopSymbols.cloudLabel("CM", obs.cm) });
+      offsets.push({
+        dlat: -0.06,
+        dlng: 0.01,
+        html: `<b>Sección 1 · CM</b><br/>${SynopSymbols.cloudLabel("CM", obs.cm)}`,
+      });
     }
     if (obs.ch && obs.ch !== "0") {
-      offsets.push({ dlat: -0.075, dlng: 0.02, html: SynopSymbols.cloudLabel("CH", obs.ch) });
+      offsets.push({
+        dlat: -0.08,
+        dlng: 0.01,
+        html: `<b>Sección 1 · CH</b><br/>${SynopSymbols.cloudLabel("CH", obs.ch)}`,
+      });
     }
+
+    const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
+    layers.forEach((layer, i) => {
+      const bits = [
+        `Ns=${layer.ns ?? "/"}`,
+        layer.genus_name || `C=${layer.genus ?? "/"}`,
+        layer.height_m != null ? `≈${layer.height_m} m` : `hs=${layer.hs ?? "/"}`,
+      ].join(" · ");
+      offsets.push({
+        dlat: -0.04 - i * 0.025,
+        dlng: 0.05,
+        html: `<b>Sección 3 · capa ${i + 1}</b><br/>${SynopSymbols.esc(bits)}<br/><span class="synop-line">${SynopSymbols.esc(layer.raw || "")}</span>`,
+      });
+    });
+
     for (const o of offsets) {
       const m = L.circleMarker([obs.lat + o.dlat, obs.lng + o.dlng], {
-        radius: 8,
+        radius: 9,
         opacity: 0,
         fillOpacity: 0,
         interactive: true,
       });
       m.on("mouseover", (e) =>
         showHover(
-          `<b>Nubes</b><br/>${o.html}<div class="synop-line">${SynopSymbols.esc(obs.nombre || obs.omm)}</div>`,
+          `${o.html}<div class="synop-line">${SynopSymbols.esc(obs.nombre || obs.omm)}</div>`,
           e
         )
       );
@@ -179,7 +189,5 @@
 
   setDefaultHour();
   loadSynops();
-
-  // Refresh suave cada 5 minutos
   setInterval(loadSynops, 5 * 60 * 1000);
 })();

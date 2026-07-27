@@ -6,6 +6,35 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Optional
 
 
+CLOUD_GENUS = {
+    "0": "Ci — Cirrus",
+    "1": "Cc — Cirrocumulus",
+    "2": "Cs — Cirrostratus",
+    "3": "Ac — Altocumulus",
+    "4": "As — Altostratus",
+    "5": "Ns — Nimbostratus",
+    "6": "Sc — Stratocumulus",
+    "7": "St — Stratus",
+    "8": "Cu — Cumulus",
+    "9": "Cb — Cumulonimbus",
+}
+
+
+@dataclass
+class CloudLayer:
+    """Grupo 8NsChshs de la sección 3."""
+
+    ns: Optional[str] = None  # cantidad (oktas) de esa capa
+    genus: Optional[str] = None  # C (género)
+    genus_name: Optional[str] = None
+    hs: Optional[str] = None  # código de altura
+    height_m: Optional[int] = None
+    raw: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 @dataclass
 class SynopDecoded:
     omm: str
@@ -21,12 +50,13 @@ class SynopDecoded:
     # Sección 1
     precip_indicator: Optional[str] = None
     station_type: Optional[str] = None
-    cloud_base_h: Optional[str] = None  # h
+    cloud_base_h: Optional[str] = None  # h (tabla 1600)
     visibility: Optional[str] = None  # VV
     total_cloud: Optional[str] = None  # N
     wind_dir: Optional[int] = None  # grados
     wind_speed: Optional[float] = None  # en unidades originales
     wind_speed_kt: Optional[float] = None
+    wind_barb: str = "0"  # clave de PNG barb_*
     temp_c: Optional[float] = None
     dewpoint_c: Optional[float] = None
     station_pressure: Optional[float] = None
@@ -36,15 +66,19 @@ class SynopDecoded:
     tendency_val: Optional[str] = None  # pp (décimas, 2 dígitos display)
     present_weather: Optional[str] = None  # ww
     past_weather: Optional[str] = None  # W1W2
+    # Grupo 8 de sección 1: NhCLCMCH
     nh: Optional[str] = None
     cl: Optional[str] = None
     cm: Optional[str] = None
     ch: Optional[str] = None
+    # Capas adicionales de sección 3: 8NsChshs (puede haber varias)
+    cloud_layers: list[CloudLayer] = field(default_factory=list)
     nil: bool = False
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        return d
 
 
 def _safe_int(s: str) -> Optional[int]:
@@ -79,7 +113,6 @@ def _pressure_from_pppp(pppp: str) -> Optional[float]:
     n = _safe_int(pppp)
     if n is None:
         return None
-    # Convención usual: si < 500 → +1000 hPa (valores en décimas)
     tenths = n
     if tenths < 5000:
         return (tenths + 10000) / 10.0
@@ -92,6 +125,65 @@ def _pressure_plot_digits(pressure: Optional[float]) -> Optional[str]:
         return None
     tenths = int(round(pressure * 10)) % 1000
     return f"{tenths:03d}"
+
+
+def _height_from_hshs(hs: Optional[str]) -> Optional[int]:
+    """Decodifica hshs (tabla WMO 1690) a metros aproximados."""
+    if hs is None or "/" in hs:
+        return None
+    code = _safe_int(hs)
+    if code is None:
+        return None
+    if 0 <= code <= 50:
+        return code * 30
+    if 56 <= code <= 80:
+        return (code - 50) * 300
+    if 81 <= code <= 88:
+        return (code - 80) * 1500 + 9000
+    if code == 89:
+        return 21000
+    return None
+
+
+def _barb_key(speed_kt: Optional[float], wind_dir: Optional[int], notes: list[str]) -> str:
+    """Clave de archivo barb_*.png como en el sistema original."""
+    if any("variable" in n for n in notes) or wind_dir is None and speed_kt and speed_kt > 0:
+        # viento variable con intensidad
+        if speed_kt and speed_kt >= 1:
+            return "v"
+    if speed_kt is None or speed_kt < 0.5:
+        return "0"
+    if speed_kt < 2.5:
+        return "1"
+    # redondeo a múltiplos de 5 kt (máx 150)
+    rounded = int(round(speed_kt / 5.0) * 5)
+    rounded = max(5, min(150, rounded))
+    return str(rounded)
+
+
+def _split_sections(tokens: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Separa tokens en sección 1, sección 3 (333) y resto (555/222)."""
+    section1: list[str] = []
+    section3: list[str] = []
+    section5: list[str] = []
+    mode = "1"
+    for t in tokens:
+        if t == "333":
+            mode = "3"
+            continue
+        if t == "555":
+            mode = "5"
+            continue
+        if t == "222":
+            mode = "ship"
+            continue
+        if mode == "1":
+            section1.append(t)
+        elif mode == "3":
+            section3.append(t)
+        else:
+            section5.append(t)
+    return section1, section3, section5
 
 
 def parse_synop(
@@ -132,24 +224,14 @@ def parse_synop(
             iw = yyggiw[4]
             out.wind_units = "kt" if iw in ("3", "4") else "mps"
         i = 2
-        # Puede seguir el indicativo
         if i < len(tokens) and tokens[i].isdigit() and len(tokens[i]) == 5:
             out.omm = tokens[i]
             i += 1
     elif tokens[0].isdigit() and len(tokens[0]) == 5:
-        # A veces OGIMET ya trae el cuerpo sin AAXX en la columna REPORT,
-        # pero en getsynop sí viene AAXX completo.
         out.omm = tokens[0]
         i = 1
 
-    # Si el mensaje empieza con AAXX ... omm ... grupos
-    # Recortar secciones 333 / 555 / 222
-    body = tokens[i:]
-    section1: list[str] = []
-    for t in body:
-        if t in ("333", "555", "222"):
-            break
-        section1.append(t)
+    section1, section3, _section5 = _split_sections(tokens[i:])
 
     if not section1:
         return out
@@ -173,12 +255,11 @@ def parse_synop(
                 ddi = _safe_int(dd)
                 if ddi is not None:
                     if ddi == 99:
-                        out.wind_dir = None  # variable
+                        out.wind_dir = None
                         out.notes.append("viento variable")
                     else:
                         out.wind_dir = (ddi * 10) % 360
             if ff != "//":
-                # Puede haber grupo 00fff si ff=99, omitimos por simplicidad
                 speed = _safe_int(ff)
                 if speed is not None:
                     out.wind_speed = float(speed)
@@ -188,34 +269,51 @@ def parse_synop(
                         out.wind_speed_kt = round(speed * 1.94384, 1)
 
     for g in section1[2:]:
-        if not g or g[0] == "/":
+        if not g or len(g) < 5:
             continue
-        if g.startswith("1") and len(g) == 5:
+        if g.startswith("1"):
             out.temp_c = _temp_from_group(g)
-        elif g.startswith("2") and len(g) == 5:
+        elif g.startswith("2"):
             out.dewpoint_c = _temp_from_group(g)
-        elif g.startswith("3") and len(g) == 5:
+        elif g.startswith("3"):
             out.station_pressure = _pressure_from_pppp(g[1:5])
-        elif g.startswith("4") and len(g) == 5:
+        elif g.startswith("4"):
             out.msl_pressure = _pressure_from_pppp(g[1:5])
             out.pressure_plot = _pressure_plot_digits(out.msl_pressure)
-        elif g.startswith("5") and len(g) == 5:
+        elif g.startswith("5"):
             out.tendency_char = g[1] if g[1] != "/" else None
             if g[2:5] != "///":
-                # mostrar cambio en décimas (2 dígitos típicos del plot)
                 ppp = g[2:5]
                 out.tendency_val = ppp[1:] if len(ppp) == 3 else ppp
-        elif g.startswith("7") and len(g) == 5:
+        elif g.startswith("7"):
             out.present_weather = g[1:3] if "/" not in g[1:3] else None
             out.past_weather = g[3:5] if "/" not in g[3:5] else None
-        elif g.startswith("8") and len(g) == 5:
+        elif g.startswith("8"):
+            # NhCLCMCH
             out.nh = g[1] if g[1] != "/" else None
             out.cl = g[2] if g[2] != "/" else None
             out.cm = g[3] if g[3] != "/" else None
             out.ch = g[4] if g[4] != "/" else None
 
-    # Si no hubo grupo 4, usar presión de estación para el plot
+    # Sección 3: capas 8NsChshs (todas las que haya)
+    for g in section3:
+        if len(g) == 5 and g.startswith("8"):
+            ns = g[1] if g[1] != "/" else None
+            genus = g[2] if g[2] != "/" else None
+            hs = g[3:5] if "/" not in g[3:5] else None
+            out.cloud_layers.append(
+                CloudLayer(
+                    ns=ns,
+                    genus=genus,
+                    genus_name=CLOUD_GENUS.get(genus or "", None),
+                    hs=hs,
+                    height_m=_height_from_hshs(hs),
+                    raw=g,
+                )
+            )
+
     if out.pressure_plot is None and out.station_pressure is not None:
         out.pressure_plot = _pressure_plot_digits(out.station_pressure)
 
+    out.wind_barb = _barb_key(out.wind_speed_kt, out.wind_dir, out.notes)
     return out
