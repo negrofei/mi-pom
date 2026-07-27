@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SYNOP Argentina · OGIMET</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">SYNOP</span>
+      <span class="brand-sub">Argentina · OGIMET</span>
+    </div>
+    <div class="controls">
+      <label class="field">
+        <span>Hora UTC</span>
+        <input type="datetime-local" id="hourInput" step="3600" />
+      </label>
+      <button type="button" id="btnLoad" class="btn primary">Actualizar</button>
+      <label class="check">
+        <input type="checkbox" id="chkNil" />
+        Incluir NIL
+      </label>
+    </div>
+    <div class="status" id="status">Cargando…</div>
+  </header>
+
+  <main id="map"></main>
+
+  <aside id="detail" class="detail hidden" aria-live="polite">
+    <button type="button" class="detail-close" id="detailClose" aria-label="Cerrar">×</button>
+    <div id="detailBody"></div>
+  </aside>
+
+  <div id="hoverTip" class="hover-tip hidden"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/js/symbols.js"></script>
+  <script src="/static/js/station-plot.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

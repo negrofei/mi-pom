@@ -1,0 +1,1091 @@
+[
+  {
+    "omm": "87007",
+    "nombre": "LA QUIACA OBSERVATORIO",
+    "lng": -65.60071,
+    "lat": -22.10343,
+    "elev": 3459.0,
+    "wigos": "0-20000-0-87007",
+    "status": "operational"
+  },
+  {
+    "omm": "87016",
+    "nombre": "ORAN AERO",
+    "lng": -64.32814,
+    "lat": -23.15469,
+    "elev": 357.0,
+    "wigos": "0-20000-0-87016",
+    "status": "operational"
+  },
+  {
+    "omm": "87022",
+    "nombre": "TARTAGAL AERO",
+    "lng": -63.79653,
+    "lat": -22.61658,
+    "elev": 450.0,
+    "wigos": "0-20000-0-87022",
+    "status": "operational"
+  },
+  {
+    "omm": "87043",
+    "nombre": "JUJUY UN",
+    "lng": -65.32633,
+    "lat": -24.17861,
+    "elev": 1302,
+    "wigos": "0-32-0-0087043CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87046",
+    "nombre": "JUJUY AERO",
+    "lng": -65.0955,
+    "lat": -24.38396,
+    "elev": 907.0,
+    "wigos": "0-20000-0-87046",
+    "status": "operational"
+  },
+  {
+    "omm": "87047",
+    "nombre": "SALTA AERO",
+    "lng": -65.47575,
+    "lat": -24.84434,
+    "elev": 1221.0,
+    "wigos": "0-20000-0-87047",
+    "status": "operational"
+  },
+  {
+    "omm": "87050",
+    "nombre": "METAN",
+    "lng": -64.97295,
+    "lat": -25.52429,
+    "elev": 853,
+    "wigos": "0-32-0-0087050CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87065",
+    "nombre": "RIVADAVIA",
+    "lng": -62.88663,
+    "lat": -24.18532,
+    "elev": 205.0,
+    "wigos": "0-20000-0-87065",
+    "status": "operational"
+  },
+  {
+    "omm": "87078",
+    "nombre": "LAS LOMITAS",
+    "lng": -60.59411,
+    "lat": -24.70245,
+    "elev": 130.0,
+    "wigos": "0-20000-0-87078",
+    "status": "operational"
+  },
+  {
+    "omm": "87097",
+    "nombre": "IGUAZU AERO",
+    "lng": -54.47897,
+    "lat": -25.73108,
+    "elev": 270.0,
+    "wigos": "0-20000-0-87097",
+    "status": "operational"
+  },
+  {
+    "omm": "87121",
+    "nombre": "TUCUMAN AERO",
+    "lng": -65.10843,
+    "lat": -26.8373,
+    "elev": 440.0,
+    "wigos": "0-20000-0-87121",
+    "status": "operational"
+  },
+  {
+    "omm": "87127",
+    "nombre": "TERMAS DE RIO HONDO AERO",
+    "lng": -64.93434,
+    "lat": -27.50611,
+    "elev": 278,
+    "wigos": "0-32-0-0087127CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87129",
+    "nombre": "SANTIAGO DEL ESTERO AERO",
+    "lng": -64.2998,
+    "lat": -27.75481,
+    "elev": 198.0,
+    "wigos": "0-20000-0-87129",
+    "status": "operational"
+  },
+  {
+    "omm": "87148",
+    "nombre": "PRESIDENCIA ROQUE SAENZ PEÑA AERO",
+    "lng": -60.48678,
+    "lat": -26.74637,
+    "elev": 91.0,
+    "wigos": "0-20000-0-87148",
+    "status": "operational"
+  },
+  {
+    "omm": "87155",
+    "nombre": "RESISTENCIA AERO",
+    "lng": -59.04602,
+    "lat": -27.43888,
+    "elev": 53.0,
+    "wigos": "0-20000-0-87155",
+    "status": "operational"
+  },
+  {
+    "omm": "87162",
+    "nombre": "FORMOSA AERO",
+    "lng": -58.22929,
+    "lat": -26.21242,
+    "elev": 59.0,
+    "wigos": "0-20000-0-87162",
+    "status": "operational"
+  },
+  {
+    "omm": "87163",
+    "nombre": "BERNARDO DE IRIGOYEN AERO",
+    "lng": -53.67121,
+    "lat": -26.27793,
+    "elev": 815.0,
+    "wigos": "0-20000-0-87163",
+    "status": "operational"
+  },
+  {
+    "omm": "87166",
+    "nombre": "CORRIENTES AERO",
+    "lng": -58.75974,
+    "lat": -27.44979,
+    "elev": 62.0,
+    "wigos": "0-20000-0-87166",
+    "status": "operational"
+  },
+  {
+    "omm": "87173",
+    "nombre": "ITUZAINGO",
+    "lng": -56.67725,
+    "lat": -27.58565,
+    "elev": 72.0,
+    "wigos": "0-20000-0-87173",
+    "status": "operational"
+  },
+  {
+    "omm": "87178",
+    "nombre": "POSADAS AERO",
+    "lng": -55.96705,
+    "lat": -27.391,
+    "elev": 131.0,
+    "wigos": "0-20000-0-87178",
+    "status": "operational"
+  },
+  {
+    "omm": "87187",
+    "nombre": "OBERA",
+    "lng": -55.13158,
+    "lat": -27.48372,
+    "elev": 303.0,
+    "wigos": "0-20000-0-87187",
+    "status": "operational"
+  },
+  {
+    "omm": "87211",
+    "nombre": "TINOGASTA",
+    "lng": -67.56526,
+    "lat": -28.06725,
+    "elev": 1214.0,
+    "wigos": "0-20000-0-87211",
+    "status": "operational"
+  },
+  {
+    "omm": "87213",
+    "nombre": "CHILECITO AERO",
+    "lng": -67.44249,
+    "lat": -29.21836,
+    "elev": 925.0,
+    "wigos": "0-20000-0-87213",
+    "status": "operational"
+  },
+  {
+    "omm": "87217",
+    "nombre": "LA RIOJA AERO",
+    "lng": -66.79336,
+    "lat": -29.38171,
+    "elev": 438.0,
+    "wigos": "0-20000-0-87217",
+    "status": "operational"
+  },
+  {
+    "omm": "87222",
+    "nombre": "CATAMARCA AERO",
+    "lng": -65.75528,
+    "lat": -28.59348,
+    "elev": 464.0,
+    "wigos": "0-20000-0-87222",
+    "status": "operational"
+  },
+  {
+    "omm": "87244",
+    "nombre": "VILLA DE MARIA DEL RIO SECO",
+    "lng": -63.72755,
+    "lat": -29.90577,
+    "elev": 341.0,
+    "wigos": "0-20000-0-87244",
+    "status": "operational"
+  },
+  {
+    "omm": "87257",
+    "nombre": "CERES AERO",
+    "lng": -61.93604,
+    "lat": -29.87556,
+    "elev": 87.0,
+    "wigos": "0-20000-0-87257",
+    "status": "operational"
+  },
+  {
+    "omm": "87270",
+    "nombre": "RECONQUISTA AERO",
+    "lng": -59.69338,
+    "lat": -29.20508,
+    "elev": 48.0,
+    "wigos": "0-20000-0-87270",
+    "status": "operational"
+  },
+  {
+    "omm": "87281",
+    "nombre": "MERCEDES AERO",
+    "lng": -58.08568,
+    "lat": -29.22599,
+    "elev": 107,
+    "wigos": "0-32-0-0087281CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87289",
+    "nombre": "PASO DE LOS LIBRES AERO",
+    "lng": -57.14849,
+    "lat": -29.68931,
+    "elev": 69.0,
+    "wigos": "0-20000-0-87289",
+    "status": "operational"
+  },
+  {
+    "omm": "87305",
+    "nombre": "JACHAL",
+    "lng": -68.739,
+    "lat": -30.22938,
+    "elev": 1178.0,
+    "wigos": "0-20000-0-87305",
+    "status": "operational"
+  },
+  {
+    "omm": "87311",
+    "nombre": "SAN JUAN AERO",
+    "lng": -68.4224,
+    "lat": -31.57462,
+    "elev": 597.0,
+    "wigos": "0-20000-0-87311",
+    "status": "operational"
+  },
+  {
+    "omm": "87320",
+    "nombre": "CHAMICAL AERO",
+    "lng": -66.29641,
+    "lat": -30.34773,
+    "elev": 461.0,
+    "wigos": "0-20000-0-87320",
+    "status": "operational"
+  },
+  {
+    "omm": "87322",
+    "nombre": "CHEPES",
+    "lng": -66.58858,
+    "lat": -31.33164,
+    "elev": 658.0,
+    "wigos": "0-20000-0-87322",
+    "status": "operational"
+  },
+  {
+    "omm": "87328",
+    "nombre": "VILLA DOLORES AERO",
+    "lng": -65.14904,
+    "lat": -31.95129,
+    "elev": 561.0,
+    "wigos": "0-20000-0-87328",
+    "status": "operational"
+  },
+  {
+    "omm": "87344",
+    "nombre": "CORDOBA AERO",
+    "lng": -64.21185,
+    "lat": -31.29663,
+    "elev": 493.0,
+    "wigos": "0-20000-0-87344",
+    "status": "operational"
+  },
+  {
+    "omm": "87345",
+    "nombre": "CORDOBA OBSERVATORIO",
+    "lng": -64.19826,
+    "lat": -31.42076,
+    "elev": 426.0,
+    "wigos": "0-20000-0-87345",
+    "status": "operational"
+  },
+  {
+    "omm": "87347",
+    "nombre": "ESCUELA DE AVIACION MILITAR AERO",
+    "lng": -64.28061,
+    "lat": -31.44207,
+    "elev": 502.0,
+    "wigos": "0-20000-0-87347",
+    "status": "operational"
+  },
+  {
+    "omm": "87349",
+    "nombre": "PILAR OBSERVATORIO",
+    "lng": -63.88202,
+    "lat": -31.66809,
+    "elev": 338.0,
+    "wigos": "0-20000-0-87349",
+    "status": "operational"
+  },
+  {
+    "omm": "87356",
+    "nombre": "SUNCHALES AERO",
+    "lng": -61.53229,
+    "lat": -30.95677,
+    "elev": 92,
+    "wigos": "0-32-0-0087356CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87360",
+    "nombre": "RAFAELA AERO",
+    "lng": -61.50954,
+    "lat": -31.27751,
+    "elev": 99,
+    "wigos": "0-32-0-0087360CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87371",
+    "nombre": "SAUCE VIEJO AERO",
+    "lng": -60.80532,
+    "lat": -31.7078,
+    "elev": 17.0,
+    "wigos": "0-20000-0-87371",
+    "status": "operational"
+  },
+  {
+    "omm": "87374",
+    "nombre": "PARANA AERO",
+    "lng": -60.48411,
+    "lat": -31.79033,
+    "elev": 74.0,
+    "wigos": "0-20000-0-87374",
+    "status": "operational"
+  },
+  {
+    "omm": "87393",
+    "nombre": "MONTE CASEROS AERO",
+    "lng": -57.639,
+    "lat": -30.26172,
+    "elev": 53.0,
+    "wigos": "0-20000-0-87393",
+    "status": "operational"
+  },
+  {
+    "omm": "87395",
+    "nombre": "CONCORDIA AERO",
+    "lng": -58.00147,
+    "lat": -31.30223,
+    "elev": 35.0,
+    "wigos": "0-20000-0-87395",
+    "status": "operational"
+  },
+  {
+    "omm": "87405",
+    "nombre": "USPALLATA",
+    "lng": -69.34008,
+    "lat": -32.59459,
+    "elev": 1899,
+    "wigos": "0-20000-0-87405",
+    "status": "operational"
+  },
+  {
+    "omm": "87416",
+    "nombre": "SAN MARTIN (MZA)",
+    "lng": -68.46489,
+    "lat": -33.07325,
+    "elev": 653.0,
+    "wigos": "0-20000-0-87416",
+    "status": "operational"
+  },
+  {
+    "omm": "87418",
+    "nombre": "MENDOZA AERO",
+    "lng": -68.79631,
+    "lat": -32.84375,
+    "elev": 705.0,
+    "wigos": "0-20000-0-87418",
+    "status": "operational"
+  },
+  {
+    "omm": "87420",
+    "nombre": "MENDOZA OBSERVATORIO",
+    "lng": -68.8728,
+    "lat": -32.89476,
+    "elev": 827.0,
+    "wigos": "0-20000-0-87420",
+    "status": "operational"
+  },
+  {
+    "omm": "87436",
+    "nombre": "SAN LUIS AERO",
+    "lng": -66.35139,
+    "lat": -33.27453,
+    "elev": 710.0,
+    "wigos": "0-20000-0-87436",
+    "status": "operational"
+  },
+  {
+    "omm": "87444",
+    "nombre": "SANTA ROSA DE CONLARA AERO",
+    "lng": -65.17992,
+    "lat": -32.37899,
+    "elev": 615.0,
+    "wigos": "0-20000-0-87444",
+    "status": "operational"
+  },
+  {
+    "omm": "87448",
+    "nombre": "VILLA REYNOLDS AERO",
+    "lng": -65.37369,
+    "lat": -33.71814,
+    "elev": 485.0,
+    "wigos": "0-20000-0-87448",
+    "status": "operational"
+  },
+  {
+    "omm": "87453",
+    "nombre": "RIO CUARTO AERO",
+    "lng": -64.27697,
+    "lat": -33.0955,
+    "elev": 420.0,
+    "wigos": "0-20000-0-87453",
+    "status": "operational"
+  },
+  {
+    "omm": "87467",
+    "nombre": "MARCOS JUAREZ AERO",
+    "lng": -62.15051,
+    "lat": -32.6797,
+    "elev": 110.0,
+    "wigos": "0-20000-0-87467",
+    "status": "operational"
+  },
+  {
+    "omm": "87468",
+    "nombre": "VENADO TUERTO AERO",
+    "lng": -61.96136,
+    "lat": -33.68226,
+    "elev": 112.0,
+    "wigos": "0-20000-0-87468",
+    "status": "operational"
+  },
+  {
+    "omm": "87480",
+    "nombre": "ROSARIO AERO",
+    "lng": -60.78216,
+    "lat": -32.90816,
+    "elev": 25.0,
+    "wigos": "0-20000-0-87480",
+    "status": "operational"
+  },
+  {
+    "omm": "87497",
+    "nombre": "GUALEGUAYCHU AERO",
+    "lng": -58.61076,
+    "lat": -33.01245,
+    "elev": 23.0,
+    "wigos": "0-20000-0-87497",
+    "status": "operational"
+  },
+  {
+    "omm": "87506",
+    "nombre": "MALARGUE AERO",
+    "lng": -69.58338,
+    "lat": -35.48129,
+    "elev": 1429.0,
+    "wigos": "0-20000-0-87506",
+    "status": "operational"
+  },
+  {
+    "omm": "87509",
+    "nombre": "SAN RAFAEL AERO",
+    "lng": -68.40163,
+    "lat": -34.59087,
+    "elev": 751.0,
+    "wigos": "0-20000-0-87509",
+    "status": "operational"
+  },
+  {
+    "omm": "87532",
+    "nombre": "GENERAL PICO AERO",
+    "lng": -63.75938,
+    "lat": -35.68813,
+    "elev": 139.0,
+    "wigos": "0-20000-0-87532",
+    "status": "operational"
+  },
+  {
+    "omm": "87534",
+    "nombre": "LABOULAYE AERO",
+    "lng": -63.36763,
+    "lat": -34.12784,
+    "elev": 136.0,
+    "wigos": "0-20000-0-87534",
+    "status": "operational"
+  },
+  {
+    "omm": "87540",
+    "nombre": "TRENQUE LAUQUEN",
+    "lng": -62.72613,
+    "lat": -35.96904,
+    "elev": 95,
+    "wigos": "0-32-0-0087540CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87544",
+    "nombre": "PEHUAJO AERO",
+    "lng": -61.85978,
+    "lat": -35.8407,
+    "elev": 87.0,
+    "wigos": "0-20000-0-87544",
+    "status": "operational"
+  },
+  {
+    "omm": "87548",
+    "nombre": "JUNIN AERO",
+    "lng": -60.93127,
+    "lat": -34.55251,
+    "elev": 82.0,
+    "wigos": "0-20000-0-87548",
+    "status": "operational"
+  },
+  {
+    "omm": "87550",
+    "nombre": "NUEVE DE JULIO",
+    "lng": -60.88191,
+    "lat": -35.43899,
+    "elev": 76.0,
+    "wigos": "0-20000-0-87550",
+    "status": "operational"
+  },
+  {
+    "omm": "87553",
+    "nombre": "SAN FERNANDO AERO",
+    "lng": -58.58449,
+    "lat": -34.45502,
+    "elev": 3.0,
+    "wigos": "0-20000-0-87553",
+    "status": "operational"
+  },
+  {
+    "omm": "87563",
+    "nombre": "LAS FLORES",
+    "lng": -59.13724,
+    "lat": -36.04149,
+    "elev": 38.0,
+    "wigos": "0-20000-0-87563",
+    "status": "operational"
+  },
+  {
+    "omm": "87570",
+    "nombre": "CAMPO DE MAYO AERO",
+    "lng": -58.67505,
+    "lat": -34.53593,
+    "elev": 26,
+    "wigos": "0-32-0-0087570CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87571",
+    "nombre": "EL PALOMAR AERO",
+    "lng": -58.61258,
+    "lat": -34.60304,
+    "elev": 12.0,
+    "wigos": "0-20000-0-87571",
+    "status": "operational"
+  },
+  {
+    "omm": "87572",
+    "nombre": "MARIANO MORENO AERO",
+    "lng": -58.78656,
+    "lat": -34.55789,
+    "elev": 32,
+    "wigos": "0-32-0-0087572CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87573",
+    "nombre": "MERLO AERO",
+    "lng": -58.74476,
+    "lat": -34.68468,
+    "elev": 24,
+    "wigos": "0-32-0-0087573CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87574",
+    "nombre": "MORON AERO",
+    "lng": -58.63821,
+    "lat": -34.67115,
+    "elev": 24,
+    "wigos": "0-32-0-0087574CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87576",
+    "nombre": "EZEIZA AERO",
+    "lng": -58.54229,
+    "lat": -34.81856,
+    "elev": 20.0,
+    "wigos": "0-20000-0-87576",
+    "status": "operational"
+  },
+  {
+    "omm": "87582",
+    "nombre": "AEROPARQUE AERO",
+    "lng": -58.41982,
+    "lat": -34.55891,
+    "elev": 6.0,
+    "wigos": "0-20000-0-87582",
+    "status": "operational"
+  },
+  {
+    "omm": "87585",
+    "nombre": "BUENOS AIRES OBSERVATORIO",
+    "lng": -58.48397,
+    "lat": -34.59022,
+    "elev": 25.0,
+    "wigos": "0-20000-0-87585",
+    "status": "operational"
+  },
+  {
+    "omm": "87593",
+    "nombre": "LA PLATA AERO",
+    "lng": -57.89608,
+    "lat": -34.96614,
+    "elev": 19.0,
+    "wigos": "0-20000-0-87593",
+    "status": "operational"
+  },
+  {
+    "omm": "87596",
+    "nombre": "PUNTA INDIO B.A.",
+    "lng": -57.29254,
+    "lat": -35.35118,
+    "elev": 17.0,
+    "wigos": "0-20000-0-87596",
+    "status": "operational"
+  },
+  {
+    "omm": "87616",
+    "nombre": "VICTORICA",
+    "lng": -65.43579,
+    "lat": -36.2231,
+    "elev": 312,
+    "wigos": "0-32-0-0087616CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87623",
+    "nombre": "SANTA ROSA AERO",
+    "lng": -64.27988,
+    "lat": -36.59311,
+    "elev": 190.0,
+    "wigos": "0-20000-0-87623",
+    "status": "operational"
+  },
+  {
+    "omm": "87637",
+    "nombre": "CORONEL SUAREZ AERO",
+    "lng": -61.89072,
+    "lat": -37.45334,
+    "elev": 233.0,
+    "wigos": "0-20000-0-87637",
+    "status": "operational"
+  },
+  {
+    "omm": "87640",
+    "nombre": "BOLIVAR AERO",
+    "lng": -61.07265,
+    "lat": -36.18638,
+    "elev": 94.0,
+    "wigos": "0-20000-0-87640",
+    "status": "operational"
+  },
+  {
+    "omm": "87641",
+    "nombre": "AZUL AERO",
+    "lng": -59.88642,
+    "lat": -36.83212,
+    "elev": 146.0,
+    "wigos": "0-20000-0-87641",
+    "status": "operational"
+  },
+  {
+    "omm": "87643",
+    "nombre": "OLAVARRIA AERO",
+    "lng": -60.2228,
+    "lat": -36.89058,
+    "elev": 166.0,
+    "wigos": "0-20000-0-87643",
+    "status": "operational"
+  },
+  {
+    "omm": "87645",
+    "nombre": "TANDIL AERO",
+    "lng": -59.23323,
+    "lat": -37.24117,
+    "elev": 175.0,
+    "wigos": "0-20000-0-87645",
+    "status": "operational"
+  },
+  {
+    "omm": "87648",
+    "nombre": "DOLORES AERO",
+    "lng": -57.71687,
+    "lat": -36.31695,
+    "elev": 10.0,
+    "wigos": "0-20000-0-87648",
+    "status": "operational"
+  },
+  {
+    "omm": "87649",
+    "nombre": "BENITO JUAREZ AERO",
+    "lng": -59.79106,
+    "lat": -37.70129,
+    "elev": 210.0,
+    "wigos": "0-20000-0-87649",
+    "status": "operational"
+  },
+  {
+    "omm": "87663",
+    "nombre": "VILLA GESELL AERO",
+    "lng": -57.01875,
+    "lat": -37.23532,
+    "elev": 9,
+    "wigos": "0-32-0-0087663CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87679",
+    "nombre": "PIGUE AERO",
+    "lng": -62.38654,
+    "lat": -37.60819,
+    "elev": 304.0,
+    "wigos": "0-20000-0-87679",
+    "status": "operational"
+  },
+  {
+    "omm": "87683",
+    "nombre": "CORONEL PRINGLES AERO",
+    "lng": -61.32996,
+    "lat": -38.00431,
+    "elev": 247,
+    "wigos": "0-32-0-87683",
+    "status": "standBy"
+  },
+  {
+    "omm": "87688",
+    "nombre": "TRES ARROYOS",
+    "lng": -60.28454,
+    "lat": -38.35947,
+    "elev": 115.0,
+    "wigos": "0-20000-0-87688",
+    "status": "operational"
+  },
+  {
+    "omm": "87692",
+    "nombre": "MAR DEL PLATA AERO",
+    "lng": -57.58145,
+    "lat": -37.9321,
+    "elev": 18.0,
+    "wigos": "0-20000-0-87692",
+    "status": "operational"
+  },
+  {
+    "omm": "87715",
+    "nombre": "NEUQUEN AERO",
+    "lng": -68.1367,
+    "lat": -38.95204,
+    "elev": 270.0,
+    "wigos": "0-20000-0-87715",
+    "status": "operational"
+  },
+  {
+    "omm": "87719",
+    "nombre": "CIPOLLETTI",
+    "lng": -67.97849,
+    "lat": -38.94121,
+    "elev": 265,
+    "wigos": "0-32-0-0087719CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87736",
+    "nombre": "RIO COLORADO",
+    "lng": -64.08717,
+    "lat": -38.99108,
+    "elev": 79.0,
+    "wigos": "0-20000-0-87736",
+    "status": "operational"
+  },
+  {
+    "omm": "87750",
+    "nombre": "BAHIA BLANCA AERO",
+    "lng": -62.16304,
+    "lat": -38.71474,
+    "elev": 75.0,
+    "wigos": "0-20000-0-87750",
+    "status": "operational"
+  },
+  {
+    "omm": "87761",
+    "nombre": "CHAPELCO AERO",
+    "lng": -71.1441,
+    "lat": -40.08053,
+    "elev": 779,
+    "wigos": "0-32-0-0087761CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87765",
+    "nombre": "BARILOCHE AERO",
+    "lng": -71.16417,
+    "lat": -41.1475,
+    "elev": 835.0,
+    "wigos": "0-20000-0-87765",
+    "status": "operational"
+  },
+  {
+    "omm": "87774",
+    "nombre": "MAQUINCHAO",
+    "lng": -68.70648,
+    "lat": -41.2439,
+    "elev": 888.0,
+    "wigos": "0-20000-0-87774",
+    "status": "operational"
+  },
+  {
+    "omm": "87784",
+    "nombre": "SAN ANTONIO OESTE AERO",
+    "lng": -65.03093,
+    "lat": -40.75716,
+    "elev": 20.0,
+    "wigos": "0-20000-0-87784",
+    "status": "operational"
+  },
+  {
+    "omm": "87791",
+    "nombre": "VIEDMA AERO",
+    "lng": -63.007,
+    "lat": -40.86347,
+    "elev": 6.0,
+    "wigos": "0-20000-0-87791",
+    "status": "operational"
+  },
+  {
+    "omm": "87800",
+    "nombre": "EL BOLSON AERO",
+    "lng": -71.53394,
+    "lat": -41.95407,
+    "elev": 337.0,
+    "wigos": "0-20000-0-87800",
+    "status": "operational"
+  },
+  {
+    "omm": "87803",
+    "nombre": "ESQUEL AERO",
+    "lng": -71.145,
+    "lat": -42.90588,
+    "elev": 799.0,
+    "wigos": "0-20000-0-87803",
+    "status": "operational"
+  },
+  {
+    "omm": "87814",
+    "nombre": "PASO DE INDIOS",
+    "lng": -69.04753,
+    "lat": -43.86177,
+    "elev": 460.0,
+    "wigos": "0-20000-0-87814",
+    "status": "operational"
+  },
+  {
+    "omm": "87823",
+    "nombre": "PUERTO MADRYN AERO",
+    "lng": -65.10154,
+    "lat": -42.75552,
+    "elev": 136.0,
+    "wigos": "0-20000-0-87823",
+    "status": "operational"
+  },
+  {
+    "omm": "87828",
+    "nombre": "TRELEW AERO",
+    "lng": -65.28209,
+    "lat": -43.20894,
+    "elev": 39.0,
+    "wigos": "0-20000-0-87828",
+    "status": "operational"
+  },
+  {
+    "omm": "87852",
+    "nombre": "PERITO MORENO AERO",
+    "lng": -70.98495,
+    "lat": -46.53849,
+    "elev": 429.0,
+    "wigos": "0-20000-0-87852",
+    "status": "operational"
+  },
+  {
+    "omm": "87860",
+    "nombre": "COMODORO RIVADAVIA AERO",
+    "lng": -67.46194,
+    "lat": -45.7923,
+    "elev": 58.0,
+    "wigos": "0-20000-0-87860",
+    "status": "operational"
+  },
+  {
+    "omm": "87880",
+    "nombre": "GOBERNADOR GREGORES AERO",
+    "lng": -70.16268,
+    "lat": -48.78237,
+    "elev": 358.0,
+    "wigos": "0-20000-0-87880",
+    "status": "operational"
+  },
+  {
+    "omm": "87896",
+    "nombre": "PUERTO DESEADO AERO",
+    "lng": -65.90781,
+    "lat": -47.73373,
+    "elev": 81.0,
+    "wigos": "0-20000-0-87896",
+    "status": "operational"
+  },
+  {
+    "omm": "87904",
+    "nombre": "EL CALAFATE AERO",
+    "lng": -72.05149,
+    "lat": -50.28455,
+    "elev": 199.0,
+    "wigos": "0-20000-0-87904",
+    "status": "operational"
+  },
+  {
+    "omm": "87909",
+    "nombre": "SAN JULIAN AERO",
+    "lng": -67.80319,
+    "lat": -49.3082,
+    "elev": 58.0,
+    "wigos": "0-20000-0-87909",
+    "status": "operational"
+  },
+  {
+    "omm": "87912",
+    "nombre": "SANTA CRUZ AERO",
+    "lng": -68.57888,
+    "lat": -50.02175,
+    "elev": 111,
+    "wigos": "0-32-0-0087912CONV",
+    "status": "operational"
+  },
+  {
+    "omm": "87925",
+    "nombre": "RIO GALLEGOS AERO",
+    "lng": -69.30798,
+    "lat": -51.61156,
+    "elev": 19,
+    "wigos": "0-20000-0-87925",
+    "status": "operational"
+  },
+  {
+    "omm": "87934",
+    "nombre": "RIO GRANDE B.A.",
+    "lng": -67.75871,
+    "lat": -53.78026,
+    "elev": 22.0,
+    "wigos": "0-20000-0-87934",
+    "status": "operational"
+  },
+  {
+    "omm": "87938",
+    "nombre": "USHUAIA AERO",
+    "lng": -68.30342,
+    "lat": -54.84005,
+    "elev": 57.0,
+    "wigos": "0-20000-0-87938",
+    "status": "operational"
+  },
+  {
+    "omm": "88963",
+    "nombre": "BASE ESPERANZA",
+    "lng": -56.99789,
+    "lat": -63.39884,
+    "elev": 24.0,
+    "wigos": "0-20000-0-88963",
+    "status": "operational"
+  },
+  {
+    "omm": "88968",
+    "nombre": "BASE ORCADAS",
+    "lng": -44.73846,
+    "lat": -60.73775,
+    "elev": 8.0,
+    "wigos": "0-20000-0-88968",
+    "status": "operational"
+  },
+  {
+    "omm": "89034",
+    "nombre": "BASE BELGRANO II",
+    "lng": -34.62555,
+    "lat": -77.87361,
+    "elev": 256.0,
+    "wigos": "0-20000-0-89034",
+    "status": "operational"
+  },
+  {
+    "omm": "89053",
+    "nombre": "BASE CARLINI",
+    "lng": -58.66474,
+    "lat": -62.23789,
+    "elev": 11.0,
+    "wigos": "0-20000-0-89053",
+    "status": "operational"
+  },
+  {
+    "omm": "89055",
+    "nombre": "BASE MARAMBIO",
+    "lng": -56.62503,
+    "lat": -64.24141,
+    "elev": 208.0,
+    "wigos": "0-20000-0-89055",
+    "status": "operational"
+  },
+  {
+    "omm": "89066",
+    "nombre": "BASE SAN MARTIN",
+    "lng": -67.1031,
+    "lat": -68.13071,
+    "elev": 7.0,
+    "wigos": "0-20000-0-89066",
+    "status": "operational"
+  }
+]
