@@ -48,19 +48,32 @@ def api_stations():
 @app.get("/api/synops")
 def api_synops():
     hour = request.args.get("hour")  # YYYYMMDDHH UTC opcional
+    timeline = (request.args.get("timeline") or "exact").lower()
+    if timeline not in ("exact", "latest"):
+        return jsonify({"error": "timeline debe ser 'exact' o 'latest'"}), 400
+
+    try:
+        lookback = int(request.args.get("lookback", "24"))
+    except ValueError:
+        return jsonify({"error": "lookback inválido"}), 400
+    lookback = max(1, min(lookback, 72))
+
     try:
         when = resolve_synop_hour(hour)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    # Ventana de 1 h hacia atrás por si falta la hora exacta
     try:
-        synops = fetch_argentina_synops(when, stations=STATIONS, lookback_hours=1)
+        synops = fetch_argentina_synops(
+            when,
+            stations=STATIONS,
+            timeline=timeline,  # type: ignore[arg-type]
+            lookback_hours=lookback,
+        )
     except Exception as exc:  # noqa: BLE001
         log.exception("Error consultando OGIMET")
         return jsonify({"error": f"No se pudo consultar OGIMET: {exc}"}), 502
 
-    # Filtrar NIL si se pide
     include_nil = request.args.get("nil", "0") == "1"
     if not include_nil:
         synops = [s for s in synops if not s.nil]
@@ -68,6 +81,8 @@ def api_synops():
     payload = {
         "hour": when.strftime("%Y%m%d%H"),
         "hour_label": when.strftime("%d/%m/%Y %H:00 UTC"),
+        "timeline": timeline,
+        "lookback_hours": lookback if timeline == "latest" else 0,
         "source": "OGIMET",
         "count": len(synops),
         "synops": [s.to_dict() for s in synops],

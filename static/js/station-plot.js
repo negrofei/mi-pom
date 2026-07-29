@@ -79,7 +79,8 @@
     </div>`;
   }
 
-  function buildStationHtml(obs) {
+  function buildStationHtml(obs, options) {
+    const scale = Math.max(0.4, Math.min(1.5, Number(options && options.scale) || 0.75));
     if (obs.nil) {
       return `<div class="plot plot-nil">NIL</div>`;
     }
@@ -92,7 +93,8 @@
     const heights = heightsByLevel(layers);
 
     return `
-      <div class="plot">
+      <div class="plot" style="--plot-scale:${scale}">
+        <div class="plot-inner">
         ${
           hasCloudCode(obs.ch)
             ? png(`simbolos/CH${obs.ch}.png`, "plot-ch", "", S().cloudLabel("CH", obs.ch))
@@ -150,6 +152,7 @@
             : ""
         }
         ${heightBadge(heights.low, "baja", "sección 3")}
+        </div>
       </div>
     `;
   }
