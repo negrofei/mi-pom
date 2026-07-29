@@ -156,7 +156,7 @@
         layer.height_ft != null
           ? layer.height_ft
           : layer.height_m != null
-            ? Math.round(layer.height_m * 3.28084)
+            ? Math.round((layer.height_m * 3.28084) / 100) * 100
             : null;
       const bits = [
         ft != null ? `${ft} ft` : null,
