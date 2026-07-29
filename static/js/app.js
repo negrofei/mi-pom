@@ -1,12 +1,49 @@
 (function () {
+  const STORAGE_KEY = "synop-ar-config-v1";
+  const BASE_W = 120;
+  const BASE_H = 160;
+  const REFRESH_MS = 2 * 60 * 1000;
+
   const statusEl = document.getElementById("status");
   const hourInput = document.getElementById("hourInput");
   const btnLoad = document.getElementById("btnLoad");
+  const btnConfig = document.getElementById("btnConfig");
+  const configPanel = document.getElementById("configPanel");
+  const configClose = document.getElementById("configClose");
   const chkNil = document.getElementById("chkNil");
+  const cfgAutorefresh = document.getElementById("cfgAutorefresh");
+  const cfgTimelineExact = document.getElementById("cfgTimelineExact");
+  const cfgTimelineLatest = document.getElementById("cfgTimelineLatest");
+  const cfgPlotScale = document.getElementById("cfgPlotScale");
+  const cfgScaleLabel = document.getElementById("cfgScaleLabel");
   const detail = document.getElementById("detail");
   const detailBody = document.getElementById("detailBody");
   const detailClose = document.getElementById("detailClose");
   const hoverTip = document.getElementById("hoverTip");
+
+  const defaults = {
+    autorefresh: false,
+    timeline: "exact",
+    plotScale: 0.75,
+    includeNil: false,
+  };
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { ...defaults };
+      return { ...defaults, ...JSON.parse(raw) };
+    } catch {
+      return { ...defaults };
+    }
+  }
+
+  function saveSettings(settings) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  }
+
+  let settings = loadSettings();
+  let refreshTimer = null;
 
   const map = L.map("map", {
     center: [-40.5, -64.5],
@@ -26,7 +63,9 @@
   }
 
   function toLocalInputValue(utcDate) {
-    return `${utcDate.getUTCFullYear()}-${pad(utcDate.getUTCMonth() + 1)}-${pad(utcDate.getUTCDate())}T${pad(utcDate.getUTCHours())}:00`;
+    return `${utcDate.getUTCFullYear()}-${pad(utcDate.getUTCMonth() + 1)}-${pad(
+      utcDate.getUTCDate()
+    )}T${pad(utcDate.getUTCHours())}:00`;
   }
 
   function hourParamFromInput() {
@@ -42,6 +81,47 @@
     const now = new Date();
     now.setUTCMinutes(0, 0, 0);
     hourInput.value = toLocalInputValue(now);
+  }
+
+  function applySettingsToUi() {
+    cfgAutorefresh.checked = !!settings.autorefresh;
+    chkNil.checked = !!settings.includeNil;
+    if (settings.timeline === "latest") cfgTimelineLatest.checked = true;
+    else cfgTimelineExact.checked = true;
+    cfgPlotScale.value = String(settings.plotScale);
+    cfgScaleLabel.textContent = Number(settings.plotScale).toFixed(2);
+  }
+
+  function readSettingsFromUi() {
+    settings = {
+      autorefresh: cfgAutorefresh.checked,
+      timeline: cfgTimelineLatest.checked ? "latest" : "exact",
+      plotScale: Number(cfgPlotScale.value),
+      includeNil: chkNil.checked,
+    };
+    cfgScaleLabel.textContent = settings.plotScale.toFixed(2);
+    saveSettings(settings);
+    syncAutorefresh();
+  }
+
+  function syncAutorefresh() {
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
+    if (settings.autorefresh) {
+      refreshTimer = setInterval(() => {
+        // En autorefresh, avanzar a la hora UTC actual
+        setDefaultHour();
+        loadSynops();
+      }, REFRESH_MS);
+    }
+  }
+
+  function toggleConfig(force) {
+    const open = force != null ? force : configPanel.classList.contains("hidden");
+    configPanel.classList.toggle("hidden", !open);
+    btnConfig.setAttribute("aria-expanded", open ? "true" : "false");
   }
 
   function showHover(html, evt) {
@@ -74,14 +154,20 @@
   }
 
   detailClose.addEventListener("click", () => detail.classList.add("hidden"));
+  configClose.addEventListener("click", () => toggleConfig(false));
+  btnConfig.addEventListener("click", () => toggleConfig());
 
   async function loadSynops() {
     const hour = hourParamFromInput();
-    const nil = chkNil.checked ? "1" : "0";
+    const nil = settings.includeNil ? "1" : "0";
+    const timeline = settings.timeline || "exact";
+    const scale = settings.plotScale || 0.75;
     statusEl.textContent = "Consultando OGIMET…";
     btnLoad.disabled = true;
     try {
-      const url = `/api/synops?nil=${nil}${hour ? `&hour=${hour}` : ""}`;
+      const url = `/api/synops?nil=${nil}&timeline=${timeline}&lookback=24${
+        hour ? `&hour=${hour}` : ""
+      }`;
       const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error de API");
@@ -89,15 +175,18 @@
       layerGroup.clearLayers();
       hideHover();
 
+      const w = Math.round(BASE_W * scale);
+      const h = Math.round(BASE_H * scale);
+
       for (const obs of data.synops) {
         if (obs.lat == null || obs.lng == null) continue;
 
-        const html = StationPlot.buildStationHtml(obs);
+        const html = StationPlot.buildStationHtml(obs, { scale });
         const icon = L.divIcon({
           className: "station-icon",
           html,
-          iconSize: obs.nil ? [72, 28] : [120, 160],
-          iconAnchor: obs.nil ? [36, 14] : [60, 80],
+          iconSize: obs.nil ? [72, 28] : [w, h],
+          iconAnchor: obs.nil ? [36, 14] : [Math.round(w / 2), Math.round(h / 2)],
         });
 
         const marker = L.marker([obs.lat, obs.lng], {
@@ -117,7 +206,8 @@
         marker.addTo(layerGroup);
       }
 
-      statusEl.textContent = `${data.hour_label} · ${data.count} estaciones`;
+      const modeLabel = timeline === "latest" ? "último dato" : "hora exacta";
+      statusEl.textContent = `${data.hour_label} · ${data.count} estaciones · ${modeLabel}`;
     } catch (err) {
       console.error(err);
       statusEl.textContent = `Error: ${err.message}`;
@@ -137,14 +227,14 @@
     }
     if (obs.cm && obs.cm !== "0") {
       offsets.push({
-        dlat: -0.06,
+        dlat: 0.03,
         dlng: 0.01,
         html: `<b>Sección 1 · CM</b><br/>${SynopSymbols.cloudLabel("CM", obs.cm)}`,
       });
     }
     if (obs.ch && obs.ch !== "0") {
       offsets.push({
-        dlat: -0.08,
+        dlat: 0.05,
         dlng: 0.01,
         html: `<b>Sección 1 · CH</b><br/>${SynopSymbols.cloudLabel("CH", obs.ch)}`,
       });
@@ -191,11 +281,24 @@
     }
   }
 
-  btnLoad.addEventListener("click", loadSynops);
-  chkNil.addEventListener("change", loadSynops);
-  hourInput.addEventListener("change", loadSynops);
+  function onConfigChange(reload) {
+    readSettingsFromUi();
+    if (reload) loadSynops();
+  }
 
+  btnLoad.addEventListener("click", loadSynops);
+  chkNil.addEventListener("change", () => onConfigChange(true));
+  hourInput.addEventListener("change", loadSynops);
+  cfgAutorefresh.addEventListener("change", () => onConfigChange(false));
+  cfgTimelineExact.addEventListener("change", () => onConfigChange(true));
+  cfgTimelineLatest.addEventListener("change", () => onConfigChange(true));
+  cfgPlotScale.addEventListener("input", () => {
+    cfgScaleLabel.textContent = Number(cfgPlotScale.value).toFixed(2);
+  });
+  cfgPlotScale.addEventListener("change", () => onConfigChange(true));
+
+  applySettingsToUi();
   setDefaultHour();
+  syncAutorefresh();
   loadSynops();
-  setInterval(loadSynops, 5 * 60 * 1000);
 })();
