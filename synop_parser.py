@@ -51,8 +51,9 @@ class SynopDecoded:
     # Sección 1
     precip_indicator: Optional[str] = None
     station_type: Optional[str] = None
+    visibility: Optional[str] = None  # VV (código)
+    visibility_m: Optional[int] = None  # visibilidad horizontal en metros
     cloud_base_h: Optional[str] = None  # h (tabla 1600)
-    visibility: Optional[str] = None  # VV
     total_cloud: Optional[str] = None  # N
     wind_dir: Optional[int] = None  # grados
     wind_speed: Optional[float] = None  # en unidades originales
@@ -154,6 +155,53 @@ def _meters_to_feet(meters: Optional[int]) -> Optional[int]:
     return int(round(feet / 100.0) * 100)
 
 
+def _visibility_meters(vv: Optional[str]) -> Optional[int]:
+    """Decodifica VV (tabla WMO 4377) a metros."""
+    if vv is None or "/" in vv:
+        return None
+    code = _safe_int(vv)
+    if code is None:
+        return None
+    if code == 0:
+        return 50  # < 100 m; usamos 50 como representativo
+    if 1 <= code <= 50:
+        return code * 100
+    if 56 <= code <= 80:
+        return (code - 50) * 1000
+    if code == 81:
+        return 35000
+    if code == 82:
+        return 40000
+    if code == 83:
+        return 45000
+    if code == 84:
+        return 50000
+    if code == 85:
+        return 60000
+    if code == 86:
+        return 70000
+    if code == 87:
+        return 80000
+    if code == 88:
+        return 90000
+    if code == 89:
+        return 100000  # > 70 km / ≥ 100 km según
+    # 90–99: valores especiales
+    special = {
+        90: 50,
+        91: 50,
+        92: 200,
+        93: 500,
+        94: 1000,
+        95: 2000,
+        96: 4000,
+        97: 10000,
+        98: 20000,
+        99: 50000,
+    }
+    return special.get(code)
+
+
 def _barb_key(speed_kt: Optional[float], wind_dir: Optional[int], notes: list[str]) -> str:
     """Clave de archivo barb_*.png como en el sistema original."""
     if any("variable" in n for n in notes) or wind_dir is None and speed_kt and speed_kt > 0:
@@ -252,6 +300,7 @@ def parse_synop(
         out.station_type = g0[1] if g0[1] != "/" else None
         out.cloud_base_h = g0[2] if g0[2] != "/" else None
         out.visibility = g0[3:5] if "//" not in g0[3:5] else None
+        out.visibility_m = _visibility_meters(out.visibility)
 
     # Segundo: Nddff
     if len(section1) > 1:

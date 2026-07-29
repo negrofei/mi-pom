@@ -1,11 +1,15 @@
 /**
  * Ploteo de estación SYNOP usando PNGs de /img (barbs + simbolos).
- * Incluye grupo 8 de sección 1 (NhCLCMCH) y capas 8NsChshs de sección 3.
+ * Layout vertical: CH / CM(+ft) / barba / CL(+ft)
  */
 (function (global) {
   const S = () => global.SynopSymbols;
   const WW = () => global.PresentWeather;
   const IMG = "/img";
+
+  const LOW_GENUS = new Set(["6", "7", "8", "9"]);
+  const MID_GENUS = new Set(["3", "4", "5"]);
+  const HIGH_GENUS = new Set(["0", "1", "2"]);
 
   function fmtTemp(v) {
     if (v == null || Number.isNaN(Number(v))) return "";
@@ -25,7 +29,12 @@
   }
 
   function hasImgCode(v) {
-    return v != null && v !== "" && v !== "/";
+    return v != null && v !== "" && v !== "/" && v !== "0";
+  }
+
+  function hasCloudCode(v) {
+    // 0 = "no clouds of that type" → no dibujar símbolo
+    return v != null && v !== "" && v !== "/" && v !== "0";
   }
 
   function barbSrc(obs) {
@@ -41,6 +50,35 @@
     return null;
   }
 
+  function layerLevel(layer) {
+    const g = layer.genus != null ? String(layer.genus) : "";
+    if (LOW_GENUS.has(g)) return "low";
+    if (MID_GENUS.has(g)) return "mid";
+    if (HIGH_GENUS.has(g)) return "high";
+    return null;
+  }
+
+  /** Elige la altura (ft) más representativa por nivel: la más baja de ese grupo. */
+  function heightsByLevel(layers) {
+    const out = { low: null, mid: null, high: null };
+    for (const layer of layers || []) {
+      const level = layerLevel(layer);
+      const ft = feetLabel(layer);
+      if (!level || ft == null) continue;
+      const n = Number(ft);
+      if (out[level] == null || n < out[level]) out[level] = n;
+    }
+    return out;
+  }
+
+  function heightBadge(ft, level, layerHint) {
+    if (ft == null) return "";
+    const tip = `${level} · ${ft} ft${layerHint ? " · " + layerHint : ""}`;
+    return `<div class="plot-layer plot-layer-${level}" title="${S().esc(tip)}">
+      <span class="plot-layer-ft">${S().esc(String(ft))}</span>
+    </div>`;
+  }
+
   function buildStationHtml(obs) {
     if (obs.nil) {
       return `<div class="plot plot-nil">NIL</div>`;
@@ -50,26 +88,22 @@
     const nCode = codeOr(obs.total_cloud, "9999");
     const aCode = codeOr(obs.tendency_char, "9999");
     const wwHtml = obs.present_weather ? WW().wwSymbolHtml(obs.present_weather) : "";
-
     const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
-    const layerHtml = layers
-      .map((layer, idx) => {
-        const ft = feetLabel(layer);
-        if (ft == null) return "";
-        const tipParts = [
-          `Sección 3 · ${layer.raw || ""}`,
-          layer.ns != null ? `Ns=${layer.ns}` : null,
-          layer.genus_name || (layer.genus != null ? `C=${layer.genus}` : null),
-          `${ft} ft`,
-        ].filter(Boolean);
-        return `<div class="plot-layer" data-layer="${idx}" title="${S().esc(tipParts.join(" · "))}">
-          <span class="plot-layer-ft">${S().esc(ft)}</span>
-        </div>`;
-      })
-      .join("");
+    const heights = heightsByLevel(layers);
 
     return `
       <div class="plot">
+        ${
+          hasCloudCode(obs.ch)
+            ? png(`simbolos/CH${obs.ch}.png`, "plot-ch", "", S().cloudLabel("CH", obs.ch))
+            : ""
+        }
+        ${
+          hasCloudCode(obs.cm)
+            ? png(`simbolos/CM${obs.cm}.png`, "plot-cm", "", S().cloudLabel("CM", obs.cm))
+            : ""
+        }
+        ${heightBadge(heights.mid, "media", "sección 3")}
         <img class="plot-barb" src="${IMG}/${barbSrc(obs)}" alt=""
              style="transform: rotate(${dir}deg);" draggable="false" />
         ${png(`simbolos/N${nCode}.png`, "plot-n", "", `N=${nCode}`)}
@@ -111,25 +145,11 @@
             : ""
         }
         ${
-          hasImgCode(obs.cl)
+          hasCloudCode(obs.cl)
             ? png(`simbolos/CL${obs.cl}.png`, "plot-cl", "", S().cloudLabel("CL", obs.cl))
             : ""
         }
-        ${
-          hasImgCode(obs.cm)
-            ? png(`simbolos/CM${obs.cm}.png`, "plot-cm", "", S().cloudLabel("CM", obs.cm))
-            : ""
-        }
-        ${
-          hasImgCode(obs.ch)
-            ? png(`simbolos/CH${obs.ch}.png`, "plot-ch", "", S().cloudLabel("CH", obs.ch))
-            : ""
-        }
-        ${
-          layers.length
-            ? `<div class="plot-sec3" title="Altura de nubes sección 3 (ft)">${layerHtml}</div>`
-            : ""
-        }
+        ${heightBadge(heights.low, "baja", "sección 3")}
       </div>
     `;
   }
@@ -143,16 +163,23 @@
       lines.push(
         `<b>Sección 1 · 8NhCLCMCH:</b> Nh=${S().esc(obs.nh ?? "/")} CL=${S().esc(obs.cl ?? "/")} CM=${S().esc(obs.cm ?? "/")} CH=${S().esc(obs.ch ?? "/")}`
       );
-      if (obs.cl) lines.push(S().cloudLabel("CL", obs.cl));
-      if (obs.cm) lines.push(S().cloudLabel("CM", obs.cm));
-      if (obs.ch) lines.push(S().cloudLabel("CH", obs.ch));
+      if (obs.cl && obs.cl !== "0") lines.push(S().cloudLabel("CL", obs.cl));
+      if (obs.cm && obs.cm !== "0") lines.push(S().cloudLabel("CM", obs.cm));
+      if (obs.ch && obs.ch !== "0") lines.push(S().cloudLabel("CH", obs.ch));
     } else {
       lines.push("<b>Sección 1 · 8NhCLCMCH:</b> (ausente)");
     }
 
     const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
+    const heights = heightsByLevel(layers);
+    if (heights.high != null || heights.mid != null || heights.low != null) {
+      lines.push("<b>Alturas sec.3 (ft):</b>");
+      if (heights.high != null) lines.push(`&nbsp;&nbsp;Alta: ${heights.high} ft`);
+      if (heights.mid != null) lines.push(`&nbsp;&nbsp;Media: ${heights.mid} ft`);
+      if (heights.low != null) lines.push(`&nbsp;&nbsp;Baja: ${heights.low} ft`);
+    }
     if (layers.length) {
-      lines.push(`<b>Sección 3 · altura de capas (${layers.length}):</b>`);
+      lines.push(`<b>Capas 8NsChshs (${layers.length}):</b>`);
       layers.forEach((layer, i) => {
         const ft = feetLabel(layer);
         const bits = [
@@ -166,6 +193,20 @@
       lines.push("<b>Sección 3 · capas:</b> (ausente)");
     }
     return lines.join("<br/>");
+  }
+
+  function fmtVisibility(obs) {
+    if (obs.visibility_m != null) {
+      const m = obs.visibility_m;
+      if (m >= 1000) {
+        const km = m / 1000;
+        const kmTxt = Number.isInteger(km) ? String(km) : km.toFixed(1);
+        return `${m} m (${kmTxt} km)`;
+      }
+      return `${m} m`;
+    }
+    if (obs.visibility) return `código VV ${obs.visibility}`;
+    return null;
   }
 
   function hoverHtml(obs) {
@@ -189,6 +230,8 @@
         }`
       );
     }
+    const vis = fmtVisibility(obs);
+    if (vis) lines.push(`<b>Visibilidad horizontal:</b> ${S().esc(vis)}`);
     if (obs.present_weather) {
       const decoded = WW().wwText(obs.present_weather);
       lines.push(`<b>Tiempo presente:</b> ${S().esc(decoded || obs.present_weather)}`);
@@ -234,6 +277,7 @@
       ],
       ["N (cobertura)", obs.total_cloud ?? "—"],
       ["Visibilidad VV", obs.visibility ?? "—"],
+      ["Visibilidad horizontal", fmtVisibility(obs) || "—"],
       ["h (base, sec.1)", obs.cloud_base_h ?? "—"],
       ["Tiempo presente", wwDecoded],
       ["Nh / CL / CM / CH (sec.1)", `${obs.nh ?? "/"} ${obs.cl ?? "/"} ${obs.cm ?? "/"} ${obs.ch ?? "/"}`],
