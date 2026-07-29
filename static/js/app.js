@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "synop-ar-config-v1";
+  const STORAGE_KEY = "synop-ar-config-v2";
   const BASE_W = 120;
   const BASE_H = 160;
   const REFRESH_MS = 2 * 60 * 1000;
@@ -14,8 +14,8 @@
   const cfgAutorefresh = document.getElementById("cfgAutorefresh");
   const cfgTimelineExact = document.getElementById("cfgTimelineExact");
   const cfgTimelineLatest = document.getElementById("cfgTimelineLatest");
-  const cfgPlotScale = document.getElementById("cfgPlotScale");
-  const cfgScaleLabel = document.getElementById("cfgScaleLabel");
+  const cfgPlotGap = document.getElementById("cfgPlotGap");
+  const cfgGapLabel = document.getElementById("cfgGapLabel");
   const detail = document.getElementById("detail");
   const detailBody = document.getElementById("detailBody");
   const detailClose = document.getElementById("detailClose");
@@ -24,15 +24,20 @@
   const defaults = {
     autorefresh: false,
     timeline: "exact",
-    plotScale: 0.75,
+    plotGap: 0.75,
     includeNil: false,
   };
 
   function loadSettings() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("synop-ar-config-v1");
       if (!raw) return { ...defaults };
-      return { ...defaults, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      // migrar plotScale → plotGap
+      if (parsed.plotGap == null && parsed.plotScale != null) {
+        parsed.plotGap = parsed.plotScale;
+      }
+      return { ...defaults, ...parsed };
     } catch {
       return { ...defaults };
     }
@@ -88,18 +93,18 @@
     chkNil.checked = !!settings.includeNil;
     if (settings.timeline === "latest") cfgTimelineLatest.checked = true;
     else cfgTimelineExact.checked = true;
-    cfgPlotScale.value = String(settings.plotScale);
-    cfgScaleLabel.textContent = Number(settings.plotScale).toFixed(2);
+    cfgPlotGap.value = String(settings.plotGap);
+    cfgGapLabel.textContent = Number(settings.plotGap).toFixed(2);
   }
 
   function readSettingsFromUi() {
     settings = {
       autorefresh: cfgAutorefresh.checked,
       timeline: cfgTimelineLatest.checked ? "latest" : "exact",
-      plotScale: Number(cfgPlotScale.value),
+      plotGap: Number(cfgPlotGap.value),
       includeNil: chkNil.checked,
     };
-    cfgScaleLabel.textContent = settings.plotScale.toFixed(2);
+    cfgGapLabel.textContent = settings.plotGap.toFixed(2);
     saveSettings(settings);
     syncAutorefresh();
   }
@@ -161,7 +166,7 @@
     const hour = hourParamFromInput();
     const nil = settings.includeNil ? "1" : "0";
     const timeline = settings.timeline || "exact";
-    const scale = settings.plotScale || 0.75;
+    const gap = settings.plotGap || 0.75;
     statusEl.textContent = "Consultando OGIMET…";
     btnLoad.disabled = true;
     try {
@@ -175,13 +180,13 @@
       layerGroup.clearLayers();
       hideHover();
 
-      const w = Math.round(BASE_W * scale);
-      const h = Math.round(BASE_H * scale);
+      const w = Math.round(BASE_W * gap);
+      const h = Math.round(BASE_H * gap);
 
       for (const obs of data.synops) {
         if (obs.lat == null || obs.lng == null) continue;
 
-        const html = StationPlot.buildStationHtml(obs, { scale });
+        const html = StationPlot.buildStationHtml(obs, { gap });
         const icon = L.divIcon({
           className: "station-icon",
           html,
@@ -292,10 +297,10 @@
   cfgAutorefresh.addEventListener("change", () => onConfigChange(false));
   cfgTimelineExact.addEventListener("change", () => onConfigChange(true));
   cfgTimelineLatest.addEventListener("change", () => onConfigChange(true));
-  cfgPlotScale.addEventListener("input", () => {
-    cfgScaleLabel.textContent = Number(cfgPlotScale.value).toFixed(2);
+  cfgPlotGap.addEventListener("input", () => {
+    cfgGapLabel.textContent = Number(cfgPlotGap.value).toFixed(2);
   });
-  cfgPlotScale.addEventListener("change", () => onConfigChange(true));
+  cfgPlotGap.addEventListener("change", () => onConfigChange(true));
 
   applySettingsToUi();
   setDefaultHour();
