@@ -190,6 +190,17 @@ html, body {
   z-index: 4;
 }
 
+.plot-ww-svg {
+  position: absolute;
+  left: 22px;
+  top: 36px;
+  width: 27px;
+  height: 27px;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 .plot-ww-txt {
   position: absolute;
   left: 24px;
@@ -269,26 +280,24 @@ html, body {
 }
 
 .plot-layer {
-  display: grid;
-  grid-template-columns: 12px 14px auto;
-  gap: 2px;
+  display: inline-flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.88);
+  justify-content: center;
+  min-width: 2.4rem;
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(26, 36, 48, 0.25);
   border-radius: 3px;
-  padding: 1px 3px;
+  padding: 1px 4px;
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 600;
   color: #1a2430;
-  line-height: 1.1;
+  line-height: 1.2;
   white-space: nowrap;
   cursor: help;
 }
 
-.plot-layer-ns { color: #333366; text-align: center; }
-.plot-layer-c { color: #0b5f8a; text-align: center; }
-.plot-layer-hs { color: #444; }
+.plot-layer-ft { color: #1a2430; letter-spacing: 0.02em; }
 
 .station-svg {
   overflow: visible;

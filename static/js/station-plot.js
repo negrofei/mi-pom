@@ -4,6 +4,7 @@
  */
 (function (global) {
   const S = () => global.SynopSymbols;
+  const WW = () => global.PresentWeather;
   const IMG = "/img";
 
   function fmtTemp(v) {
@@ -32,11 +33,10 @@
     return `barbs/barb_${key}.png`;
   }
 
-  function wwSrc(ww) {
-    if (!hasImgCode(ww)) return null;
-    const code = String(ww).padStart(2, "0");
-    // Hay PNGs 56-99 (+9999); el resto cae a SVG/texto en fallback
-    return `simbolos/${code}.png`;
+  function feetLabel(layer) {
+    if (layer.height_ft != null) return String(layer.height_ft);
+    if (layer.height_m != null) return String(Math.round(layer.height_m * 3.28084));
+    return null;
   }
 
   function buildStationHtml(obs) {
@@ -46,24 +46,22 @@
 
     const dir = obs.wind_dir != null ? Number(obs.wind_dir) : 0;
     const nCode = codeOr(obs.total_cloud, "9999");
-    const ww = wwSrc(obs.present_weather);
     const aCode = codeOr(obs.tendency_char, "9999");
+    const wwHtml = obs.present_weather ? WW().wwSymbolHtml(obs.present_weather) : "";
 
     const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
     const layerHtml = layers
       .map((layer, idx) => {
-        const label = [
-          layer.ns != null ? `${layer.ns}/8` : null,
-          layer.genus_name || (layer.genus != null ? `C${layer.genus}` : null),
-          layer.height_m != null ? `${layer.height_m} m` : layer.hs != null ? `hs ${layer.hs}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ");
-        const tip = `Sección 3 · ${layer.raw || ""} · ${label}`;
-        return `<div class="plot-layer" data-layer="${idx}" title="${S().esc(tip)}">
-          <span class="plot-layer-ns">${S().esc(layer.ns ?? "/")}</span>
-          <span class="plot-layer-c">${S().esc(layer.genus ?? "/")}</span>
-          <span class="plot-layer-hs">${S().esc(layer.height_m != null ? String(layer.height_m) : layer.hs ?? "/")}</span>
+        const ft = feetLabel(layer);
+        if (ft == null) return "";
+        const tipParts = [
+          `Sección 3 · ${layer.raw || ""}`,
+          layer.ns != null ? `Ns=${layer.ns}` : null,
+          layer.genus_name || (layer.genus != null ? `C=${layer.genus}` : null),
+          `${ft} ft`,
+        ].filter(Boolean);
+        return `<div class="plot-layer" data-layer="${idx}" title="${S().esc(tipParts.join(" · "))}">
+          <span class="plot-layer-ft">${S().esc(ft)}</span>
         </div>`;
       })
       .join("");
@@ -73,13 +71,7 @@
         <img class="plot-barb" src="${IMG}/${barbSrc(obs)}" alt=""
              style="transform: rotate(${dir}deg);" draggable="false" />
         ${png(`simbolos/N${nCode}.png`, "plot-n", "", `N=${nCode}`)}
-        ${
-          ww
-            ? png(ww, "plot-ww", "", `ww=${obs.present_weather}`)
-            : obs.present_weather
-              ? `<span class="plot-ww-txt">${S().esc(obs.present_weather)}</span>`
-              : ""
-        }
+        ${wwHtml}
         ${
           obs.temp_c != null
             ? `<span class="plot-temp">${S().esc(fmtTemp(obs.temp_c))}</span>`
@@ -133,7 +125,7 @@
         }
         ${
           layers.length
-            ? `<div class="plot-sec3" title="Nubosidad sección 3 (8NsChshs)">${layerHtml}</div>`
+            ? `<div class="plot-sec3" title="Altura de nubes sección 3 (ft)">${layerHtml}</div>`
             : ""
         }
       </div>
@@ -158,18 +150,18 @@
 
     const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
     if (layers.length) {
-      lines.push(`<b>Sección 3 · capas 8NsChshs (${layers.length}):</b>`);
+      lines.push(`<b>Sección 3 · altura de capas (${layers.length}):</b>`);
       layers.forEach((layer, i) => {
+        const ft = feetLabel(layer);
         const bits = [
-          `Ns=${layer.ns ?? "/"}`,
-          `C=${layer.genus ?? "/"}${layer.genus_name ? " (" + layer.genus_name + ")" : ""}`,
-          layer.height_m != null ? `base≈${layer.height_m} m` : `hs=${layer.hs ?? "/"}`,
-          layer.raw ? `[${layer.raw}]` : "",
+          ft != null ? `${ft} ft` : null,
+          layer.genus_name || (layer.genus != null ? `C=${layer.genus}` : null),
+          layer.ns != null ? `Ns=${layer.ns}` : null,
         ];
         lines.push(`&nbsp;&nbsp;${i + 1}. ${S().esc(bits.filter(Boolean).join(" · "))}`);
       });
     } else {
-      lines.push("<b>Sección 3 · 8NsChshs:</b> (ausente)");
+      lines.push("<b>Sección 3 · capas:</b> (ausente)");
     }
     return lines.join("<br/>");
   }
@@ -195,7 +187,10 @@
         }`
       );
     }
-    if (obs.present_weather) lines.push(`Tiempo presente (ww): ${S().esc(obs.present_weather)}`);
+    if (obs.present_weather) {
+      const decoded = WW().wwText(obs.present_weather);
+      lines.push(`<b>Tiempo presente:</b> ${S().esc(decoded || obs.present_weather)}`);
+    }
     lines.push(cloudSectionHtml(obs));
     lines.push(`<div class="synop-line">${S().esc(obs.raw)}</div>`);
     return lines.filter(Boolean).join("<br/>");
@@ -204,17 +199,23 @@
   function detailHtml(obs) {
     const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
     const layerRows = layers.length
-      ? layers
-          .map((layer, i) => {
-            const val = [
-              `Ns=${layer.ns ?? "/"}`,
-              `C=${layer.genus ?? "/"}${layer.genus_name ? " " + layer.genus_name : ""}`,
-              layer.height_m != null ? `≈${layer.height_m} m` : `hs=${layer.hs ?? "/"}`,
-              layer.raw || "",
-            ].join(" · ");
-            return [`Capa sec.3 #${i + 1}`, val];
-          })
+      ? layers.map((layer, i) => {
+          const ft = feetLabel(layer);
+          const val = [
+            ft != null ? `${ft} ft` : "altura —",
+            layer.genus_name || (layer.genus != null ? `C=${layer.genus}` : null),
+            layer.ns != null ? `Ns=${layer.ns}` : null,
+            layer.raw || "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          return [`Capa sec.3 #${i + 1}`, val];
+        })
       : [["Capas sec.3", "(ausente)"]];
+
+    const wwDecoded = obs.present_weather
+      ? WW().wwText(obs.present_weather) || obs.present_weather
+      : "—";
 
     const rows = [
       ["Estación", `${obs.omm} — ${obs.nombre || ""}`],
@@ -232,7 +233,7 @@
       ["N (cobertura)", obs.total_cloud ?? "—"],
       ["Visibilidad VV", obs.visibility ?? "—"],
       ["h (base, sec.1)", obs.cloud_base_h ?? "—"],
-      ["ww", obs.present_weather ?? "—"],
+      ["Tiempo presente", wwDecoded],
       ["Nh / CL / CM / CH (sec.1)", `${obs.nh ?? "/"} ${obs.cl ?? "/"} ${obs.cm ?? "/"} ${obs.ch ?? "/"}`],
       ...layerRows,
       ["Tendencia", `${obs.tendency_char ?? "—"} ${obs.tendency_val ?? ""}`],
@@ -251,7 +252,7 @@
 
   global.StationPlot = {
     buildStationHtml,
-    buildStationSvg: buildStationHtml, // compat
+    buildStationSvg: buildStationHtml,
     hoverHtml,
     detailHtml,
     cloudSectionHtml,
