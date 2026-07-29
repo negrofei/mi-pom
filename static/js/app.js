@@ -96,8 +96,8 @@
         const icon = L.divIcon({
           className: "station-icon",
           html,
-          iconSize: obs.nil ? [72, 28] : [120, 130],
-          iconAnchor: obs.nil ? [36, 14] : [60, 50],
+          iconSize: obs.nil ? [72, 28] : [120, 160],
+          iconAnchor: obs.nil ? [36, 14] : [60, 80],
         });
 
         const marker = L.marker([obs.lat, obs.lng], {

@@ -108,7 +108,7 @@
   };
 
   const PNG_WW = new Set(
-    Array.from({ length: 44 }, (_, i) => String(i + 56).padStart(2, "0")).concat(["9999"])
+    Array.from({ length: 100 }, (_, i) => String(i).padStart(2, "0")).concat(["9999"])
   );
 
   function wwCode(ww) {

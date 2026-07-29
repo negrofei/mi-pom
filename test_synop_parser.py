@@ -88,6 +88,32 @@ def test_single_section3_layer():
     assert d.cloud_layers[0].height_ft == 19700  # 19685 → 19700 ft
 
 
+def test_visibility_meters():
+    d = parse_synop(
+        "AAXX 27164 87007 42980 02302 10154 20014 36732 4//// 58012=",
+        "87007",
+    )
+    # VV=80 → (80-50)*1000 = 30000 m  in iRixhVV=42980 → VV=80
+    assert d.visibility == "80"
+    assert d.visibility_m == 30000
+
+    d2 = parse_synop(
+        "AAXX 27174 87148 42670 43410 10311 20207 39937 40042 58029 84104=",
+        "87148",
+    )
+    # VV=70 → (70-50)*1000 = 20000
+    assert d2.visibility == "70"
+    assert d2.visibility_m == 20000
+
+    d3 = parse_synop(
+        "AAXX 27163 87016 41956 23605 10249 20150 39649 4//// 57022 70522 80003=",
+        "87016",
+    )
+    # VV=56 → 6000 m
+    assert d3.visibility == "56"
+    assert d3.visibility_m == 6000
+
+
 def test_nil():
     d = parse_synop("AAXX 27164 87022 NIL=", "87022")
     assert d.nil is True
@@ -98,5 +124,6 @@ if __name__ == "__main__":
     test_with_msl_and_clouds()
     test_section1_and_section3_clouds()
     test_single_section3_layer()
+    test_visibility_meters()
     test_nil()
     print("ok")

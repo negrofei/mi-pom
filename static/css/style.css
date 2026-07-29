@@ -139,7 +139,7 @@ html, body {
 .plot {
   position: relative;
   width: 120px;
-  height: 130px;
+  height: 160px;
   overflow: visible;
   pointer-events: auto;
 }
@@ -167,7 +167,7 @@ html, body {
 
 .plot-barb {
   left: 20px;
-  top: 10px;
+  top: 40px;
   width: 80px;
   height: 80px;
   transform-origin: 50% 50%;
@@ -176,7 +176,7 @@ html, body {
 
 .plot-n {
   left: 51px;
-  top: 41px;
+  top: 71px;
   width: 17px;
   height: 17px;
   z-index: 5;
@@ -184,7 +184,7 @@ html, body {
 
 .plot-ww {
   left: 22px;
-  top: 36px;
+  top: 66px;
   width: 27px;
   height: 27px;
   z-index: 4;
@@ -193,7 +193,7 @@ html, body {
 .plot-ww-svg {
   position: absolute;
   left: 22px;
-  top: 36px;
+  top: 66px;
   width: 27px;
   height: 27px;
   z-index: 4;
@@ -204,7 +204,7 @@ html, body {
 .plot-ww-txt {
   position: absolute;
   left: 24px;
-  top: 42px;
+  top: 72px;
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 600;
@@ -228,58 +228,49 @@ html, body {
   pointer-events: none;
 }
 
-.plot-temp { left: 8px; top: 22px; color: #c62828; }
-.plot-td { left: 8px; top: 68px; color: #6d4c41; }
-.plot-pres { left: 82px; top: 20px; color: #1565c0; }
-.plot-app { left: 98px; top: 48px; color: #1565c0; font-size: 10px; }
-.plot-vis { left: 4px; top: 46px; color: #111; font-size: 10px; }
-.plot-h { left: 48px; top: 78px; color: #333366; font-size: 10px; }
-.plot-nh { left: 72px; top: 72px; color: #333366; font-size: 10px; }
+.plot-temp { left: 8px; top: 52px; color: #c62828; }
+.plot-td { left: 8px; top: 98px; color: #6d4c41; }
+.plot-pres { left: 82px; top: 50px; color: #1565c0; }
+.plot-app { left: 98px; top: 78px; color: #1565c0; font-size: 10px; }
+.plot-vis { left: 4px; top: 76px; color: #111; font-size: 10px; }
+.plot-h { left: 48px; top: 108px; color: #333366; font-size: 10px; }
+.plot-nh { left: 72px; top: 102px; color: #333366; font-size: 10px; }
 
 .plot-a {
   left: 82px;
-  top: 42px;
+  top: 72px;
+  width: 18px;
+  height: 18px;
+  z-index: 5;
+}
+
+/* Orden vertical: CH (alta) → CM (media) → barba → CL (baja) */
+.plot-ch {
+  left: 51px;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  z-index: 5;
+}
+
+.plot-cm {
+  left: 51px;
+  top: 20px;
   width: 18px;
   height: 18px;
   z-index: 5;
 }
 
 .plot-cl {
-  left: 50px;
-  top: 78px;
+  left: 51px;
+  top: 122px;
   width: 20px;
   height: 20px;
   z-index: 5;
 }
 
-.plot-cm {
-  left: 50px;
-  top: 96px;
-  width: 18px;
-  height: 18px;
-  z-index: 5;
-}
-
-.plot-ch {
-  left: 50px;
-  top: 112px;
-  width: 18px;
-  height: 18px;
-  z-index: 5;
-}
-
-.plot-sec3 {
-  position: absolute;
-  left: 78px;
-  top: 78px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  z-index: 7;
-  pointer-events: auto;
-}
-
 .plot-layer {
+  position: absolute;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -295,6 +286,18 @@ html, body {
   line-height: 1.2;
   white-space: nowrap;
   cursor: help;
+  z-index: 7;
+  pointer-events: auto;
+}
+
+.plot-layer-media {
+  left: 72px;
+  top: 20px;
+}
+
+.plot-layer-baja {
+  left: 72px;
+  top: 124px;
 }
 
 .plot-layer-ft { color: #1a2430; letter-spacing: 0.02em; }
