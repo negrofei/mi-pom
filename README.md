@@ -42,7 +42,7 @@ Panel **Configuración** en la barra superior:
 - **Timeline**
   - *Solo hora seleccionada*: solo estaciones con dato en esa hora UTC
   - *Último dato disponible*: último reporte de cada estación (ventana 24 h)
-- **Escala del plot**: comprime o agranda el espacio entre símbolos (se guarda en el navegador)
+- **Separación de símbolos**: acerca/aleja los símbolos del punto de estación sin cambiar su tamaño
 
 ## API
 

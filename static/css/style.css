@@ -242,20 +242,21 @@ html, body {
 }
 
 .plot {
-  --plot-scale: 0.75;
+  --plot-gap: 0.75;
   position: relative;
-  width: calc(120px * var(--plot-scale));
-  height: calc(160px * var(--plot-scale));
+  width: calc(120px * var(--plot-gap));
+  height: calc(160px * var(--plot-gap));
   overflow: visible;
   pointer-events: auto;
 }
 
-.plot-inner {
-  position: relative;
-  width: 120px;
-  height: 160px;
-  transform: scale(var(--plot-scale));
-  transform-origin: 0 0;
+/* Origen = punto de la estación (centro del icono Leaflet) */
+.plot-anchor {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
 }
 
 .plot-nil {
@@ -272,16 +273,20 @@ html, body {
   color: #666;
 }
 
-.plot img {
+.plot-anchor img,
+.plot-anchor span,
+.plot-anchor div,
+.plot-anchor svg {
   position: absolute;
   image-rendering: auto;
   user-select: none;
   pointer-events: none;
 }
 
+/* Barba y N fijos en el centro (tamaño constante) */
 .plot-barb {
-  left: 20px;
-  top: 40px;
+  left: -40px;
+  top: -40px;
   width: 80px;
   height: 80px;
   transform-origin: 50% 50%;
@@ -289,36 +294,27 @@ html, body {
 }
 
 .plot-n {
-  left: 51px;
-  top: 71px;
+  left: -8.5px;
+  top: -8.5px;
   width: 17px;
   height: 17px;
   z-index: 5;
 }
 
-.plot-ww {
-  left: 22px;
-  top: 66px;
-  width: 27px;
-  height: 27px;
-  z-index: 4;
-}
-
+/* --plot-gap mueve offsets desde el centro; no cambia el tamaño de los PNG */
+.plot-ww,
 .plot-ww-svg {
-  position: absolute;
-  left: 22px;
-  top: 66px;
+  left: calc(-38px * var(--plot-gap));
+  top: calc(-14px * var(--plot-gap));
   width: 27px;
   height: 27px;
   z-index: 4;
-  pointer-events: none;
   overflow: hidden;
 }
 
 .plot-ww-txt {
-  position: absolute;
-  left: 24px;
-  top: 72px;
+  left: calc(-36px * var(--plot-gap));
+  top: calc(-8px * var(--plot-gap));
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 600;
@@ -332,7 +328,6 @@ html, body {
 .plot-vis,
 .plot-h,
 .plot-nh {
-  position: absolute;
   font-family: var(--mono);
   font-weight: 600;
   font-size: 11px;
@@ -340,51 +335,51 @@ html, body {
   text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
   z-index: 6;
   pointer-events: none;
+  white-space: nowrap;
 }
 
-.plot-temp { left: 8px; top: 52px; color: #c62828; }
-.plot-td { left: 8px; top: 98px; color: #6d4c41; }
-.plot-pres { left: 82px; top: 50px; color: #1565c0; }
-.plot-app { left: 98px; top: 78px; color: #1565c0; font-size: 10px; }
-.plot-vis { left: 4px; top: 76px; color: #111; font-size: 10px; }
-.plot-h { left: 48px; top: 108px; color: #333366; font-size: 10px; }
-.plot-nh { left: 72px; top: 102px; color: #333366; font-size: 10px; }
+.plot-temp { left: calc(-52px * var(--plot-gap)); top: calc(-28px * var(--plot-gap)); color: #c62828; }
+.plot-td { left: calc(-52px * var(--plot-gap)); top: calc(18px * var(--plot-gap)); color: #6d4c41; }
+.plot-pres { left: calc(22px * var(--plot-gap)); top: calc(-30px * var(--plot-gap)); color: #1565c0; }
+.plot-app { left: calc(38px * var(--plot-gap)); top: calc(-2px * var(--plot-gap)); color: #1565c0; font-size: 10px; }
+.plot-vis { left: calc(-56px * var(--plot-gap)); top: calc(-4px * var(--plot-gap)); color: #111; font-size: 10px; }
+.plot-h { left: calc(-12px * var(--plot-gap)); top: calc(28px * var(--plot-gap)); color: #333366; font-size: 10px; }
+.plot-nh { left: calc(12px * var(--plot-gap)); top: calc(22px * var(--plot-gap)); color: #333366; font-size: 10px; }
 
 .plot-a {
-  left: 82px;
-  top: 72px;
+  left: calc(22px * var(--plot-gap));
+  top: calc(-8px * var(--plot-gap));
   width: 18px;
   height: 18px;
   z-index: 5;
 }
 
-/* Orden vertical: CH (alta) → CM (media) → barba → CL (baja) */
+/* Orden: CH (alta) → CM (media) → centro → CL (baja) */
 .plot-ch {
-  left: 51px;
-  top: 2px;
+  left: calc(-9px * var(--plot-gap));
+  top: calc(-78px * var(--plot-gap));
   width: 18px;
   height: 18px;
   z-index: 5;
 }
 
 .plot-cm {
-  left: 51px;
-  top: 20px;
+  left: calc(-9px * var(--plot-gap));
+  top: calc(-60px * var(--plot-gap));
   width: 18px;
   height: 18px;
   z-index: 5;
 }
 
 .plot-cl {
-  left: 51px;
-  top: 122px;
+  left: calc(-9px * var(--plot-gap));
+  top: calc(42px * var(--plot-gap));
   width: 20px;
   height: 20px;
   z-index: 5;
 }
 
 .plot-layer {
-  position: absolute;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -405,13 +400,13 @@ html, body {
 }
 
 .plot-layer-media {
-  left: 72px;
-  top: 20px;
+  left: calc(12px * var(--plot-gap));
+  top: calc(-60px * var(--plot-gap));
 }
 
 .plot-layer-baja {
-  left: 72px;
-  top: 124px;
+  left: calc(12px * var(--plot-gap));
+  top: calc(44px * var(--plot-gap));
 }
 
 .plot-layer-ft { color: #1a2430; letter-spacing: 0.02em; }
