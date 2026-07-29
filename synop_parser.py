@@ -147,9 +147,11 @@ def _height_from_hshs(hs: Optional[str]) -> Optional[int]:
 
 
 def _meters_to_feet(meters: Optional[int]) -> Optional[int]:
+    """Convierte metros a pies, redondeando a cientos de pies (1389 → 1400)."""
     if meters is None:
         return None
-    return int(round(meters * 3.28084))
+    feet = meters * 3.28084
+    return int(round(feet / 100.0) * 100)
 
 
 def _barb_key(speed_kt: Optional[float], wind_dir: Optional[int], notes: list[str]) -> str:

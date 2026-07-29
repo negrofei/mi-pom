@@ -35,7 +35,9 @@
 
   function feetLabel(layer) {
     if (layer.height_ft != null) return String(layer.height_ft);
-    if (layer.height_m != null) return String(Math.round(layer.height_m * 3.28084));
+    if (layer.height_m != null) {
+      return String(Math.round((layer.height_m * 3.28084) / 100) * 100);
+    }
     return null;
   }
 
