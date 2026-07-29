@@ -29,6 +29,7 @@ class CloudLayer:
     genus_name: Optional[str] = None
     hs: Optional[str] = None  # código de altura
     height_m: Optional[int] = None
+    height_ft: Optional[int] = None
     raw: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -143,6 +144,12 @@ def _height_from_hshs(hs: Optional[str]) -> Optional[int]:
     if code == 89:
         return 21000
     return None
+
+
+def _meters_to_feet(meters: Optional[int]) -> Optional[int]:
+    if meters is None:
+        return None
+    return int(round(meters * 3.28084))
 
 
 def _barb_key(speed_kt: Optional[float], wind_dir: Optional[int], notes: list[str]) -> str:
@@ -301,13 +308,15 @@ def parse_synop(
             ns = g[1] if g[1] != "/" else None
             genus = g[2] if g[2] != "/" else None
             hs = g[3:5] if "/" not in g[3:5] else None
+            height_m = _height_from_hshs(hs)
             out.cloud_layers.append(
                 CloudLayer(
                     ns=ns,
                     genus=genus,
                     genus_name=CLOUD_GENUS.get(genus or "", None),
                     hs=hs,
-                    height_m=_height_from_hshs(hs),
+                    height_m=height_m,
+                    height_ft=_meters_to_feet(height_m),
                     raw=g,
                 )
             )

@@ -66,6 +66,7 @@ def test_section1_and_section3_clouds():
     assert d.cloud_layers[0].genus_name and "Cumulus" in d.cloud_layers[0].genus_name
     assert d.cloud_layers[0].hs == "30"
     assert d.cloud_layers[0].height_m == 900
+    assert d.cloud_layers[0].height_ft == 2953
     assert d.cloud_layers[1].raw == "84270"
     assert d.cloud_layers[1].ns == "4"
     assert d.cloud_layers[1].genus == "2"
@@ -84,6 +85,7 @@ def test_single_section3_layer():
     assert d.cloud_layers[0].ns == "2"
     assert d.cloud_layers[0].genus == "0"
     assert d.cloud_layers[0].height_m == 6000  # hs=70 → (70-50)*300
+    assert d.cloud_layers[0].height_ft == 19685
 
 
 def test_nil():

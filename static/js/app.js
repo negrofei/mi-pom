@@ -152,15 +152,23 @@
 
     const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
     layers.forEach((layer, i) => {
+      const ft =
+        layer.height_ft != null
+          ? layer.height_ft
+          : layer.height_m != null
+            ? Math.round(layer.height_m * 3.28084)
+            : null;
       const bits = [
-        `Ns=${layer.ns ?? "/"}`,
-        layer.genus_name || `C=${layer.genus ?? "/"}`,
-        layer.height_m != null ? `≈${layer.height_m} m` : `hs=${layer.hs ?? "/"}`,
-      ].join(" · ");
+        ft != null ? `${ft} ft` : null,
+        layer.genus_name || (layer.genus != null ? `C=${layer.genus}` : null),
+        layer.ns != null ? `Ns=${layer.ns}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
       offsets.push({
         dlat: -0.04 - i * 0.025,
         dlng: 0.05,
-        html: `<b>Sección 3 · capa ${i + 1}</b><br/>${SynopSymbols.esc(bits)}<br/><span class="synop-line">${SynopSymbols.esc(layer.raw || "")}</span>`,
+        html: `<b>Sección 3 · capa ${i + 1}</b><br/>${SynopSymbols.esc(bits)}`,
       });
     });
 
