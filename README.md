@@ -34,9 +34,19 @@ Abrí http://localhost:8080
 
 Alternativas iguales de simples: [Railway](https://railway.app) o [Fly.io](https://fly.io) apuntando al mismo `Dockerfile`.
 
+## Configuración (UI)
+
+Panel **Configuración** en la barra superior:
+
+- **Autorefresh**: actualiza cada 2 minutos
+- **Timeline**
+  - *Solo hora seleccionada*: solo estaciones con dato en esa hora UTC
+  - *Último dato disponible*: último reporte de cada estación (ventana 24 h)
+- **Escala del plot**: comprime o agranda el espacio entre símbolos (se guarda en el navegador)
+
 ## API
 
-- `GET /api/synops?hour=YYYYMMDDHH&nil=0` — SYNOPs decodificados
+- `GET /api/synops?hour=YYYYMMDDHH&nil=0&timeline=exact|latest&lookback=24`
 - `GET /api/stations` — catálogo
 - `GET /health` — healthcheck
 
