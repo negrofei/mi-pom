@@ -216,6 +216,7 @@
     const name = obs.nombre || obs.omm;
     const lines = [
       `<b>${S().esc(obs.omm)}</b> · ${S().esc(name)}`,
+      obs.fir ? `FIR ${S().esc(obs.fir)}` : "",
       obs.utc ? `Fecha: ${S().esc(obs.utc)} UTC` : "",
     ];
     if (obs.nil) {
@@ -267,6 +268,7 @@
 
     const rows = [
       ["Estación", `${obs.omm} — ${obs.nombre || ""}`],
+      ["FIR", obs.fir || "—"],
       ["UTC", obs.utc || "—"],
       ["Temperatura", obs.temp_c != null ? `${fmtTemp(obs.temp_c)} °C` : "—"],
       ["Punto de rocío", obs.dewpoint_c != null ? `${fmtTemp(obs.dewpoint_c)} °C` : "—"],
@@ -292,7 +294,7 @@
       .join("");
     return `
       <h2>${S().esc(obs.nombre || obs.omm)}</h2>
-      <div class="meta">${S().esc(obs.omm)} · fuente OGIMET</div>
+      <div class="meta">${S().esc(obs.omm)}${obs.fir ? ` · FIR ${S().esc(obs.fir)}` : ""} · fuente OGIMET</div>
       <button type="button" class="btn primary ts-open-btn" data-omm="${S().esc(obs.omm)}" data-nombre="${S().esc(obs.nombre || obs.omm)}">
         Ver serie temporal
       </button>

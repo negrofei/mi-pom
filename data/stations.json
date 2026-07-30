@@ -6,7 +6,8 @@
     "lat": -22.10343,
     "elev": 3459.0,
     "wigos": "0-20000-0-87007",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87016",
@@ -15,7 +16,8 @@
     "lat": -23.15469,
     "elev": 357.0,
     "wigos": "0-20000-0-87016",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87022",
@@ -24,7 +26,8 @@
     "lat": -22.61658,
     "elev": 450.0,
     "wigos": "0-20000-0-87022",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87043",
@@ -33,7 +36,8 @@
     "lat": -24.17861,
     "elev": 1302,
     "wigos": "0-32-0-0087043CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87046",
@@ -42,7 +46,8 @@
     "lat": -24.38396,
     "elev": 907.0,
     "wigos": "0-20000-0-87046",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87047",
@@ -51,7 +56,8 @@
     "lat": -24.84434,
     "elev": 1221.0,
     "wigos": "0-20000-0-87047",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87050",
@@ -60,7 +66,8 @@
     "lat": -25.52429,
     "elev": 853,
     "wigos": "0-32-0-0087050CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87065",
@@ -69,7 +76,8 @@
     "lat": -24.18532,
     "elev": 205.0,
     "wigos": "0-20000-0-87065",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87078",
@@ -78,7 +86,8 @@
     "lat": -24.70245,
     "elev": 130.0,
     "wigos": "0-20000-0-87078",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87097",
@@ -87,7 +96,8 @@
     "lat": -25.73108,
     "elev": 270.0,
     "wigos": "0-20000-0-87097",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87121",
@@ -96,7 +106,8 @@
     "lat": -26.8373,
     "elev": 440.0,
     "wigos": "0-20000-0-87121",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87127",
@@ -105,7 +116,8 @@
     "lat": -27.50611,
     "elev": 278,
     "wigos": "0-32-0-0087127CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87129",
@@ -114,7 +126,8 @@
     "lat": -27.75481,
     "elev": 198.0,
     "wigos": "0-20000-0-87129",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87148",
@@ -123,7 +136,8 @@
     "lat": -26.74637,
     "elev": 91.0,
     "wigos": "0-20000-0-87148",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87155",
@@ -132,7 +146,8 @@
     "lat": -27.43888,
     "elev": 53.0,
     "wigos": "0-20000-0-87155",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87162",
@@ -141,7 +156,8 @@
     "lat": -26.21242,
     "elev": 59.0,
     "wigos": "0-20000-0-87162",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87163",
@@ -150,7 +166,8 @@
     "lat": -26.27793,
     "elev": 815.0,
     "wigos": "0-20000-0-87163",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87166",
@@ -159,7 +176,8 @@
     "lat": -27.44979,
     "elev": 62.0,
     "wigos": "0-20000-0-87166",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87173",
@@ -168,7 +186,8 @@
     "lat": -27.58565,
     "elev": 72.0,
     "wigos": "0-20000-0-87173",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87178",
@@ -177,7 +196,8 @@
     "lat": -27.391,
     "elev": 131.0,
     "wigos": "0-20000-0-87178",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87187",
@@ -186,7 +206,8 @@
     "lat": -27.48372,
     "elev": 303.0,
     "wigos": "0-20000-0-87187",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87211",
@@ -195,7 +216,8 @@
     "lat": -28.06725,
     "elev": 1214.0,
     "wigos": "0-20000-0-87211",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87213",
@@ -204,7 +226,8 @@
     "lat": -29.21836,
     "elev": 925.0,
     "wigos": "0-20000-0-87213",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87217",
@@ -213,7 +236,8 @@
     "lat": -29.38171,
     "elev": 438.0,
     "wigos": "0-20000-0-87217",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87222",
@@ -222,7 +246,8 @@
     "lat": -28.59348,
     "elev": 464.0,
     "wigos": "0-20000-0-87222",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87244",
@@ -231,7 +256,8 @@
     "lat": -29.90577,
     "elev": 341.0,
     "wigos": "0-20000-0-87244",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87257",
@@ -240,7 +266,8 @@
     "lat": -29.87556,
     "elev": 87.0,
     "wigos": "0-20000-0-87257",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87270",
@@ -249,7 +276,8 @@
     "lat": -29.20508,
     "elev": 48.0,
     "wigos": "0-20000-0-87270",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87281",
@@ -258,7 +286,8 @@
     "lat": -29.22599,
     "elev": 107,
     "wigos": "0-32-0-0087281CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87289",
@@ -267,7 +296,8 @@
     "lat": -29.68931,
     "elev": 69.0,
     "wigos": "0-20000-0-87289",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87305",
@@ -276,7 +306,8 @@
     "lat": -30.22938,
     "elev": 1178.0,
     "wigos": "0-20000-0-87305",
-    "status": "operational"
+    "status": "operational",
+    "fir": "DOZ"
   },
   {
     "omm": "87311",
@@ -285,7 +316,8 @@
     "lat": -31.57462,
     "elev": 597.0,
     "wigos": "0-20000-0-87311",
-    "status": "operational"
+    "status": "operational",
+    "fir": "DOZ"
   },
   {
     "omm": "87320",
@@ -294,7 +326,8 @@
     "lat": -30.34773,
     "elev": 461.0,
     "wigos": "0-20000-0-87320",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87322",
@@ -303,7 +336,8 @@
     "lat": -31.33164,
     "elev": 658.0,
     "wigos": "0-20000-0-87322",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87328",
@@ -312,7 +346,8 @@
     "lat": -31.95129,
     "elev": 561.0,
     "wigos": "0-20000-0-87328",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87344",
@@ -321,7 +356,8 @@
     "lat": -31.29663,
     "elev": 493.0,
     "wigos": "0-20000-0-87344",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87345",
@@ -330,7 +366,8 @@
     "lat": -31.42076,
     "elev": 426.0,
     "wigos": "0-20000-0-87345",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87347",
@@ -339,7 +376,8 @@
     "lat": -31.44207,
     "elev": 502.0,
     "wigos": "0-20000-0-87347",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87349",
@@ -348,7 +386,8 @@
     "lat": -31.66809,
     "elev": 338.0,
     "wigos": "0-20000-0-87349",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87356",
@@ -357,7 +396,8 @@
     "lat": -30.95677,
     "elev": 92,
     "wigos": "0-32-0-0087356CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87360",
@@ -366,7 +406,8 @@
     "lat": -31.27751,
     "elev": 99,
     "wigos": "0-32-0-0087360CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87371",
@@ -375,7 +416,8 @@
     "lat": -31.7078,
     "elev": 17.0,
     "wigos": "0-20000-0-87371",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87374",
@@ -384,7 +426,8 @@
     "lat": -31.79033,
     "elev": 74.0,
     "wigos": "0-20000-0-87374",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87393",
@@ -393,7 +436,8 @@
     "lat": -30.26172,
     "elev": 53.0,
     "wigos": "0-20000-0-87393",
-    "status": "operational"
+    "status": "operational",
+    "fir": "SIS"
   },
   {
     "omm": "87395",
@@ -402,7 +446,8 @@
     "lat": -31.30223,
     "elev": 35.0,
     "wigos": "0-20000-0-87395",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87405",
@@ -411,7 +456,8 @@
     "lat": -32.59459,
     "elev": 1899,
     "wigos": "0-20000-0-87405",
-    "status": "operational"
+    "status": "operational",
+    "fir": "DOZ"
   },
   {
     "omm": "87416",
@@ -420,7 +466,8 @@
     "lat": -33.07325,
     "elev": 653.0,
     "wigos": "0-20000-0-87416",
-    "status": "operational"
+    "status": "operational",
+    "fir": "DOZ"
   },
   {
     "omm": "87418",
@@ -429,7 +476,8 @@
     "lat": -32.84375,
     "elev": 705.0,
     "wigos": "0-20000-0-87418",
-    "status": "operational"
+    "status": "operational",
+    "fir": "DOZ"
   },
   {
     "omm": "87420",
@@ -438,7 +486,8 @@
     "lat": -32.89476,
     "elev": 827.0,
     "wigos": "0-20000-0-87420",
-    "status": "operational"
+    "status": "operational",
+    "fir": "DOZ"
   },
   {
     "omm": "87436",
@@ -447,7 +496,8 @@
     "lat": -33.27453,
     "elev": 710.0,
     "wigos": "0-20000-0-87436",
-    "status": "operational"
+    "status": "operational",
+    "fir": "DOZ"
   },
   {
     "omm": "87444",
@@ -456,7 +506,8 @@
     "lat": -32.37899,
     "elev": 615.0,
     "wigos": "0-20000-0-87444",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87448",
@@ -465,7 +516,8 @@
     "lat": -33.71814,
     "elev": 485.0,
     "wigos": "0-20000-0-87448",
-    "status": "operational"
+    "status": "operational",
+    "fir": "DOZ"
   },
   {
     "omm": "87453",
@@ -474,7 +526,8 @@
     "lat": -33.0955,
     "elev": 420.0,
     "wigos": "0-20000-0-87453",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87467",
@@ -483,7 +536,8 @@
     "lat": -32.6797,
     "elev": 110.0,
     "wigos": "0-20000-0-87467",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CBA"
   },
   {
     "omm": "87468",
@@ -492,7 +546,8 @@
     "lat": -33.68226,
     "elev": 112.0,
     "wigos": "0-20000-0-87468",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87480",
@@ -501,7 +556,8 @@
     "lat": -32.90816,
     "elev": 25.0,
     "wigos": "0-20000-0-87480",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87497",
@@ -510,7 +566,8 @@
     "lat": -33.01245,
     "elev": 23.0,
     "wigos": "0-20000-0-87497",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87506",
@@ -519,7 +576,8 @@
     "lat": -35.48129,
     "elev": 1429.0,
     "wigos": "0-20000-0-87506",
-    "status": "operational"
+    "status": "operational",
+    "fir": "DOZ"
   },
   {
     "omm": "87509",
@@ -528,7 +586,8 @@
     "lat": -34.59087,
     "elev": 751.0,
     "wigos": "0-20000-0-87509",
-    "status": "operational"
+    "status": "operational",
+    "fir": "DOZ"
   },
   {
     "omm": "87532",
@@ -537,7 +596,8 @@
     "lat": -35.68813,
     "elev": 139.0,
     "wigos": "0-20000-0-87532",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87534",
@@ -546,7 +606,8 @@
     "lat": -34.12784,
     "elev": 136.0,
     "wigos": "0-20000-0-87534",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87540",
@@ -555,7 +616,8 @@
     "lat": -35.96904,
     "elev": 95,
     "wigos": "0-32-0-0087540CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87544",
@@ -564,7 +626,8 @@
     "lat": -35.8407,
     "elev": 87.0,
     "wigos": "0-20000-0-87544",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87548",
@@ -573,7 +636,8 @@
     "lat": -34.55251,
     "elev": 82.0,
     "wigos": "0-20000-0-87548",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87550",
@@ -582,7 +646,8 @@
     "lat": -35.43899,
     "elev": 76.0,
     "wigos": "0-20000-0-87550",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87553",
@@ -591,7 +656,8 @@
     "lat": -34.45502,
     "elev": 3.0,
     "wigos": "0-20000-0-87553",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87563",
@@ -600,7 +666,8 @@
     "lat": -36.04149,
     "elev": 38.0,
     "wigos": "0-20000-0-87563",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87570",
@@ -609,7 +676,8 @@
     "lat": -34.53593,
     "elev": 26,
     "wigos": "0-32-0-0087570CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87571",
@@ -618,7 +686,8 @@
     "lat": -34.60304,
     "elev": 12.0,
     "wigos": "0-20000-0-87571",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87572",
@@ -627,7 +696,8 @@
     "lat": -34.55789,
     "elev": 32,
     "wigos": "0-32-0-0087572CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87573",
@@ -636,7 +706,8 @@
     "lat": -34.68468,
     "elev": 24,
     "wigos": "0-32-0-0087573CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87574",
@@ -645,7 +716,8 @@
     "lat": -34.67115,
     "elev": 24,
     "wigos": "0-32-0-0087574CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87576",
@@ -654,7 +726,8 @@
     "lat": -34.81856,
     "elev": 20.0,
     "wigos": "0-20000-0-87576",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87582",
@@ -663,7 +736,8 @@
     "lat": -34.55891,
     "elev": 6.0,
     "wigos": "0-20000-0-87582",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87585",
@@ -672,7 +746,8 @@
     "lat": -34.59022,
     "elev": 25.0,
     "wigos": "0-20000-0-87585",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87593",
@@ -681,7 +756,8 @@
     "lat": -34.96614,
     "elev": 19.0,
     "wigos": "0-20000-0-87593",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87596",
@@ -690,7 +766,8 @@
     "lat": -35.35118,
     "elev": 17.0,
     "wigos": "0-20000-0-87596",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87616",
@@ -699,7 +776,8 @@
     "lat": -36.2231,
     "elev": 312,
     "wigos": "0-32-0-0087616CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87623",
@@ -708,7 +786,8 @@
     "lat": -36.59311,
     "elev": 190.0,
     "wigos": "0-20000-0-87623",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87637",
@@ -717,7 +796,8 @@
     "lat": -37.45334,
     "elev": 233.0,
     "wigos": "0-20000-0-87637",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87640",
@@ -726,7 +806,8 @@
     "lat": -36.18638,
     "elev": 94.0,
     "wigos": "0-20000-0-87640",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87641",
@@ -735,7 +816,8 @@
     "lat": -36.83212,
     "elev": 146.0,
     "wigos": "0-20000-0-87641",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87643",
@@ -744,7 +826,8 @@
     "lat": -36.89058,
     "elev": 166.0,
     "wigos": "0-20000-0-87643",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87645",
@@ -753,7 +836,8 @@
     "lat": -37.24117,
     "elev": 175.0,
     "wigos": "0-20000-0-87645",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87648",
@@ -762,7 +846,8 @@
     "lat": -36.31695,
     "elev": 10.0,
     "wigos": "0-20000-0-87648",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87649",
@@ -771,7 +856,8 @@
     "lat": -37.70129,
     "elev": 210.0,
     "wigos": "0-20000-0-87649",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87663",
@@ -780,7 +866,8 @@
     "lat": -37.23532,
     "elev": 9,
     "wigos": "0-32-0-0087663CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87679",
@@ -789,7 +876,8 @@
     "lat": -37.60819,
     "elev": 304.0,
     "wigos": "0-20000-0-87679",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87683",
@@ -798,7 +886,8 @@
     "lat": -38.00431,
     "elev": 247,
     "wigos": "0-32-0-87683",
-    "status": "standBy"
+    "status": "standBy",
+    "fir": "EZE"
   },
   {
     "omm": "87688",
@@ -807,7 +896,8 @@
     "lat": -38.35947,
     "elev": 115.0,
     "wigos": "0-20000-0-87688",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87692",
@@ -816,7 +906,8 @@
     "lat": -37.9321,
     "elev": 18.0,
     "wigos": "0-20000-0-87692",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87715",
@@ -825,7 +916,8 @@
     "lat": -38.95204,
     "elev": 270.0,
     "wigos": "0-20000-0-87715",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87719",
@@ -834,7 +926,8 @@
     "lat": -38.94121,
     "elev": 265,
     "wigos": "0-32-0-0087719CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87736",
@@ -843,7 +936,8 @@
     "lat": -38.99108,
     "elev": 79.0,
     "wigos": "0-20000-0-87736",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87750",
@@ -852,7 +946,8 @@
     "lat": -38.71474,
     "elev": 75.0,
     "wigos": "0-20000-0-87750",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87761",
@@ -861,7 +956,8 @@
     "lat": -40.08053,
     "elev": 779,
     "wigos": "0-32-0-0087761CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87765",
@@ -870,7 +966,8 @@
     "lat": -41.1475,
     "elev": 835.0,
     "wigos": "0-20000-0-87765",
-    "status": "operational"
+    "status": "operational",
+    "fir": "EZE"
   },
   {
     "omm": "87774",
@@ -879,7 +976,8 @@
     "lat": -41.2439,
     "elev": 888.0,
     "wigos": "0-20000-0-87774",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87784",
@@ -888,7 +986,8 @@
     "lat": -40.75716,
     "elev": 20.0,
     "wigos": "0-20000-0-87784",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87791",
@@ -897,7 +996,8 @@
     "lat": -40.86347,
     "elev": 6.0,
     "wigos": "0-20000-0-87791",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87800",
@@ -906,7 +1006,8 @@
     "lat": -41.95407,
     "elev": 337.0,
     "wigos": "0-20000-0-87800",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87803",
@@ -915,7 +1016,8 @@
     "lat": -42.90588,
     "elev": 799.0,
     "wigos": "0-20000-0-87803",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87814",
@@ -924,7 +1026,8 @@
     "lat": -43.86177,
     "elev": 460.0,
     "wigos": "0-20000-0-87814",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87823",
@@ -933,7 +1036,8 @@
     "lat": -42.75552,
     "elev": 136.0,
     "wigos": "0-20000-0-87823",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87828",
@@ -942,7 +1046,8 @@
     "lat": -43.20894,
     "elev": 39.0,
     "wigos": "0-20000-0-87828",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87852",
@@ -951,7 +1056,8 @@
     "lat": -46.53849,
     "elev": 429.0,
     "wigos": "0-20000-0-87852",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87860",
@@ -960,7 +1066,8 @@
     "lat": -45.7923,
     "elev": 58.0,
     "wigos": "0-20000-0-87860",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87880",
@@ -969,7 +1076,8 @@
     "lat": -48.78237,
     "elev": 358.0,
     "wigos": "0-20000-0-87880",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87896",
@@ -978,7 +1086,8 @@
     "lat": -47.73373,
     "elev": 81.0,
     "wigos": "0-20000-0-87896",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87904",
@@ -987,7 +1096,8 @@
     "lat": -50.28455,
     "elev": 199.0,
     "wigos": "0-20000-0-87904",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87909",
@@ -996,7 +1106,8 @@
     "lat": -49.3082,
     "elev": 58.0,
     "wigos": "0-20000-0-87909",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87912",
@@ -1005,7 +1116,8 @@
     "lat": -50.02175,
     "elev": 111,
     "wigos": "0-32-0-0087912CONV",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87925",
@@ -1014,7 +1126,8 @@
     "lat": -51.61156,
     "elev": 19,
     "wigos": "0-20000-0-87925",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87934",
@@ -1023,7 +1136,8 @@
     "lat": -53.78026,
     "elev": 22.0,
     "wigos": "0-20000-0-87934",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "87938",
@@ -1032,7 +1146,8 @@
     "lat": -54.84005,
     "elev": 57.0,
     "wigos": "0-20000-0-87938",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "88963",
@@ -1041,7 +1156,8 @@
     "lat": -63.39884,
     "elev": 24.0,
     "wigos": "0-20000-0-88963",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "88968",
@@ -1050,7 +1166,8 @@
     "lat": -60.73775,
     "elev": 8.0,
     "wigos": "0-20000-0-88968",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "89034",
@@ -1059,7 +1176,8 @@
     "lat": -77.87361,
     "elev": 256.0,
     "wigos": "0-20000-0-89034",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "89053",
@@ -1068,7 +1186,8 @@
     "lat": -62.23789,
     "elev": 11.0,
     "wigos": "0-20000-0-89053",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "89055",
@@ -1077,7 +1196,8 @@
     "lat": -64.24141,
     "elev": 208.0,
     "wigos": "0-20000-0-89055",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   },
   {
     "omm": "89066",
@@ -1086,6 +1206,7 @@
     "lat": -68.13071,
     "elev": 7.0,
     "wigos": "0-20000-0-89066",
-    "status": "operational"
+    "status": "operational",
+    "fir": "CRV"
   }
 ]

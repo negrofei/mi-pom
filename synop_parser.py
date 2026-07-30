@@ -46,6 +46,7 @@ class SynopDecoded:
     lat: Optional[float] = None
     lng: Optional[float] = None
     nombre: Optional[str] = None
+    fir: Optional[str] = None  # EZE / CBA / DOZ / SIS / CRV
     utc: Optional[str] = None
 
     # Sección 1
