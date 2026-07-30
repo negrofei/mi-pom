@@ -20,6 +20,11 @@
   const detailBody = document.getElementById("detailBody");
   const detailClose = document.getElementById("detailClose");
   const hoverTip = document.getElementById("hoverTip");
+  const tsModal = document.getElementById("tsModal");
+  const tsBody = document.getElementById("tsBody");
+  const tsTitle = document.getElementById("tsTitle");
+  const tsSubtitle = document.getElementById("tsSubtitle");
+  const tsClose = document.getElementById("tsClose");
 
   const defaults = {
     autorefresh: false,
@@ -158,9 +163,43 @@
     detail.classList.remove("hidden");
   }
 
+  async function openTimeSeries(omm, nombre) {
+    tsTitle.textContent = `Serie temporal · ${nombre || omm}`;
+    tsSubtitle.textContent = `${omm} · últimas 24 h`;
+    tsModal.classList.remove("hidden");
+    try {
+      const data = await TimeSeries.loadAndRender(tsBody, omm, hourParamFromInput());
+      tsSubtitle.textContent = `${omm} · ${data.count} obs · hasta ${data.until_label}`;
+    } catch (err) {
+      console.error(err);
+      const msg = String(err.message || err)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;");
+      tsBody.innerHTML = `<div class="ts-empty">Error: ${msg}</div>`;
+    }
+  }
+
+  function closeTimeSeries() {
+    tsModal.classList.add("hidden");
+    const tip = document.getElementById("tsHoverTip");
+    if (tip) tip.classList.add("hidden");
+  }
+
   detailClose.addEventListener("click", () => detail.classList.add("hidden"));
   configClose.addEventListener("click", () => toggleConfig(false));
   btnConfig.addEventListener("click", () => toggleConfig());
+  tsClose.addEventListener("click", closeTimeSeries);
+  tsModal.addEventListener("click", (e) => {
+    if (e.target === tsModal) closeTimeSeries();
+  });
+  detailBody.addEventListener("click", (e) => {
+    const btn = e.target.closest(".ts-open-btn");
+    if (!btn) return;
+    openTimeSeries(btn.getAttribute("data-omm"), btn.getAttribute("data-nombre"));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeTimeSeries();
+  });
 
   async function loadSynops() {
     const hour = hourParamFromInput();

@@ -74,12 +74,26 @@
     <div id="detailBody"></div>
   </aside>
 
+  <div id="tsModal" class="ts-modal hidden" role="dialog" aria-modal="true" aria-labelledby="tsTitle">
+    <div class="ts-modal-card">
+      <div class="ts-modal-head">
+        <div>
+          <h2 id="tsTitle">Serie temporal</h2>
+          <div class="ts-modal-sub" id="tsSubtitle"></div>
+        </div>
+        <button type="button" class="detail-close" id="tsClose" aria-label="Cerrar">×</button>
+      </div>
+      <div class="ts-modal-body" id="tsBody"></div>
+    </div>
+  </div>
+
   <div id="hoverTip" class="hover-tip hidden"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/static/js/symbols.js"></script>
   <script src="/static/js/ww.js"></script>
   <script src="/static/js/station-plot.js"></script>
+  <script src="/static/js/timeseries.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>
