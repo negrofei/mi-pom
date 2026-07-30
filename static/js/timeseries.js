@@ -76,14 +76,81 @@
   }
 
   function hourLabel(obs) {
-    if (obs.obs_iso) {
+    if (obs && obs.slot_label) return obs.slot_label;
+    if (obs && obs.obs_iso) {
       const d = new Date(obs.obs_iso);
       if (!Number.isNaN(d.getTime())) {
         return `${String(d.getUTCHours()).padStart(2, "0")}z`;
       }
     }
-    if (obs.utc && obs.utc.length >= 13) return `${obs.utc.slice(11, 13)}z`;
-    return obs.hour != null ? `${String(obs.hour).padStart(2, "0")}z` : "—";
+    if (obs && obs.utc && obs.utc.length >= 13) return `${obs.utc.slice(11, 13)}z`;
+    return obs && obs.hour != null ? `${String(obs.hour).padStart(2, "0")}z` : "—";
+  }
+
+  function pad2(n) {
+    return String(n).padStart(2, "0");
+  }
+
+  function parseHourKey(key) {
+    if (!key || String(key).length < 10) return null;
+    const s = String(key);
+    const y = Number(s.slice(0, 4));
+    const m = Number(s.slice(4, 6));
+    const d = Number(s.slice(6, 8));
+    const h = Number(s.slice(8, 10));
+    if ([y, m, d, h].some((v) => Number.isNaN(v))) return null;
+    return new Date(Date.UTC(y, m - 1, d, h));
+  }
+
+  function formatHourKey(dt) {
+    return (
+      String(dt.getUTCFullYear()) +
+      pad2(dt.getUTCMonth() + 1) +
+      pad2(dt.getUTCDate()) +
+      pad2(dt.getUTCHours())
+    );
+  }
+
+  /** 24 (o N) horas fijas hasta `until`; sin dato = hueco vacío. */
+  function alignPointsToSlots(rawPoints, untilKey, hours) {
+    const n = Math.max(1, Math.min(Number(hours) || 24, 72));
+    let end = parseHourKey(untilKey);
+    if (!end || Number.isNaN(end.getTime())) {
+      const now = new Date();
+      end = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())
+      );
+    }
+    const byKey = new Map();
+    (rawPoints || []).forEach((p) => {
+      if (!p || p.nil) return;
+      let key = p.hour_key;
+      if (!key && p.obs_iso) {
+        const dt = new Date(p.obs_iso);
+        if (!Number.isNaN(dt.getTime())) key = formatHourKey(dt);
+      }
+      if (!key) return;
+      byKey.set(key, p);
+    });
+
+    const slots = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const dt = new Date(end.getTime() - i * 3600 * 1000);
+      const hour_key = formatHourKey(dt);
+      const slot_label = `${pad2(dt.getUTCHours())}z`;
+      const obs = byKey.get(hour_key);
+      if (!obs) {
+        slots.push({
+          missing: true,
+          hour_key,
+          slot_label,
+          obs_iso: dt.toISOString().replace(/\.\d{3}Z$/, "Z"),
+        });
+      } else {
+        slots.push({ ...obs, missing: false, slot_label, hour_key });
+      }
+    }
+    return slots;
   }
 
   function tip(title, lines) {
@@ -94,13 +161,10 @@
   }
 
   function renderSeriesChart(container, payload) {
-    const points = (payload.points || []).filter((p) => !p.nil);
+    const observed = (payload.points || []).filter((p) => !p.nil);
+    const hours = payload.hours || 24;
+    const points = alignPointsToSlots(observed, payload.until, hours);
     container.innerHTML = "";
-
-    if (!points.length) {
-      container.innerHTML = `<div class="ts-empty">No hay observaciones en las últimas ${payload.hours || 24} h.</div>`;
-      return;
-    }
 
     const W = Math.max(720, points.length * 36 + 90);
     const labelX = 14;
@@ -126,8 +190,8 @@
     const xs = points.map((_, i) => padL + ((W - padL - padR) * (i + 0.5)) / points.length);
     const xAt = (i) => xs[i];
 
-    const temps = points.map((p) => p.temp_c).filter((v) => v != null);
-    const tds = points.map((p) => p.dewpoint_c).filter((v) => v != null);
+    const temps = points.map((p) => (p.missing ? null : p.temp_c)).filter((v) => v != null);
+    const tds = points.map((p) => (p.missing ? null : p.dewpoint_c)).filter((v) => v != null);
     const allT = temps.concat(tds);
     const dataTMin = allT.length ? Math.min(...allT) : 0;
     const dataTMax = allT.length ? Math.max(...allT) : 1;
@@ -152,7 +216,7 @@
     // Escala log fija 100–10000 ft: resalta bases bajas; ≥10000 ft va al tope
     const CLOUD_FLOOR_FT = 100;
     const CLOUD_CEIL_FT = 10000;
-    const clouds = points.map(lowestCloud);
+    const clouds = points.map((p) => (p.missing ? { height_ft: null } : lowestCloud(p)));
     const cloudRow = rows[2];
     const logCloud = (ft) => Math.log10(Math.max(CLOUD_FLOOR_FT, Math.min(CLOUD_CEIL_FT, Number(ft))));
     const logCloudMin = Math.log10(CLOUD_FLOOR_FT);
@@ -172,12 +236,18 @@
       visRow.y + visRow.h - ((logVis(v) - logVisMin) / (logVisMax - logVisMin)) * visRow.h;
     const visTicks = [150, 350, 600, 800, 1500, 3000, 5000, 10000];
 
+    // Rompe la línea en huecos (horas sin dato)
     function linePath(values, yFn) {
       let d = "";
+      let drawing = false;
       values.forEach((v, i) => {
-        if (v == null) return;
-        const cmd = d ? "L" : "M";
+        if (v == null) {
+          drawing = false;
+          return;
+        }
+        const cmd = drawing ? "L" : "M";
         d += `${cmd}${xAt(i).toFixed(1)},${yFn(v).toFixed(1)} `;
+        drawing = true;
       });
       return d.trim();
     }
@@ -202,16 +272,18 @@
       );
     });
 
-    // horas
+    // horas (siempre N slots; huecos sin dato quedan vacíos)
     points.forEach((p, i) => {
       const x = xAt(i);
       parts.push(
-        `<text class="ts-hour" x="${x}" y="${padT - 10}" text-anchor="middle" font-size="10">${S().esc(
-          hourLabel(p)
-        )}</text>`
+        `<text class="ts-hour${p.missing ? " ts-hour-missing" : ""}" x="${x}" y="${padT - 10}" text-anchor="middle" font-size="10" fill="${
+          p.missing ? "#b0b6bd" : "#556"
+        }">${S().esc(hourLabel(p))}</text>`
       );
       parts.push(
-        `<line x1="${x}" y1="${padT}" x2="${x}" y2="${H - 28}" stroke="rgba(0,0,0,0.06)" />`
+        `<line x1="${x}" y1="${padT}" x2="${x}" y2="${H - 28}" stroke="${
+          p.missing ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.06)"
+        }" />`
       );
     });
 
@@ -239,11 +311,11 @@
     }
 
     const tPath = linePath(
-      points.map((p) => p.temp_c),
+      points.map((p) => (p.missing ? null : p.temp_c)),
       ty
     );
     const tdPath = linePath(
-      points.map((p) => p.dewpoint_c),
+      points.map((p) => (p.missing ? null : p.dewpoint_c)),
       ty
     );
     if (tdPath) {
@@ -257,6 +329,7 @@
       );
     }
     points.forEach((p, i) => {
+      if (p.missing) return;
       const x = xAt(i);
       if (p.temp_c != null) {
         parts.push(
@@ -279,6 +352,7 @@
     // Viento
     const windRow = rows[1];
     points.forEach((p, i) => {
+      if (p.missing) return;
       const x = xAt(i);
       const barb = p.wind_barb || "0";
       const dir = p.wind_dir != null ? Number(p.wind_dir) : 0;
@@ -310,6 +384,7 @@
       );
     });
     points.forEach((p, i) => {
+      if (p.missing) return;
       const x = xAt(i);
       const c = clouds[i];
       if (c.height_ft == null) return;
@@ -346,7 +421,7 @@
       );
     });
     const visPath = linePath(
-      points.map((p) => p.visibility_m),
+      points.map((p) => (p.missing ? null : p.visibility_m)),
       vy
     );
     if (visPath) {
@@ -355,7 +430,7 @@
       );
     }
     points.forEach((p, i) => {
-      if (p.visibility_m == null) return;
+      if (p.missing || p.visibility_m == null) return;
       const x = xAt(i);
       const capped = p.visibility_m > VIS_CEIL_M;
       parts.push(
@@ -373,7 +448,7 @@
     // Tiempo presente
     const wwRow = rows[4];
     points.forEach((p, i) => {
-      if (!p.present_weather) return;
+      if (p.missing || !p.present_weather) return;
       const x = xAt(i);
       const code = String(p.present_weather).padStart(2, "0");
       const decoded = WW().wwText(code) || code;
