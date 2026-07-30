@@ -225,8 +225,8 @@
       cloudRow.y + cloudRow.h - ((logCloud(v) - logCloudMin) / (logCloudMax - logCloudMin)) * cloudRow.h;
     const cloudTicks = [100, 200, 500, 1000, 2000, 5000, 10000];
 
-    // Visibilidad: log fija 150–10000 m (valores mayores al tope)
-    const VIS_FLOOR_M = 150;
+    // Visibilidad: log fija 50–10000 m (valores mayores al tope)
+    const VIS_FLOOR_M = 50;
     const VIS_CEIL_M = 10000;
     const visRow = rows[3];
     const logVis = (m) => Math.log10(Math.max(VIS_FLOOR_M, Math.min(VIS_CEIL_M, Number(m))));
@@ -234,7 +234,7 @@
     const logVisMax = Math.log10(VIS_CEIL_M);
     const vy = (v) =>
       visRow.y + visRow.h - ((logVis(v) - logVisMin) / (logVisMax - logVisMin)) * visRow.h;
-    const visTicks = [150, 350, 600, 800, 1500, 3000, 5000, 10000];
+    const visTicks = [50, 150, 350, 600, 800, 1500, 3000, 5000, 10000];
 
     // Rompe la línea en huecos (horas sin dato)
     function linePath(values, yFn) {
@@ -407,7 +407,7 @@
       );
     });
 
-    // Visibilidad: escala log 150–10000 m
+    // Visibilidad: escala log 50–10000 m
     visTicks.forEach((m) => {
       const yy = vy(m);
       parts.push(
@@ -469,7 +469,7 @@
         <span class="ts-leg td">Rocío</span>
         <span class="ts-leg wind">Barbas de viento</span>
         <span class="ts-leg cloud">Nubes (log 100–10000 ft)</span>
-        <span class="ts-leg vis">Visibilidad (log 150–10000 m)</span>
+        <span class="ts-leg vis">Visibilidad (log 50–10000 m)</span>
         <span class="ts-leg ww">Tiempo presente</span>
       </div>`;
 
