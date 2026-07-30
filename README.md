@@ -9,6 +9,7 @@ Visor web de mensajes **SYNOP** de estaciones argentinas, con ploteo tipo modelo
 - **Dos grupos de nubosidad** cuando existen: sección 1 (`8NhCLCMCH`) y capas de sección 3 (`8NsChshs`)
 - Hover sobre estaciones / tipos de nube / capas sec.3
 - Panel con el mensaje crudo y campos decodificados
+- **Serie temporal 24 h** por estación (botón en el detalle): T/Td, barbas, nubes bajas, visibilidad y ww, con tooltips al hover
 - Selector de hora UTC
 - Catálogo de 121 estaciones del SMN (coordenadas)
 
@@ -47,6 +48,7 @@ Panel **Configuración** en la barra superior:
 ## API
 
 - `GET /api/synops?hour=YYYYMMDDHH&nil=0&timeline=exact|latest&lookback=24`
+- `GET /api/synops/<omm>?hours=24&hour=YYYYMMDDHH&nil=0` — serie horaria de una estación
 - `GET /api/stations` — catálogo
 - `GET /health` — healthcheck
 

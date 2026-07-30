@@ -137,3 +137,92 @@ def fetch_argentina_synops(
                 best[omm] = (obs_dt, decoded)
 
     return [v[1] for v in best.values()]
+
+
+def fetch_station_series(
+    omm: str,
+    when: datetime,
+    *,
+    stations: dict[str, dict],
+    hours: int = 24,
+) -> list[tuple[datetime, SynopDecoded]]:
+    """
+    Serie horaria de una estación (últimas `hours` horas hasta `when`).
+    Devuelve lista (obs_dt, decoded) ordenada ascendente.
+    """
+    omm = str(omm).strip()
+    if omm not in stations:
+        raise KeyError(f"Estación {omm} no está en el catálogo")
+
+    hours = max(1, min(int(hours), 72))
+    end = when.replace(minute=59, second=0, microsecond=0)
+    begin = (when - timedelta(hours=hours - 1)).replace(
+        minute=0, second=0, microsecond=0
+    )
+
+    params = {
+        "begin": begin.strftime("%Y%m%d%H%M"),
+        "end": end.strftime("%Y%m%d%H%M"),
+        "block": omm,
+        "header": "yes",
+        "lang": "eng",
+    }
+
+    log.info("OGIMET station series %s", params)
+    resp = requests.get(OGIMET_URL, params=params, timeout=DEFAULT_TIMEOUT)
+    resp.raise_for_status()
+    text = resp.text
+    if "<html" in text.lower():
+        raise RuntimeError("OGIMET devolvió HTML en lugar de CSV. Reintentar más tarde.")
+
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+    if not rows:
+        return []
+
+    start = 1 if rows[0] and rows[0][0].upper().startswith("WMO") else 0
+    by_hour: dict[datetime, tuple[datetime, SynopDecoded]] = {}
+    meta = stations[omm]
+
+    for row in rows[start:]:
+        if len(row) < 7:
+            continue
+        wmo, y, m, d, h, mi, report = (
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            row[4],
+            row[5],
+            row[6],
+        )
+        if str(wmo) != omm:
+            continue
+        try:
+            obs_dt = datetime(
+                int(y), int(m), int(d), int(h), int(mi), tzinfo=timezone.utc
+            )
+        except ValueError:
+            continue
+        if obs_dt > end or obs_dt < begin:
+            continue
+
+        decoded = parse_synop(
+            report,
+            omm,
+            year=int(y),
+            month=int(m),
+            day=int(d),
+            hour=int(h),
+            minute=int(mi),
+        )
+        decoded.lat = meta.get("lat")
+        decoded.lng = meta.get("lng")
+        decoded.nombre = meta.get("nombre")
+
+        hour_key = obs_dt.replace(minute=0, second=0, microsecond=0)
+        prev = by_hour.get(hour_key)
+        if prev is None or obs_dt >= prev[0]:
+            by_hour[hour_key] = (obs_dt, decoded)
+
+    return [by_hour[k] for k in sorted(by_hour)]

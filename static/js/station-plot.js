@@ -293,6 +293,9 @@
     return `
       <h2>${S().esc(obs.nombre || obs.omm)}</h2>
       <div class="meta">${S().esc(obs.omm)} · fuente OGIMET</div>
+      <button type="button" class="btn primary ts-open-btn" data-omm="${S().esc(obs.omm)}" data-nombre="${S().esc(obs.nombre || obs.omm)}">
+        Ver serie temporal
+      </button>
       <div><b>SYNOP</b></div>
       <pre class="raw">${S().esc(obs.raw)}</pre>
       <dl>${dl}</dl>

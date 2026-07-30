@@ -515,8 +515,131 @@ html, body {
   word-break: break-word;
 }
 
+.ts-open-btn {
+  margin: 0.35rem 0 0.9rem;
+  width: 100%;
+}
+
+.ts-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: rgba(15, 25, 35, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.ts-modal.hidden { display: none; }
+
+.ts-modal-card {
+  width: min(1100px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 0.9rem 1rem 1.1rem;
+}
+
+.ts-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.ts-modal-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.ts-modal-sub {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  opacity: 0.75;
+  margin-top: 0.2rem;
+}
+
+.ts-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+  margin-bottom: 0.55rem;
+  font-size: 0.8rem;
+}
+
+.ts-leg::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 0.35rem;
+  vertical-align: -1px;
+}
+
+.ts-leg.t::before { background: #c62828; }
+.ts-leg.td::before { background: #1565c0; }
+.ts-leg.wind::before { background: #333; }
+.ts-leg.cloud::before { background: #5d6d7e; }
+.ts-leg.vis::before { background: #2e7d32; }
+.ts-leg.ww::before { background: #000; }
+
+.ts-svg {
+  display: block;
+  min-width: 680px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.ts-row-label {
+  font-family: var(--sans);
+  fill: #445;
+}
+
+.ts-hour {
+  font-family: var(--mono);
+  fill: #556;
+}
+
+.ts-hit {
+  cursor: help;
+}
+
+.ts-loading,
+.ts-empty {
+  padding: 1.2rem;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.ts-hover-tip {
+  position: fixed;
+  z-index: 1400;
+  pointer-events: none;
+  max-width: min(320px, 90vw);
+  white-space: pre-line;
+  background: rgba(20, 30, 40, 0.94);
+  color: #f4f7fa;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  box-shadow: var(--shadow);
+}
+
+.ts-hover-tip.hidden { display: none; }
+
 @media (max-width: 720px) {
   .topbar { align-items: flex-start; }
   .status { text-align: left; width: 100%; }
   .detail { top: auto; bottom: 0.75rem; right: 0.75rem; left: 0.75rem; width: auto; }
+  .ts-modal { padding: 0.4rem; align-items: stretch; }
+  .ts-modal-card { max-height: calc(100vh - 0.8rem); }
 }

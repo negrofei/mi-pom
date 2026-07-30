@@ -9,7 +9,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
-from ogimet_client import fetch_argentina_synops, resolve_synop_hour
+from ogimet_client import fetch_argentina_synops, fetch_station_series, resolve_synop_hour
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -88,6 +88,56 @@ def api_synops():
         "synops": [s.to_dict() for s in synops],
     }
     return jsonify(payload)
+
+
+@app.get("/api/synops/<omm>")
+def api_station_series(omm: str):
+    """Serie temporal de una estación (por defecto últimas 24 h)."""
+    hour = request.args.get("hour")
+    try:
+        hours = int(request.args.get("hours", "24"))
+    except ValueError:
+        return jsonify({"error": "hours inválido"}), 400
+    hours = max(1, min(hours, 72))
+
+    try:
+        when = resolve_synop_hour(hour)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    if str(omm) not in STATIONS:
+        return jsonify({"error": f"Estación {omm} no encontrada"}), 404
+
+    try:
+        series = fetch_station_series(
+            str(omm), when, stations=STATIONS, hours=hours
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Error consultando serie OGIMET")
+        return jsonify({"error": f"No se pudo consultar OGIMET: {exc}"}), 502
+
+    include_nil = request.args.get("nil", "0") == "1"
+    points = []
+    for obs_dt, decoded in series:
+        if decoded.nil and not include_nil:
+            continue
+        item = decoded.to_dict()
+        item["obs_iso"] = obs_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        item["hour_key"] = obs_dt.strftime("%Y%m%d%H")
+        points.append(item)
+
+    meta = STATIONS[str(omm)]
+    return jsonify(
+        {
+            "omm": str(omm),
+            "nombre": meta.get("nombre"),
+            "hours": hours,
+            "until": when.strftime("%Y%m%d%H"),
+            "until_label": when.strftime("%d/%m/%Y %H:00 UTC"),
+            "count": len(points),
+            "points": points,
+        }
+    )
 
 
 @app.get("/health")
