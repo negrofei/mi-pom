@@ -103,10 +103,10 @@
     }
 
     const W = Math.max(720, points.length * 36 + 80);
-    const padL = 54;
+    const padL = 58;
     const padR = 20;
     const padT = 28;
-    const rowH = { temp: 120, wind: 56, cloud: 70, vis: 70, ww: 48 };
+    const rowH = { temp: 120, wind: 56, cloud: 96, vis: 70, ww: 48 };
     const gap = 18;
     let y = padT;
     const rows = [
@@ -115,7 +115,7 @@
     y += rowH.temp + gap;
     rows.push({ key: "wind", label: "Viento", y: y, h: rowH.wind });
     y += rowH.wind + gap;
-    rows.push({ key: "cloud", label: "Nubes bajas", y: y, h: rowH.cloud });
+    rows.push({ key: "cloud", label: "Nubes (log)", y: y, h: rowH.cloud });
     y += rowH.cloud + gap;
     rows.push({ key: "vis", label: "Visibilidad", y: y, h: rowH.vis });
     y += rowH.vis + gap;
@@ -141,17 +141,17 @@
     const ty = (v) =>
       tempRow.y + tempRow.h - ((v - tMin) / (tMax - tMin)) * tempRow.h;
 
+    // Escala log fija 100–10000 ft: resalta bases bajas; ≥10000 ft va al tope
+    const CLOUD_FLOOR_FT = 100;
+    const CLOUD_CEIL_FT = 10000;
     const clouds = points.map(lowestCloud);
-    const cloudHeights = clouds.map((c) => c.height_ft).filter((v) => v != null);
-    let cMin = cloudHeights.length ? Math.min(...cloudHeights) : 0;
-    let cMax = cloudHeights.length ? Math.max(...cloudHeights) : 1000;
-    if (cMin === cMax) {
-      cMin = Math.max(0, cMin - 500);
-      cMax = cMax + 500;
-    }
     const cloudRow = rows[2];
+    const logCloud = (ft) => Math.log10(Math.max(CLOUD_FLOOR_FT, Math.min(CLOUD_CEIL_FT, Number(ft))));
+    const logMin = Math.log10(CLOUD_FLOOR_FT);
+    const logMax = Math.log10(CLOUD_CEIL_FT);
     const cy = (v) =>
-      cloudRow.y + cloudRow.h - ((v - cMin) / (cMax - cMin)) * cloudRow.h;
+      cloudRow.y + cloudRow.h - ((logCloud(v) - logMin) / (logMax - logMin)) * cloudRow.h;
+    const cloudTicks = [100, 200, 500, 1000, 2000, 5000, 10000];
 
     const viss = points.map((p) => p.visibility_m).filter((v) => v != null);
     let vMin = viss.length ? Math.min(...viss) : 0;
@@ -276,15 +276,25 @@
       );
     });
 
-    // Nubes bajas
+    // Nubes: escala log 100–10000 ft (valores >10000 se grafican en el tope)
+    cloudTicks.forEach((ft) => {
+      const yy = cy(ft);
+      parts.push(
+        `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="rgba(93,109,126,0.18)" stroke-dasharray="3 3" />`
+      );
+      parts.push(
+        `<text x="${padL - 6}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#666">${ft}</text>`
+      );
+    });
     points.forEach((p, i) => {
       const x = xAt(i);
       const c = clouds[i];
       if (c.height_ft == null) return;
+      const capped = c.height_ft > CLOUD_CEIL_FT;
       const y1 = cy(c.height_ft);
       const cover = c.cover != null ? String(c.cover) : "9999";
       const tipTxt = tip("Nubosidad más baja", [
-        `Base: ${c.height_ft} ft`,
+        `Base: ${c.height_ft} ft${capped ? ` (≥${CLOUD_CEIL_FT} ft → tope del gráfico)` : ""}`,
         c.cover != null ? `Cobertura Ns/N: ${c.cover}/8` : null,
         c.label,
         hourLabel(p),
@@ -292,21 +302,14 @@
       parts.push(
         `<g class="ts-hit ts-cloud" data-tip="${tipTxt}">
           <line x1="${x}" y1="${cloudRow.y + cloudRow.h}" x2="${x}" y2="${y1}" stroke="#5d6d7e" stroke-width="2" />
-          <circle cx="${x}" cy="${y1}" r="3.5" fill="#5d6d7e" />
+          <circle cx="${x}" cy="${y1}" r="3.5" fill="${capped ? "#9aa5b1" : "#5d6d7e"}" />
           <image href="${IMG}/simbolos/N${cover}.png" xlink:href="${IMG}/simbolos/N${cover}.png" x="${x - 8}" y="${y1 - 28}" width="16" height="16" />
           <rect x="${x - 12}" y="${y1 - 30}" width="24" height="${cloudRow.y + cloudRow.h - y1 + 32}" fill="transparent" />
         </g>`
       );
     });
     parts.push(
-      `<text x="${padL - 6}" y="${cloudRow.y + 10}" text-anchor="end" font-size="9" fill="#666">${Math.round(
-        cMax
-      )}ft</text>`
-    );
-    parts.push(
-      `<text x="${padL - 6}" y="${cloudRow.y + cloudRow.h}" text-anchor="end" font-size="9" fill="#666">${Math.round(
-        cMin
-      )}ft</text>`
+      `<text x="${padL - 6}" y="${cloudRow.y - 4}" text-anchor="end" font-size="8" fill="#888">ft log</text>`
     );
 
     // Visibilidad
@@ -353,7 +356,7 @@
         <span class="ts-leg t">Temperatura</span>
         <span class="ts-leg td">Rocío</span>
         <span class="ts-leg wind">Barbas de viento</span>
-        <span class="ts-leg cloud">Nubes bajas (altura + cobertura)</span>
+        <span class="ts-leg cloud">Nubes (log 100–10000 ft)</span>
         <span class="ts-leg vis">Visibilidad</span>
         <span class="ts-leg ww">Tiempo presente</span>
       </div>`;
