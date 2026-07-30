@@ -102,11 +102,12 @@
       return;
     }
 
-    const W = Math.max(720, points.length * 36 + 80);
-    const padL = 58;
+    const W = Math.max(720, points.length * 36 + 90);
+    const labelX = 14;
+    const padL = 72;
     const padR = 20;
     const padT = 28;
-    const rowH = { temp: 120, wind: 56, cloud: 96, vis: 70, ww: 48 };
+    const rowH = { temp: 130, wind: 56, cloud: 96, vis: 96, ww: 48 };
     const gap = 18;
     let y = padT;
     const rows = [
@@ -117,7 +118,7 @@
     y += rowH.wind + gap;
     rows.push({ key: "cloud", label: "Nubes (log)", y: y, h: rowH.cloud });
     y += rowH.cloud + gap;
-    rows.push({ key: "vis", label: "Visibilidad", y: y, h: rowH.vis });
+    rows.push({ key: "vis", label: "Visibilidad (log)", y: y, h: rowH.vis });
     y += rowH.vis + gap;
     rows.push({ key: "ww", label: "Tiempo presente", y: y, h: rowH.ww });
     const H = y + rowH.ww + 36;
@@ -128,12 +129,19 @@
     const temps = points.map((p) => p.temp_c).filter((v) => v != null);
     const tds = points.map((p) => p.dewpoint_c).filter((v) => v != null);
     const allT = temps.concat(tds);
-    let tMin = allT.length ? Math.min(...allT) : 0;
-    let tMax = allT.length ? Math.max(...allT) : 1;
+    const dataTMin = allT.length ? Math.min(...allT) : 0;
+    const dataTMax = allT.length ? Math.max(...allT) : 1;
+    let tMin = dataTMin;
+    let tMax = dataTMax;
     if (tMin === tMax) {
       tMin -= 1;
       tMax += 1;
     }
+    // Amplitud térmica (solo T) define el paso de marcas; el eje cubre T y Td
+    const tOnlyMin = temps.length ? Math.min(...temps) : dataTMin;
+    const tOnlyMax = temps.length ? Math.max(...temps) : dataTMax;
+    const tAmpThermal = tOnlyMax - tOnlyMin;
+    const tMajorStep = tAmpThermal < 10 ? 1 : 2;
     const tPad = (tMax - tMin) * 0.12 || 1;
     tMin -= tPad;
     tMax += tPad;
@@ -147,22 +155,22 @@
     const clouds = points.map(lowestCloud);
     const cloudRow = rows[2];
     const logCloud = (ft) => Math.log10(Math.max(CLOUD_FLOOR_FT, Math.min(CLOUD_CEIL_FT, Number(ft))));
-    const logMin = Math.log10(CLOUD_FLOOR_FT);
-    const logMax = Math.log10(CLOUD_CEIL_FT);
+    const logCloudMin = Math.log10(CLOUD_FLOOR_FT);
+    const logCloudMax = Math.log10(CLOUD_CEIL_FT);
     const cy = (v) =>
-      cloudRow.y + cloudRow.h - ((logCloud(v) - logMin) / (logMax - logMin)) * cloudRow.h;
+      cloudRow.y + cloudRow.h - ((logCloud(v) - logCloudMin) / (logCloudMax - logCloudMin)) * cloudRow.h;
     const cloudTicks = [100, 200, 500, 1000, 2000, 5000, 10000];
 
-    const viss = points.map((p) => p.visibility_m).filter((v) => v != null);
-    let vMin = viss.length ? Math.min(...viss) : 0;
-    let vMax = viss.length ? Math.max(...viss) : 10000;
-    if (vMin === vMax) {
-      vMin = 0;
-      vMax = vMax * 1.2 || 1000;
-    }
+    // Visibilidad: log fija 150–5000 m (valores mayores al tope)
+    const VIS_FLOOR_M = 150;
+    const VIS_CEIL_M = 5000;
     const visRow = rows[3];
+    const logVis = (m) => Math.log10(Math.max(VIS_FLOOR_M, Math.min(VIS_CEIL_M, Number(m))));
+    const logVisMin = Math.log10(VIS_FLOOR_M);
+    const logVisMax = Math.log10(VIS_CEIL_M);
     const vy = (v) =>
-      visRow.y + visRow.h - ((v - vMin) / (vMax - vMin)) * visRow.h;
+      visRow.y + visRow.h - ((logVis(v) - logVisMin) / (logVisMax - logVisMin)) * visRow.h;
+    const visTicks = [150, 350, 600, 800, 1500, 3000, 5000];
 
     function linePath(values, yFn) {
       let d = "";
@@ -179,15 +187,16 @@
       `<svg class="ts-svg" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMinYMin meet" role="img" aria-label="Serie temporal">`
     );
 
-    // fondos de filas
+    // fondos de filas + labels rotados 90° CCW
     rows.forEach((r, idx) => {
       parts.push(
         `<rect class="ts-row-bg" x="${padL}" y="${r.y}" width="${W - padL - padR}" height="${r.h}" fill="${
           idx % 2 ? "rgba(11,95,138,0.04)" : "rgba(0,0,0,0.02)"
         }" />`
       );
+      const midY = r.y + r.h / 2;
       parts.push(
-        `<text class="ts-row-label" x="8" y="${r.y + r.h / 2}" dominant-baseline="middle" font-size="11">${S().esc(
+        `<text class="ts-row-label" x="${labelX}" y="${midY}" text-anchor="middle" dominant-baseline="middle" font-size="11" transform="rotate(-90 ${labelX} ${midY})">${S().esc(
           r.label
         )}</text>`
       );
@@ -206,7 +215,29 @@
       );
     });
 
-    // Temperatura / rocío
+    // Temperatura / rocío — marcas según amplitud térmica
+    const tLo = Math.ceil(tMin);
+    const tHi = Math.floor(tMax);
+    for (let t = tLo; t <= tHi; t++) {
+      const yy = ty(t);
+      const isMajor = ((t % tMajorStep) + tMajorStep) % tMajorStep === 0;
+      if (isMajor) {
+        parts.push(
+          `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="rgba(0,0,0,0.08)" />`
+        );
+        parts.push(
+          `<line x1="${padL - 5}" y1="${yy}" x2="${padL}" y2="${yy}" stroke="#666" stroke-width="1.2" />`
+        );
+        parts.push(
+          `<text x="${padL - 7}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#666">${t}°</text>`
+        );
+      } else if (tMajorStep > 1) {
+        parts.push(
+          `<line x1="${padL - 3}" y1="${yy}" x2="${padL}" y2="${yy}" stroke="#999" stroke-width="1" />`
+        );
+      }
+    }
+
     const tPath = linePath(
       points.map((p) => p.temp_c),
       ty
@@ -244,17 +275,6 @@
         );
       }
     });
-    // eje T
-    parts.push(
-      `<text x="${padL - 6}" y="${ty(tMax)}" text-anchor="end" font-size="9" fill="#666">${tMax.toFixed(
-        0
-      )}°</text>`
-    );
-    parts.push(
-      `<text x="${padL - 6}" y="${ty(tMin)}" text-anchor="end" font-size="9" fill="#666">${tMin.toFixed(
-        0
-      )}°</text>`
-    );
 
     // Viento
     const windRow = rows[1];
@@ -283,7 +303,10 @@
         `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="rgba(93,109,126,0.18)" stroke-dasharray="3 3" />`
       );
       parts.push(
-        `<text x="${padL - 6}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#666">${ft}</text>`
+        `<line x1="${padL - 5}" y1="${yy}" x2="${padL}" y2="${yy}" stroke="#666" stroke-width="1.2" />`
+      );
+      parts.push(
+        `<text x="${padL - 7}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#666">${ft}</text>`
       );
     });
     points.forEach((p, i) => {
@@ -308,11 +331,20 @@
         </g>`
       );
     });
-    parts.push(
-      `<text x="${padL - 6}" y="${cloudRow.y - 4}" text-anchor="end" font-size="8" fill="#888">ft log</text>`
-    );
 
-    // Visibilidad
+    // Visibilidad: escala log 150–5000 m
+    visTicks.forEach((m) => {
+      const yy = vy(m);
+      parts.push(
+        `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="rgba(46,125,50,0.16)" stroke-dasharray="3 3" />`
+      );
+      parts.push(
+        `<line x1="${padL - 5}" y1="${yy}" x2="${padL}" y2="${yy}" stroke="#666" stroke-width="1.2" />`
+      );
+      parts.push(
+        `<text x="${padL - 7}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#666">${m}</text>`
+      );
+    });
     const visPath = linePath(
       points.map((p) => p.visibility_m),
       vy
@@ -325,11 +357,16 @@
     points.forEach((p, i) => {
       if (p.visibility_m == null) return;
       const x = xAt(i);
+      const capped = p.visibility_m > VIS_CEIL_M;
       parts.push(
-        `<circle class="ts-hit ts-vis" cx="${x}" cy="${vy(p.visibility_m)}" r="4.5" fill="#2e7d32" data-tip="${tip(
-          "Visibilidad horizontal",
-          [visText(p), `VV=${p.visibility ?? "—"}`, hourLabel(p)]
-        )}" />`
+        `<circle class="ts-hit ts-vis" cx="${x}" cy="${vy(p.visibility_m)}" r="4.5" fill="${
+          capped ? "#81c784" : "#2e7d32"
+        }" data-tip="${tip("Visibilidad horizontal", [
+          visText(p),
+          capped ? `(≥${VIS_CEIL_M} m → tope del gráfico)` : null,
+          `VV=${p.visibility ?? "—"}`,
+          hourLabel(p),
+        ])}" />`
       );
     });
 
@@ -357,7 +394,7 @@
         <span class="ts-leg td">Rocío</span>
         <span class="ts-leg wind">Barbas de viento</span>
         <span class="ts-leg cloud">Nubes (log 100–10000 ft)</span>
-        <span class="ts-leg vis">Visibilidad</span>
+        <span class="ts-leg vis">Visibilidad (log 150–5000 m)</span>
         <span class="ts-leg ww">Tiempo presente</span>
       </div>`;
 
