@@ -332,7 +332,7 @@
       );
     });
 
-    // Visibilidad: escala log 150–5000 m
+    // Visibilidad: escala log 150–10000 m
     visTicks.forEach((m) => {
       const yy = vy(m);
       parts.push(
