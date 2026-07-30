@@ -199,6 +199,24 @@ html, body {
   opacity: 0.75;
 }
 
+.fir-checks {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0.15rem 0 0.35rem;
+}
+
+.fir-checks .config-row.check {
+  padding-bottom: 0.15rem;
+}
+
+.leaflet-tooltip.fir-tooltip {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
 .config-row.radio {
   align-items: flex-start;
 }

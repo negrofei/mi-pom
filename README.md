@@ -10,6 +10,7 @@ Visor web de mensajes **SYNOP** de estaciones argentinas, con ploteo tipo modelo
 - Hover sobre estaciones / tipos de nube / capas sec.3
 - Panel con el mensaje crudo y campos decodificados
 - **Serie temporal 24 h** por estación (botón en el detalle): T/Td, barbas, nubes bajas, visibilidad y ww, con tooltips al hover
+- Contornos **FIR** de Argentina (EZE, CBA, DOZ, SIS, CRV) y filtro por región
 - Selector de hora UTC
 - Catálogo de 121 estaciones del SMN (coordenadas)
 

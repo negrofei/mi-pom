@@ -1,8 +1,16 @@
 (function () {
-  const STORAGE_KEY = "synop-ar-config-v2";
+  const STORAGE_KEY = "synop-ar-config-v3";
   const BASE_W = 120;
   const BASE_H = 160;
   const REFRESH_MS = 2 * 60 * 1000;
+  const ALL_FIRS = ["EZE", "CBA", "DOZ", "SIS", "CRV"];
+  const FIR_META = {
+    EZE: { name: "Ezeiza", color: "#1f4e79" },
+    CBA: { name: "Córdoba", color: "#6b3a1f" },
+    DOZ: { name: "Mendoza", color: "#2f5d3a" },
+    SIS: { name: "Resistencia", color: "#5a2d6e" },
+    CRV: { name: "Comodoro Rivadavia", color: "#8a4b12" },
+  };
 
   const statusEl = document.getElementById("status");
   const hourInput = document.getElementById("hourInput");
@@ -16,6 +24,8 @@
   const cfgTimelineLatest = document.getElementById("cfgTimelineLatest");
   const cfgPlotGap = document.getElementById("cfgPlotGap");
   const cfgGapLabel = document.getElementById("cfgGapLabel");
+  const cfgFirAll = document.getElementById("cfgFirAll");
+  const firChecks = document.getElementById("firChecks");
   const detail = document.getElementById("detail");
   const detailBody = document.getElementById("detailBody");
   const detailClose = document.getElementById("detailClose");
@@ -31,20 +41,27 @@
     timeline: "exact",
     plotGap: 0.75,
     includeNil: false,
+    firs: [...ALL_FIRS],
   };
 
   function loadSettings() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("synop-ar-config-v1");
-      if (!raw) return { ...defaults };
+      const raw =
+        localStorage.getItem(STORAGE_KEY) ||
+        localStorage.getItem("synop-ar-config-v2") ||
+        localStorage.getItem("synop-ar-config-v1");
+      if (!raw) return { ...defaults, firs: [...ALL_FIRS] };
       const parsed = JSON.parse(raw);
       // migrar plotScale → plotGap
       if (parsed.plotGap == null && parsed.plotScale != null) {
         parsed.plotGap = parsed.plotScale;
       }
-      return { ...defaults, ...parsed };
+      if (!Array.isArray(parsed.firs) || !parsed.firs.length) {
+        parsed.firs = [...ALL_FIRS];
+      }
+      return { ...defaults, ...parsed, firs: parsed.firs.filter((c) => ALL_FIRS.includes(c)) };
     } catch {
-      return { ...defaults };
+      return { ...defaults, firs: [...ALL_FIRS] };
     }
   }
 
@@ -67,6 +84,83 @@
   }).addTo(map);
 
   let layerGroup = L.layerGroup().addTo(map);
+  let firLayer = L.geoJSON(null, {
+    style: (feature) => {
+      const code = feature?.properties?.fir;
+      const active = !settings.firs.length || settings.firs.includes(code);
+      const color = FIR_META[code]?.color || "#444";
+      return {
+        color,
+        weight: active ? 1.25 : 0.7,
+        opacity: active ? 0.85 : 0.25,
+        fill: false,
+        fillOpacity: 0,
+        interactive: true,
+      };
+    },
+    onEachFeature: (feature, layer) => {
+      const code = feature.properties?.fir || "?";
+      const name = feature.properties?.name || FIR_META[code]?.name || code;
+      layer.bindTooltip(`FIR ${code} · ${name}`, {
+        sticky: true,
+        direction: "top",
+        opacity: 0.9,
+        className: "fir-tooltip",
+      });
+    },
+  }).addTo(map);
+
+  async function loadFirLayer() {
+    try {
+      const res = await fetch("/data/fir_argentina.geojson");
+      if (!res.ok) throw new Error(res.statusText);
+      const geo = await res.json();
+      firLayer.clearLayers();
+      firLayer.addData(geo);
+    } catch (err) {
+      console.error("No se pudo cargar FIR", err);
+    }
+  }
+
+  function selectedFirsFromUi() {
+    const boxes = [...firChecks.querySelectorAll('input[type="checkbox"]')];
+    return boxes.filter((b) => b.checked).map((b) => b.value);
+  }
+
+  function syncFirAllCheckbox() {
+    const selected = selectedFirsFromUi();
+    cfgFirAll.checked = selected.length === ALL_FIRS.length;
+    cfgFirAll.indeterminate = selected.length > 0 && selected.length < ALL_FIRS.length;
+  }
+
+  function applyFirChecks(firs) {
+    const set = new Set(firs && firs.length ? firs : ALL_FIRS);
+    firChecks.querySelectorAll('input[type="checkbox"]').forEach((b) => {
+      b.checked = set.has(b.value);
+    });
+    syncFirAllCheckbox();
+  }
+
+  function refreshFirStyles() {
+    firLayer.setStyle((feature) => {
+      const code = feature?.properties?.fir;
+      const active = !settings.firs.length || settings.firs.includes(code);
+      const color = FIR_META[code]?.color || "#444";
+      return {
+        color,
+        weight: active ? 1.25 : 0.7,
+        opacity: active ? 0.85 : 0.25,
+        fill: false,
+        fillOpacity: 0,
+      };
+    });
+  }
+
+  function firAllowed(obs) {
+    if (!settings.firs || settings.firs.length === ALL_FIRS.length) return true;
+    if (!settings.firs.length) return false;
+    return settings.firs.includes(obs.fir);
+  }
 
   function pad(n) {
     return String(n).padStart(2, "0");
@@ -100,6 +194,7 @@
     else cfgTimelineExact.checked = true;
     cfgPlotGap.value = String(settings.plotGap);
     cfgGapLabel.textContent = Number(settings.plotGap).toFixed(2);
+    applyFirChecks(settings.firs);
   }
 
   function readSettingsFromUi() {
@@ -108,10 +203,12 @@
       timeline: cfgTimelineLatest.checked ? "latest" : "exact",
       plotGap: Number(cfgPlotGap.value),
       includeNil: chkNil.checked,
+      firs: selectedFirsFromUi(),
     };
     cfgGapLabel.textContent = settings.plotGap.toFixed(2);
     saveSettings(settings);
     syncAutorefresh();
+    refreshFirStyles();
   }
 
   function syncAutorefresh() {
@@ -224,6 +321,7 @@
 
       for (const obs of data.synops) {
         if (obs.lat == null || obs.lng == null) continue;
+        if (!firAllowed(obs)) continue;
 
         const html = StationPlot.buildStationHtml(obs, { gap });
         const icon = L.divIcon({
@@ -250,8 +348,15 @@
         marker.addTo(layerGroup);
       }
 
+      const shown = layerGroup.getLayers().filter((l) => l instanceof L.Marker).length;
       const modeLabel = timeline === "latest" ? "último dato" : "hora exacta";
-      statusEl.textContent = `${data.hour_label} · ${data.count} estaciones · ${modeLabel}`;
+      const firLabel =
+        settings.firs.length === ALL_FIRS.length
+          ? "todas las FIR"
+          : settings.firs.length
+            ? `FIR ${settings.firs.join("+")}`
+            : "sin FIR";
+      statusEl.textContent = `${data.hour_label} · ${shown}/${data.count} estaciones · ${modeLabel} · ${firLabel}`;
     } catch (err) {
       console.error(err);
       statusEl.textContent = `Error: ${err.message}`;
@@ -340,9 +445,22 @@
     cfgGapLabel.textContent = Number(cfgPlotGap.value).toFixed(2);
   });
   cfgPlotGap.addEventListener("change", () => onConfigChange(true));
+  cfgFirAll.addEventListener("change", () => {
+    const on = cfgFirAll.checked;
+    firChecks.querySelectorAll('input[type="checkbox"]').forEach((b) => {
+      b.checked = on;
+    });
+    syncFirAllCheckbox();
+    onConfigChange(true);
+  });
+  firChecks.addEventListener("change", () => {
+    syncFirAllCheckbox();
+    onConfigChange(true);
+  });
 
   applySettingsToUi();
   setDefaultHour();
   syncAutorefresh();
+  loadFirLayer();
   loadSynops();
 })();

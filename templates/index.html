@@ -60,6 +60,22 @@
       </label>
     </fieldset>
 
+    <fieldset class="config-fieldset">
+      <legend>FIR</legend>
+      <label class="config-row check">
+        <input type="checkbox" id="cfgFirAll" checked />
+        <span>Todas las FIR</span>
+      </label>
+      <div class="fir-checks" id="firChecks">
+        <label class="config-row check"><input type="checkbox" value="EZE" checked /> <span><strong>EZE</strong> Ezeiza</span></label>
+        <label class="config-row check"><input type="checkbox" value="CBA" checked /> <span><strong>CBA</strong> Córdoba</span></label>
+        <label class="config-row check"><input type="checkbox" value="DOZ" checked /> <span><strong>DOZ</strong> Mendoza</span></label>
+        <label class="config-row check"><input type="checkbox" value="SIS" checked /> <span><strong>SIS</strong> Resistencia</span></label>
+        <label class="config-row check"><input type="checkbox" value="CRV" checked /> <span><strong>CRV</strong> Comodoro Rivadavia</span></label>
+      </div>
+      <small>Filtra estaciones según la FIR de su ubicación</small>
+    </fieldset>
+
     <label class="config-row field">
       <span>Separación de símbolos <em id="cfgGapLabel">0.75</em></span>
       <input type="range" id="cfgPlotGap" min="0.55" max="1.15" step="0.05" value="0.75" />

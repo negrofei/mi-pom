@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 
 BASE = Path(__file__).resolve().parent
 STATIONS_PATH = BASE / "data" / "stations.json"
+FIR_PATH = BASE / "data" / "fir_argentina.geojson"
 IMG_PATH = BASE / "img"
 
 app = Flask(__name__)
@@ -38,6 +39,18 @@ def index():
 def img_files(filename: str):
     """Sirve barbas y símbolos meteorológicos."""
     return send_from_directory(IMG_PATH, filename)
+
+
+@app.get("/data/<path:filename>")
+def data_files(filename: str):
+    """Sirve GeoJSON y otros datos estáticos."""
+    return send_from_directory(BASE / "data", filename)
+
+
+@app.get("/api/fir")
+def api_fir():
+    """Polígonos FIR de Argentina (líneas de información de vuelo)."""
+    return jsonify(json.loads(FIR_PATH.read_text(encoding="utf-8")))
 
 
 @app.get("/api/stations")
