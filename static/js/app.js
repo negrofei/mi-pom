@@ -1,9 +1,10 @@
 (function () {
-  const STORAGE_KEY = "synop-ar-config-v4";
+  const STORAGE_KEY = "synop-ar-config-v5";
   const BASE_W = 120;
   const BASE_H = 160;
   const REFRESH_MS = 2 * 60 * 1000;
   const ALL_FIRS = ["EZE", "CBA", "DOZ", "SIS", "CRV"];
+  const COLOR_BY = ["flight", "base", "vis"];
   const FIR_META = {
     EZE: { name: "Ezeiza", color: "#1f4e79" },
     CBA: { name: "Córdoba", color: "#6b3a1f" },
@@ -27,6 +28,10 @@
   const cfgGapLabel = document.getElementById("cfgGapLabel");
   const cfgFirAll = document.getElementById("cfgFirAll");
   const firChecks = document.getElementById("firChecks");
+  const colorByWrap = document.getElementById("colorByWrap");
+  const cfgColorFlight = document.getElementById("cfgColorFlight");
+  const cfgColorBase = document.getElementById("cfgColorBase");
+  const cfgColorVis = document.getElementById("cfgColorVis");
   const btnProductSynop = document.getElementById("btnProductSynop");
   const btnProductMetar = document.getElementById("btnProductMetar");
   const fltLegend = document.getElementById("fltLegend");
@@ -46,6 +51,7 @@
     timeline: "exact",
     plotGap: 0.75,
     includeNil: false,
+    colorBy: "flight",
     firs: [...ALL_FIRS],
   };
 
@@ -53,6 +59,7 @@
     try {
       const raw =
         localStorage.getItem(STORAGE_KEY) ||
+        localStorage.getItem("synop-ar-config-v4") ||
         localStorage.getItem("synop-ar-config-v2") ||
         localStorage.getItem("synop-ar-config-v1");
       if (!raw) return { ...defaults, firs: [...ALL_FIRS] };
@@ -66,6 +73,9 @@
       }
       if (parsed.product !== "metar" && parsed.product !== "synop") {
         parsed.product = "synop";
+      }
+      if (!COLOR_BY.includes(parsed.colorBy)) {
+        parsed.colorBy = "flight";
       }
       return { ...defaults, ...parsed, firs: parsed.firs.filter((c) => ALL_FIRS.includes(c)) };
     } catch {
@@ -81,6 +91,8 @@
   let refreshTimer = null;
   let seenSpeci = new Set();
   let speciSeeded = false;
+  let aviationByOmm = {};
+  let aviationByIcao = {};
 
   const map = L.map("map", {
     center: [-40.5, -64.5],
@@ -197,6 +209,19 @@
     hourInput.value = toLocalInputValue(now);
   }
 
+  function applyColorByUi(colorBy) {
+    const mode = COLOR_BY.includes(colorBy) ? colorBy : "flight";
+    if (cfgColorFlight) cfgColorFlight.checked = mode === "flight";
+    if (cfgColorBase) cfgColorBase.checked = mode === "base";
+    if (cfgColorVis) cfgColorVis.checked = mode === "vis";
+  }
+
+  function colorByFromUi() {
+    if (cfgColorBase && cfgColorBase.checked) return "base";
+    if (cfgColorVis && cfgColorVis.checked) return "vis";
+    return "flight";
+  }
+
   function applySettingsToUi() {
     cfgAutorefresh.checked = !!settings.autorefresh;
     chkNil.checked = !!settings.includeNil;
@@ -205,6 +230,7 @@
     cfgPlotGap.value = String(settings.plotGap);
     cfgGapLabel.textContent = Number(settings.plotGap).toFixed(2);
     applyFirChecks(settings.firs);
+    applyColorByUi(settings.colorBy);
     applyProductUi();
   }
 
@@ -215,6 +241,7 @@
       timeline: cfgTimelineLatest.checked ? "latest" : "exact",
       plotGap: Number(cfgPlotGap.value),
       includeNil: chkNil.checked,
+      colorBy: colorByFromUi(),
       firs: selectedFirsFromUi(),
     };
     cfgGapLabel.textContent = settings.plotGap.toFixed(2);
@@ -229,9 +256,10 @@
     btnProductMetar.classList.toggle("active", isMetar);
     nilWrap.classList.toggle("hidden", isMetar);
     fltLegend.classList.toggle("hidden", !isMetar);
-    if (isMetar) fltLegend.innerHTML = MetarPlot.legendHtml();
+    if (isMetar) fltLegend.innerHTML = MetarPlot.legendHtml(settings.colorBy);
     const gapRow = cfgPlotGap && cfgPlotGap.closest(".config-row");
     if (gapRow) gapRow.classList.toggle("hidden", isMetar);
+    if (colorByWrap) colorByWrap.classList.toggle("hidden", !isMetar);
   }
 
   function setProduct(product) {
@@ -270,12 +298,16 @@
     return `${s.icao}|${s.obs_iso || s.raw || ""}`;
   }
 
-  function pushToast(html, kind) {
+  function pushToast(html, kind, onClick) {
     const stack = document.getElementById("toastStack");
     if (!stack) return;
     const el = document.createElement("div");
     el.className = `toast ${kind || ""}`;
     el.innerHTML = html;
+    if (typeof onClick === "function") {
+      el.addEventListener("click", () => onClick());
+      el.title = "Clic para ver detalle";
+    }
     stack.appendChild(el);
     setTimeout(() => {
       el.classList.add("toast-out");
@@ -303,11 +335,18 @@
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/"/g, "&quot;");
+      const wmo = s.wmo != null ? String(s.wmo) : null;
       pushToast(
         `<div class="toast-title">SPECI · ${icao}</div>
          <div class="toast-sub">${nombre}</div>
          <code>${raw}</code>`,
-        "toast-speci"
+        "toast-speci",
+        () => {
+          const obs =
+            (wmo && aviationByOmm[wmo]) ||
+            (s.icao && aviationByIcao[String(s.icao).toUpperCase()]);
+          if (obs) openDetail(obs);
+        }
       );
     }
   }
@@ -419,6 +458,7 @@
     // Mapa aviación = resumen desde SYNOP; SPECI solo vía AviationWeather
     const hour = hourParamFromInput();
     const timeline = settings.timeline || "latest";
+    const colorBy = settings.colorBy || "flight";
     statusEl.textContent = "Consultando SYNOP + SPECI…";
     btnLoad.disabled = true;
     try {
@@ -439,14 +479,17 @@
         console.warn("SPECI no disponible", speciRes.status);
       }
 
-      const speciByWmo = new Set(
-        (speciPayload.specis || [])
-          .map((s) => (s.wmo != null ? String(s.wmo) : null))
-          .filter(Boolean)
-      );
+      const speciByWmo = {};
+      const speciByIcao = {};
+      for (const s of speciPayload.specis || []) {
+        if (s.wmo != null) speciByWmo[String(s.wmo)] = s;
+        if (s.icao) speciByIcao[String(s.icao).toUpperCase()] = s;
+      }
 
       layerGroup.clearLayers();
       hideHover();
+      aviationByOmm = {};
+      aviationByIcao = {};
 
       let shown = 0;
       for (const raw of data.synops) {
@@ -455,24 +498,33 @@
         if (!firAllowed(raw)) continue;
 
         const obs = MetarPlot.fromSynop(raw);
-        if (speciByWmo.has(String(obs.omm))) {
+        const speci = speciByWmo[String(obs.omm)];
+        if (speci) {
           obs.has_speci = true;
+          obs.speci = speci;
+          if (speci.icao) aviationByIcao[String(speci.icao).toUpperCase()] = obs;
         }
+        aviationByOmm[String(obs.omm)] = obs;
 
-        const marker = L.circleMarker([obs.lat, obs.lng], MetarPlot.markerOptions(obs));
+        const marker = L.circleMarker(
+          [obs.lat, obs.lng],
+          MetarPlot.markerOptions(obs, false, colorBy)
+        );
         marker.on("mouseover", (e) => {
-          marker.setStyle(MetarPlot.markerOptions(obs, true));
+          marker.setStyle(MetarPlot.markerOptions(obs, true, colorBy));
           showHover(MetarPlot.hoverHtml(obs), e);
         });
         marker.on("mousemove", (e) => moveHover(e));
         marker.on("mouseout", () => {
-          marker.setStyle(MetarPlot.markerOptions(obs, false));
+          marker.setStyle(MetarPlot.markerOptions(obs, false, colorBy));
           hideHover();
         });
         marker.on("click", () => openDetail(obs));
         marker.addTo(layerGroup);
         shown += 1;
       }
+
+      // SPECI sin WMO no se asocia a un punto SYNOP; igual se notifican por toast
 
       const modeLabel = timeline === "latest" ? "último SYNOP" : "hora exacta";
       const firLabel =
@@ -481,8 +533,11 @@
           : settings.firs.length
             ? `FIR ${settings.firs.join("+")}`
             : "sin FIR";
+      const colorLabel =
+        colorBy === "vis" ? "vis" : colorBy === "base" ? "base" : "cat. vuelo";
       const speciCount = speciPayload.count || (speciPayload.specis || []).length;
-      statusEl.textContent = `${data.hour_label} · ${shown} est. aviación · ${modeLabel} · ${firLabel} · ${speciCount} SPECI`;
+      statusEl.textContent = `${data.hour_label} · ${shown} est. · ${modeLabel} · ${firLabel} · color ${colorLabel} · ${speciCount} SPECI`;
+      if (fltLegend) fltLegend.innerHTML = MetarPlot.legendHtml(colorBy);
       notifySpecis(speciPayload.specis || []);
     } catch (err) {
       console.error(err);
@@ -639,6 +694,10 @@
     cfgGapLabel.textContent = Number(cfgPlotGap.value).toFixed(2);
   });
   cfgPlotGap.addEventListener("change", () => onConfigChange(true));
+  [cfgColorFlight, cfgColorBase, cfgColorVis].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("change", () => onConfigChange(true));
+  });
   cfgFirAll.addEventListener("change", () => {
     const on = cfgFirAll.checked;
     firChecks.querySelectorAll('input[type="checkbox"]').forEach((b) => {

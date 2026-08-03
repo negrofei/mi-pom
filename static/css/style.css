@@ -228,8 +228,9 @@ html, body {
   font-weight: 600;
 }
 
-.av-base-row.is-ceiling .cloud-amt.strong {
-  box-shadow: 0 0 0 1px rgba(183, 28, 28, 0.35);
+.av-base-row.is-ceiling .cloud-amt.bkn,
+.av-base-row.is-ceiling .cloud-amt.ovc {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 
 .cloud-amt {
@@ -255,6 +256,16 @@ html, body {
 
 .cloud-amt.strong {
   background: #b71c1c;
+  color: #fff;
+}
+
+.cloud-amt.bkn {
+  background: #ef6c00;
+  color: #fff;
+}
+
+.cloud-amt.ovc {
+  background: #4a148c;
   color: #fff;
 }
 
@@ -394,8 +405,42 @@ html, body {
   pointer-events: none;
 }
 
+.speci-panel {
+  margin: 0.65rem 0 1rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid #b71c1c;
+  border-radius: 8px;
+  background: rgba(183, 28, 28, 0.06);
+  box-shadow: inset 3px 0 0 #b71c1c;
+}
+
+.speci-panel .speci-raw {
+  margin: 0.4rem 0 0.65rem;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.speci-line {
+  color: #b71c1c;
+  font-weight: 600;
+}
+
+.synop-panel.synop-secondary {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--line);
+  opacity: 0.95;
+}
+
+.synop-panel.synop-secondary > .meta {
+  opacity: 0.85;
+  font-size: 0.9rem;
+}
+
 .toast {
   pointer-events: auto;
+  cursor: pointer;
   background: rgba(20, 30, 40, 0.96);
   color: #f4f7fa;
   border-radius: 8px;

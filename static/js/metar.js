@@ -41,10 +41,11 @@
   function visStyle(m) {
     if (m == null || Number.isNaN(Number(m))) return null;
     const v = Number(m);
-    if (v < 1000) return { color: "#c62828", label: "< 1000 m" };
-    if (v < 3000) return { color: "#f9a825", label: "1000–3000 m" };
-    if (v <= 9000) return { color: "#6d4c41", label: "3000–9000 m" };
-    return { color: "#2e7d32", label: "> 9000 m" };
+    if (v < 1000) return { color: "#6a1b9a", label: "< 1 km", key: "v1" };
+    if (v < 3000) return { color: "#c62828", label: "1–3 km", key: "v2" };
+    if (v < 5000) return { color: "#ef6c00", label: "3–5 km", key: "v3" };
+    if (v < 10000) return { color: "#f9a825", label: "5–9 km", key: "v4" };
+    return { color: "#2e7d32", label: "≥ 10 km", key: "v5" };
   }
 
   function fmtVis(m) {
@@ -104,8 +105,8 @@
     if (n <= 0) return { code: "SKC", oktas: 0, significant: false, tone: "muted" };
     if (n <= 2) return { code: "FEW", oktas: n, significant: false, tone: "muted" };
     if (n <= 4) return { code: "SCT", oktas: n, significant: false, tone: "soft" };
-    if (n <= 7) return { code: "BKN", oktas: n, significant: true, tone: "strong" };
-    return { code: "OVC", oktas: n >= 9 ? 9 : 8, significant: true, tone: "strong" };
+    if (n <= 7) return { code: "BKN", oktas: n, significant: true, tone: "bkn" };
+    return { code: "OVC", oktas: n >= 9 ? 9 : 8, significant: true, tone: "ovc" };
   }
 
   function enrichLayer(layer) {
@@ -160,7 +161,7 @@
 
   function amountBadgeHtml(amount) {
     if (!amount) return "";
-    const cls = amount.significant ? "cloud-amt strong" : `cloud-amt ${amount.tone || "muted"}`;
+    const cls = `cloud-amt ${amount.tone || "muted"}`;
     const oktas =
       amount.oktas != null ? ` title="${amount.oktas}/8 oktas"` : "";
     return `<span class="${cls}"${oktas}>${esc(amount.code)}</span>`;
@@ -219,6 +220,69 @@
     };
   }
 
+  function formatCloudsAw(clouds) {
+    if (!Array.isArray(clouds) || !clouds.length) return "—";
+    return clouds
+      .map((c) => {
+        const cov = esc(String(c.cover || c.amount || "?").toUpperCase());
+        const base = c.base != null ? coloredBaseHtml(c.base) : "—";
+        return `${cov} ${base}`;
+      })
+      .join(" · ");
+  }
+
+  function speciPanelHtml(speci) {
+    if (!speci) return "";
+    const cat = catMeta(speci.flt_cat);
+    const wind =
+      speci.wind_dir != null || speci.wind_speed_kt != null
+        ? `${speci.wind_dir != null ? speci.wind_dir + "°" : "—"} · ${
+            speci.wind_speed_kt != null ? speci.wind_speed_kt + " kt" : "—"
+          }${speci.wind_gust_kt != null ? ` · ráfaga ${speci.wind_gust_kt} kt` : ""}`
+        : "—";
+    return `
+      <section class="speci-panel">
+        <div class="meta">
+          <span class="speci-badge">SPECI</span>
+          <span class="flt-pill" style="background:${cat.color}">${esc(cat.label)}</span>
+          ${speci.icao ? `· ${esc(speci.icao)}` : ""}
+          ${speci.obs_iso ? `· ${esc(speci.obs_iso)}` : ""}
+        </div>
+        <pre class="raw speci-raw">${esc(speci.raw || "—")}</pre>
+        <div class="av-grid">
+          <div class="av-card">
+            <div class="av-label">Visibilidad</div>
+            <div class="av-value">${coloredVisHtml(speci.visibility_m)}</div>
+          </div>
+          <div class="av-card">
+            <div class="av-label">Techo</div>
+            <div class="av-value">${
+              speci.ceiling_ft != null ? coloredBaseHtml(speci.ceiling_ft) : "—"
+            }</div>
+          </div>
+          <div class="av-card">
+            <div class="av-label">Ráfagas</div>
+            <div class="av-value${speci.wind_gust_kt != null ? " av-gust" : ""}">${
+              speci.wind_gust_kt != null ? esc(String(speci.wind_gust_kt)) + " kt" : "—"
+            }</div>
+          </div>
+          <div class="av-card">
+            <div class="av-label">Fenómeno</div>
+            <div class="av-value">${esc(speci.wx_string || "—")}</div>
+          </div>
+        </div>
+        <div><b>Nubes</b> ${formatCloudsAw(speci.clouds)}</div>
+        <div><b>Viento</b> ${esc(wind)}</div>
+        ${
+          speci.icao
+            ? `<button type="button" class="btn ghost metar-hist-btn" data-icao="${esc(
+                speci.icao
+              )}" data-nombre="${esc(speci.nombre || speci.icao)}">Historial METAR/SPECI 24 h</button>`
+            : ""
+        }
+      </section>`;
+  }
+
   function hoverHtml(obs) {
     const a = obs.cloud_bases ? obs : fromSynop(obs);
     const cat = catMeta(a.flt_cat);
@@ -226,12 +290,16 @@
       .slice(0, 3)
       .map((b) => formatBaseLine(b))
       .join("<br/>");
+    const speci = a.speci;
     const lines = [
       `<b>${esc(a.omm)}</b> · ${esc(a.nombre || "")}`,
       a.fir ? `FIR ${esc(a.fir)}` : "",
-      `<span style="color:${cat.color}"><b>${esc(cat.label)}</b></span>`,
+      speci
+        ? `<span class="speci-badge">SPECI</span> ${esc(speci.obs_iso || "")}`
+        : "",
+      speci ? `<div class="synop-line speci-line">${esc(speci.raw || "")}</div>` : "",
+      `<span style="color:${cat.color}"><b>${esc(cat.label)}</b></span> · SYNOP`,
       a.utc ? `UTC ${esc(a.utc)}` : "",
-      a.has_speci ? `<span class="speci-badge">SPECI reciente</span>` : "",
       `Vis ${coloredVisHtml(a.visibility_m)}`,
       bases
         ? `<div class="hover-bases"><b>Bases</b><br/>${bases}</div>`
@@ -244,7 +312,7 @@
         : a.ww_text
           ? esc(a.ww_text)
           : "",
-      `<div class="synop-line">${esc(a.raw || "")}</div>`,
+      !speci ? `<div class="synop-line">${esc(a.raw || "")}</div>` : "",
     ];
     return lines.filter(Boolean).join("<br/>");
   }
@@ -268,60 +336,68 @@
       : "<li>—</li>";
 
     const ceilAmt = a.ceiling_amount ? amountBadgeHtml(a.ceiling_amount) + " " : "";
+    const hasSpeci = !!a.speci;
 
     return `
       <h2>${esc(a.nombre || a.omm)}</h2>
       <div class="meta">
-        <span class="flt-pill" style="background:${cat.color}">${esc(cat.label)}</span>
-        ${a.omm ? `· ${esc(a.omm)}` : ""}
+        ${hasSpeci ? `<span class="speci-badge">SPECI activo</span> · ` : ""}
+        ${a.omm ? `${esc(a.omm)}` : ""}
         ${a.fir ? `· FIR ${esc(a.fir)}` : ""}
-        · SYNOP
-        ${a.has_speci ? `· <span class="speci-badge">SPECI</span>` : ""}
       </div>
-      <button type="button" class="btn primary ts-open-btn" data-omm="${esc(a.omm)}" data-nombre="${esc(
-        a.nombre || a.omm
-      )}">
-        Ver serie temporal SYNOP
-      </button>
-      <div class="av-grid">
-        <div class="av-card">
-          <div class="av-label">Visibilidad</div>
-          <div class="av-value">${coloredVisHtml(a.visibility_m)}</div>
+      ${speciPanelHtml(a.speci)}
+      <section class="synop-panel${hasSpeci ? " synop-secondary" : ""}">
+        <div class="meta">
+          <span class="flt-pill" style="background:${cat.color}">${esc(cat.label)}</span>
+          · SYNOP
+          ${a.utc ? `· ${esc(a.utc)}` : ""}
         </div>
-        <div class="av-card">
-          <div class="av-label">Techo (BKN/OVC)</div>
-          <div class="av-value">${ceilAmt}${
-            a.ceiling_ft != null ? coloredBaseHtml(a.ceiling_ft) : "—"
-          }</div>
-        </div>
-        <div class="av-card">
-          <div class="av-label">Ráfagas</div>
-          <div class="av-value${a.wind_gust_kt != null ? " av-gust" : ""}">${
-            a.wind_gust_kt != null ? esc(String(a.wind_gust_kt)) + " kt" : "—"
-          }</div>
-        </div>
-        <div class="av-card">
-          <div class="av-label">Fenómeno</div>
-          <div class="av-value">
-            ${
-              a.significant
-                ? `<span class="wx-tag ${a.significant.tone}">${esc(a.significant.label)}</span>`
-                : "—"
-            }
-            <div class="av-sub">${esc(a.ww_text || "Sin ww")}</div>
+        <button type="button" class="btn primary ts-open-btn" data-omm="${esc(a.omm)}" data-nombre="${esc(
+          a.nombre || a.omm
+        )}">
+          Ver serie temporal SYNOP
+        </button>
+        <div class="av-grid">
+          <div class="av-card">
+            <div class="av-label">Visibilidad</div>
+            <div class="av-value">${coloredVisHtml(a.visibility_m)}</div>
+          </div>
+          <div class="av-card">
+            <div class="av-label">Techo (BKN/OVC)</div>
+            <div class="av-value">${ceilAmt}${
+              a.ceiling_ft != null ? coloredBaseHtml(a.ceiling_ft) : "—"
+            }</div>
+          </div>
+          <div class="av-card">
+            <div class="av-label">Ráfagas</div>
+            <div class="av-value${a.wind_gust_kt != null ? " av-gust" : ""}">${
+              a.wind_gust_kt != null ? esc(String(a.wind_gust_kt)) + " kt" : "—"
+            }</div>
+          </div>
+          <div class="av-card">
+            <div class="av-label">Fenómeno</div>
+            <div class="av-value">
+              ${
+                a.significant
+                  ? `<span class="wx-tag ${a.significant.tone}">${esc(a.significant.label)}</span>`
+                  : "—"
+              }
+              <div class="av-sub">${esc(a.ww_text || "Sin ww")}</div>
+            </div>
           </div>
         </div>
-      </div>
-      <div><b>Bases de nubes</b></div>
-      <ul class="av-bases">${basesHtml}</ul>
-      <div><b>Viento</b> ${esc(wind)}</div>
-      <div><b>SYNOP</b></div>
-      <pre class="raw">${esc(a.raw || "—")}</pre>
+        <div><b>Bases de nubes</b></div>
+        <ul class="av-bases">${basesHtml}</ul>
+        <div><b>Viento</b> ${esc(wind)}</div>
+        <div><b>SYNOP</b></div>
+        <pre class="raw">${esc(a.raw || "—")}</pre>
+      </section>
       <div class="vis-legend">
-        Vis: <span style="color:#c62828">&#9632; &lt;1 km</span>
-        <span style="color:#f9a825">&#9632; 1–3 km</span>
-        <span style="color:#6d4c41">&#9632; 3–9 km</span>
-        <span style="color:#2e7d32">&#9632; &gt;9 km</span>
+        Vis: <span style="color:#6a1b9a">&#9632; &lt;1</span>
+        <span style="color:#c62828">&#9632; 1–3</span>
+        <span style="color:#ef6c00">&#9632; 3–5</span>
+        <span style="color:#f9a825">&#9632; 5–9</span>
+        <span style="color:#2e7d32">&#9632; ≥10 km</span>
       </div>
       <div class="vis-legend">
         Base: <span style="color:#6a1b9a">&#9632; &lt;200</span>
@@ -333,14 +409,57 @@
       <div class="vis-legend">
         Nubosidad: <span class="cloud-amt muted">FEW</span>
         <span class="cloud-amt soft">SCT</span>
-        <span class="cloud-amt strong">BKN</span>
-        <span class="cloud-amt strong">OVC</span>
+        <span class="cloud-amt bkn">BKN</span>
+        <span class="cloud-amt ovc">OVC</span>
         <small>(techo = BKN/OVC)</small>
       </div>
     `;
   }
 
-  function legendHtml() {
+  function markerFillColor(obs, colorBy) {
+    const a = obs.flt_cat != null || obs.cloud_bases ? obs : fromSynop(obs);
+    const mode = colorBy || "flight";
+    if (mode === "vis") {
+      return (visStyle(a.visibility_m) || {}).color || "#888888";
+    }
+    if (mode === "base") {
+      const ft =
+        a.ceiling_ft != null
+          ? a.ceiling_ft
+          : a.cloud_bases && a.cloud_bases.length
+            ? a.cloud_bases[0].height_ft
+            : null;
+      return (baseHeightStyle(ft) || {}).color || "#888888";
+    }
+    return catMeta(a.flt_cat).color;
+  }
+
+  function legendHtml(colorBy) {
+    const mode = colorBy || "flight";
+    if (mode === "vis") {
+      return `
+        <div class="flt-legend" aria-label="Visibilidad">
+          <span class="flt-leg flt-note">Vis ·</span>
+          <span class="flt-leg"><i style="background:#6a1b9a"></i>&lt;1 km</span>
+          <span class="flt-leg"><i style="background:#c62828"></i>1–3</span>
+          <span class="flt-leg"><i style="background:#ef6c00"></i>3–5</span>
+          <span class="flt-leg"><i style="background:#f9a825"></i>5–9</span>
+          <span class="flt-leg"><i style="background:#2e7d32"></i>≥10 km</span>
+          <span class="flt-leg flt-note">SPECI vía AW</span>
+        </div>`;
+    }
+    if (mode === "base") {
+      return `
+        <div class="flt-legend" aria-label="Base de nubes">
+          <span class="flt-leg flt-note">Base ·</span>
+          <span class="flt-leg"><i style="background:#6a1b9a"></i>&lt;200</span>
+          <span class="flt-leg"><i style="background:#c62828"></i>200–500</span>
+          <span class="flt-leg"><i style="background:#ef6c00"></i>500–1k</span>
+          <span class="flt-leg"><i style="background:#f9a825"></i>1–2k</span>
+          <span class="flt-leg"><i style="background:#2e7d32"></i>&gt;2k ft</span>
+          <span class="flt-leg flt-note">techo BKN/OVC · SPECI vía AW</span>
+        </div>`;
+    }
     return `
       <div class="flt-legend" aria-label="Categorías de vuelo (desde SYNOP)">
         ${Object.keys(CAT)
@@ -349,25 +468,19 @@
               `<span class="flt-leg"><i style="background:${CAT[k].color}"></i>${CAT[k].label}</span>`
           )
           .join("")}
-        <span class="flt-leg flt-note">bases ·</span>
-        <span class="flt-leg"><i style="background:#6a1b9a"></i>&lt;200</span>
-        <span class="flt-leg"><i style="background:#c62828"></i>200–500</span>
-        <span class="flt-leg"><i style="background:#ef6c00"></i>500–1k</span>
-        <span class="flt-leg"><i style="background:#f9a825"></i>1–2k</span>
-        <span class="flt-leg flt-note">BKN/OVC = techo · SPECI vía AW</span>
+        <span class="flt-leg flt-note">cat. vuelo · SPECI vía AW</span>
       </div>`;
   }
 
-  function markerOptions(obs, selected) {
+  function markerOptions(obs, selected, colorBy) {
     const a = obs.flt_cat != null || obs.cloud_bases ? obs : fromSynop(obs);
-    const cat = catMeta(a.flt_cat);
     const danger = a.significant && a.significant.tone === "danger";
-    const hasSpeci = !!a.has_speci;
+    const hasSpeci = !!(a.has_speci || a.speci);
     return {
       radius: selected ? 9 : hasSpeci || a.significant ? 8 : 7,
       color: hasSpeci ? "#b71c1c" : danger ? "#7f0000" : "#111",
       weight: selected || hasSpeci || a.significant ? 2.5 : 1,
-      fillColor: cat.color,
+      fillColor: markerFillColor(a, colorBy),
       fillOpacity: 0.92,
       opacity: 0.95,
     };
@@ -420,6 +533,7 @@
     detailHtml,
     legendHtml,
     markerOptions,
+    markerFillColor,
     historyHtml,
     loadHistory,
     significantWx,
