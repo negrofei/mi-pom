@@ -149,6 +149,9 @@ def _normalize_metar(row: dict, airports: dict[str, dict]) -> dict[str, Any]:
         except ValueError:
             pass
 
+    metar_type = str(row.get("metarType") or "").upper() or None
+    is_speci = metar_type == "SPECI" or raw.strip().upper().startswith("SPECI")
+
     return {
         "icao": icao,
         "nombre": meta.get("nombre") or row.get("name") or icao,
@@ -175,30 +178,14 @@ def _normalize_metar(row: dict, airports: dict[str, dict]) -> dict[str, Any]:
         "flt_cat_color": FLT_CAT_COLORS.get(flt or "", "#888888"),
         "raw": raw,
         "raw_taf": row.get("rawTaf") or None,
-        "metar_type": row.get("metarType"),
+        "metar_type": metar_type or ("SPECI" if is_speci else "METAR"),
+        "is_speci": is_speci,
         "source": "AviationWeather",
     }
 
 
-def fetch_argentina_metars(
-    *,
-    airports: dict[str, dict],
-    hours: int = 1,
-    include_taf: bool = True,
-    timeline: str = "latest",
-    when: Optional[datetime] = None,
-) -> list[dict[str, Any]]:
-    """
-    Trae METARs (y TAF opcional) para el catálogo de aeródromos.
-    timeline=latest → último METAR por ICAO dentro de la ventana.
-    timeline=exact  → METAR de la hora `when` (si existe).
-    """
-    hours = max(1, min(int(hours), 24))
-    ids = sorted(airports.keys())
-    if not ids:
-        return []
-
-    # La API limita ~400 resultados; partimos en chunks
+def _fetch_metar_rows(ids: list[str], hours: int, include_taf: bool) -> list[dict]:
+    hours = max(1, min(int(hours), 48))
     chunk_size = 80
     rows: list[dict] = []
     for i in range(0, len(ids), chunk_size):
@@ -222,10 +209,29 @@ def fetch_argentina_metars(
         data = resp.json()
         if isinstance(data, list):
             rows.extend(data)
+    return rows
 
+
+def fetch_argentina_metars(
+    *,
+    airports: dict[str, dict],
+    hours: int = 1,
+    include_taf: bool = True,
+    timeline: str = "latest",
+    when: Optional[datetime] = None,
+) -> list[dict[str, Any]]:
+    """
+    Trae METARs (y TAF opcional) para el catálogo de aeródromos.
+    timeline=latest → último METAR por ICAO dentro de la ventana.
+    timeline=exact  → METAR de la hora `when` (si existe).
+    """
+    hours = max(1, min(int(hours), 24))
+    ids = sorted(airports.keys())
+    if not ids:
+        return []
+
+    rows = _fetch_metar_rows(ids, hours, include_taf)
     normalized = [_normalize_metar(r, airports) for r in rows if r.get("icaoId")]
-
-    # Filtrar a catálogo conocido
     normalized = [n for n in normalized if n["icao"] in airports]
 
     if timeline == "exact" and when is not None:
@@ -246,3 +252,22 @@ def fetch_argentina_metars(
         if prev is None or (n.get("obs_iso") or "") >= (prev.get("obs_iso") or ""):
             by_icao[n["icao"]] = n
     return sorted(by_icao.values(), key=lambda x: x["icao"])
+
+
+def fetch_station_metars(
+    icao: str,
+    *,
+    airports: dict[str, dict],
+    hours: int = 24,
+    include_taf: bool = True,
+) -> list[dict[str, Any]]:
+    """Serie de METARs de un aeródromo (más reciente primero)."""
+    icao = str(icao).upper().strip()
+    if icao not in airports:
+        raise KeyError(f"Aeródromo {icao} no está en el catálogo")
+    hours = max(1, min(int(hours), 48))
+    rows = _fetch_metar_rows([icao], hours, include_taf)
+    normalized = [_normalize_metar(r, airports) for r in rows if r.get("icaoId")]
+    normalized = [n for n in normalized if n["icao"] == icao]
+    normalized.sort(key=lambda n: n.get("obs_iso") or "", reverse=True)
+    return normalized
