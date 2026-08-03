@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SYNOP / METAR Argentina</title>
+  <title>SYNOP / Aviación Argentina</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -14,12 +14,12 @@
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark">WX</span>
-      <span class="brand-sub">Argentina · SYNOP / METAR</span>
+      <span class="brand-sub">Argentina · SYNOP / Aviación</span>
     </div>
     <div class="controls">
       <div class="product-toggle" role="group" aria-label="Producto">
         <button type="button" class="btn product-btn active" data-product="synop" id="btnProductSynop">SYNOP</button>
-        <button type="button" class="btn product-btn" data-product="metar" id="btnProductMetar">METAR</button>
+        <button type="button" class="btn product-btn" data-product="metar" id="btnProductMetar" title="Resumen aviación desde SYNOP + alertas SPECI">METAR</button>
       </div>
       <label class="field">
         <span>Hora UTC</span>
@@ -43,7 +43,7 @@
 
     <label class="config-row check">
       <input type="checkbox" id="cfgAutorefresh" />
-      <span>Autorefresh cada 2 minutos <small>(en METAR siempre activo para detectar SPECI)</small></span>
+      <span>Autorefresh cada 2 minutos <small>(en METAR: mapa SYNOP + SPECI vía AviationWeather)</small></span>
     </label>
 
     <fieldset class="config-fieldset">

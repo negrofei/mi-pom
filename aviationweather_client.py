@@ -160,6 +160,7 @@ def _normalize_metar(row: dict, airports: dict[str, dict]) -> dict[str, Any]:
         "elev": meta.get("elev", row.get("elev")),
         "fir": meta.get("fir"),
         "iata": meta.get("iata"),
+        "wmo": meta.get("wmo"),
         "obs_iso": obs_iso,
         "hour_key": hour_key,
         "temp_c": row.get("temp"),
@@ -271,3 +272,35 @@ def fetch_station_metars(
     normalized = [n for n in normalized if n["icao"] == icao]
     normalized.sort(key=lambda n: n.get("obs_iso") or "", reverse=True)
     return normalized
+
+
+def fetch_argentina_specis(
+    *,
+    airports: dict[str, dict],
+    hours: int = 2,
+) -> list[dict[str, Any]]:
+    """
+    Solo mensajes SPECI recientes (AviationWeather).
+    Usado como canal de alerta; el mapa aviación se alimenta de SYNOP.
+    """
+    hours = max(1, min(int(hours), 6))
+    ids = sorted(airports.keys())
+    if not ids:
+        return []
+    rows = _fetch_metar_rows(ids, hours, include_taf=False)
+    out = []
+    for r in rows:
+        if not r.get("icaoId"):
+            continue
+        n = _normalize_metar(r, airports)
+        if n["icao"] not in airports:
+            continue
+        if n.get("is_speci"):
+            out.append(n)
+    # Último SPECI por ICAO
+    by_icao: dict[str, dict] = {}
+    for n in out:
+        prev = by_icao.get(n["icao"])
+        if prev is None or (n.get("obs_iso") or "") >= (prev.get("obs_iso") or ""):
+            by_icao[n["icao"]] = n
+    return sorted(by_icao.values(), key=lambda x: x.get("obs_iso") or "", reverse=True)
