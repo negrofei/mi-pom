@@ -1,18 +1,16 @@
-# SYNOP Argentina (OGIMET)
+# SYNOP / METAR Argentina
 
-Visor web de mensajes **SYNOP** de estaciones argentinas, con ploteo tipo modelo de estación sobre un mapa. Los datos se consultan en vivo a [OGIMET](https://www.ogimet.com/) (no usa base de datos interna).
+Visor web de **SYNOP** (OGIMET) y **METAR/TAF** ([AviationWeather](https://aviationweather.gov/)) sobre un mapa de Argentina.
 
 ## Qué incluye
 
 - Mapa interactivo (Leaflet) centrado en Argentina
-- Ploteo SYNOP con PNGs (`img/barbs`, `img/simbolos`): barbas, N, T/Td, presión, tendencia, ww, Nh/CL/CM/CH
-- **Dos grupos de nubosidad** cuando existen: sección 1 (`8NhCLCMCH`) y capas de sección 3 (`8NsChshs`)
-- Hover sobre estaciones / tipos de nube / capas sec.3
-- Panel con el mensaje crudo y campos decodificados
-- **Serie temporal 24 h** por estación (botón en el detalle): T/Td, barbas, nubes bajas, visibilidad y ww, con tooltips al hover
-- Contornos **FIR** de Argentina (EZE, CBA, DOZ, SIS, CRV) y filtro por región
+- **Modo SYNOP**: ploteo de estación con PNGs (`img/barbs`, `img/simbolos`)
+- **Modo METAR**: puntos coloreados por categoría de vuelo (VFR / MVFR / IFR / LIFR) + TAF en el detalle
+- Contornos **FIR** (EZE, CBA, DOZ, SIS, CRV) y filtro por región
+- Serie temporal 24 h por estación SYNOP
 - Selector de hora UTC
-- Catálogo de 121 estaciones del SMN (coordenadas)
+- Catálogo SMN (SYNOP) + aeródromos SA* (METAR)
 
 ## Correr en local (con Docker)
 
