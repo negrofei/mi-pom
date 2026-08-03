@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SYNOP Argentina · OGIMET</title>
+  <title>SYNOP / METAR Argentina</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -13,17 +13,21 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark">SYNOP</span>
-      <span class="brand-sub">Argentina · OGIMET</span>
+      <span class="brand-mark">WX</span>
+      <span class="brand-sub">Argentina · SYNOP / METAR</span>
     </div>
     <div class="controls">
+      <div class="product-toggle" role="group" aria-label="Producto">
+        <button type="button" class="btn product-btn active" data-product="synop" id="btnProductSynop">SYNOP</button>
+        <button type="button" class="btn product-btn" data-product="metar" id="btnProductMetar">METAR</button>
+      </div>
       <label class="field">
         <span>Hora UTC</span>
         <input type="datetime-local" id="hourInput" step="3600" />
       </label>
       <button type="button" id="btnLoad" class="btn primary">Actualizar</button>
       <button type="button" id="btnConfig" class="btn ghost" aria-expanded="false" aria-controls="configPanel">Configuración</button>
-      <label class="check">
+      <label class="check" id="nilWrap">
         <input type="checkbox" id="chkNil" />
         Incluir NIL
       </label>
@@ -84,6 +88,7 @@
   </aside>
 
   <main id="map"></main>
+  <div id="fltLegend" class="flt-legend-wrap hidden"></div>
 
   <aside id="detail" class="detail hidden" aria-live="polite">
     <button type="button" class="detail-close" id="detailClose" aria-label="Cerrar">×</button>
@@ -110,6 +115,7 @@
   <script src="/static/js/ww.js"></script>
   <script src="/static/js/station-plot.js"></script>
   <script src="/static/js/timeseries.js"></script>
+  <script src="/static/js/metar.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>
