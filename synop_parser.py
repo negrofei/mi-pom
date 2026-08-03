@@ -48,6 +48,7 @@ class SynopDecoded:
     nombre: Optional[str] = None
     fir: Optional[str] = None  # EZE / CBA / DOZ / SIS / CRV
     utc: Optional[str] = None
+    obs_iso: Optional[str] = None  # ISO-8601 UTC para comparar con SPECI/METAR
 
     # Sección 1
     precip_indicator: Optional[str] = None
@@ -260,6 +261,7 @@ def parse_synop(
 
     if year and month and day is not None and hour is not None:
         out.utc = f"{day:02d}/{month:02d}/{year} {hour:02d}:{minute:02d}"
+        out.obs_iso = f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:00Z"
         out.day = day
         out.hour = hour
 

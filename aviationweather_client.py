@@ -277,13 +277,14 @@ def fetch_station_metars(
 def fetch_argentina_specis(
     *,
     airports: dict[str, dict],
-    hours: int = 2,
+    hours: int = 6,
 ) -> list[dict[str, Any]]:
     """
     Solo mensajes SPECI recientes (AviationWeather).
     Usado como canal de alerta; el mapa aviación se alimenta de SYNOP.
+    Ventana por defecto 6 h para no perder SPECI entre refrescos.
     """
-    hours = max(1, min(int(hours), 6))
+    hours = max(1, min(int(hours), 12))
     ids = sorted(airports.keys())
     if not ids:
         return []

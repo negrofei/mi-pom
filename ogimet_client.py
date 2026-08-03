@@ -126,6 +126,7 @@ def fetch_argentina_synops(
         decoded.lng = meta.get("lng")
         decoded.nombre = meta.get("nombre")
         decoded.fir = meta.get("fir")
+        decoded.obs_iso = obs_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         prev = best.get(omm)
         if timeline == "exact":
@@ -221,6 +222,7 @@ def fetch_station_series(
         decoded.lng = meta.get("lng")
         decoded.nombre = meta.get("nombre")
         decoded.fir = meta.get("fir")
+        decoded.obs_iso = obs_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         hour_key = obs_dt.replace(minute=0, second=0, microsecond=0)
         prev = by_hour.get(hour_key)
