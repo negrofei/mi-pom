@@ -48,7 +48,9 @@ Panel **Configuración** en la barra superior:
 
 - `GET /api/synops?hour=YYYYMMDDHH&nil=0&timeline=exact|latest&lookback=24`
 - `GET /api/synops/<omm>?hours=24&hour=YYYYMMDDHH&nil=0` — serie horaria de una estación
-- `GET /api/stations` — catálogo
+- `GET /api/metars?hour=YYYYMMDDHH&hours=3&timeline=exact|latest&taf=1` — METAR/TAF (AviationWeather)
+- `GET /api/stations` — catálogo SYNOP
+- `GET /api/airports` — catálogo aeródromos
 - `GET /health` — healthcheck
 
 ## Notas
