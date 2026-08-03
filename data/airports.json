@@ -1,0 +1,892 @@
+[
+  {
+    "icao": "SAAC",
+    "nombre": "Concordia/Pierreste",
+    "lat": -31.308,
+    "lng": -58.016,
+    "elev": 50,
+    "iata": "COC",
+    "fir": "EZE",
+    "wmo": "87395"
+  },
+  {
+    "icao": "SAAG",
+    "nombre": "Gualeguaychu Ae",
+    "lat": -33.01,
+    "lng": -58.613,
+    "elev": 23,
+    "iata": "GHU",
+    "fir": "EZE",
+    "wmo": "87497"
+  },
+  {
+    "icao": "SAAJ",
+    "nombre": "Junin Arpt",
+    "lat": -34.553,
+    "lng": -60.931,
+    "elev": 80,
+    "iata": "JNI",
+    "fir": "EZE",
+    "wmo": "87548"
+  },
+  {
+    "icao": "SAAP",
+    "nombre": "Parana/Gen Urquiza",
+    "lat": -31.79,
+    "lng": -60.483,
+    "elev": 77,
+    "iata": "PRA",
+    "fir": "EZE",
+    "wmo": "87374"
+  },
+  {
+    "icao": "SAAR",
+    "nombre": "Rosario Intl",
+    "lat": -32.918,
+    "lng": -60.782,
+    "elev": 24,
+    "iata": "ROS",
+    "fir": "EZE",
+    "wmo": "87480"
+  },
+  {
+    "icao": "SAAU",
+    "nombre": "Villaguay Arpt",
+    "lat": -31.858,
+    "lng": -59.074,
+    "elev": 42,
+    "iata": null,
+    "fir": "EZE",
+    "wmo": null
+  },
+  {
+    "icao": "SAAV",
+    "nombre": "Sauce Viejo Arpt",
+    "lat": -31.712,
+    "lng": -60.812,
+    "elev": 19,
+    "iata": "SFN",
+    "fir": "EZE",
+    "wmo": "87371"
+  },
+  {
+    "icao": "SABA",
+    "nombre": "Buenos Aires ",
+    "lat": -34.608,
+    "lng": -58.401,
+    "elev": 23,
+    "iata": null,
+    "fir": "EZE",
+    "wmo": "87585"
+  },
+  {
+    "icao": "SABE",
+    "nombre": "Buenos Aires/Newbery Arpt",
+    "lat": -34.559,
+    "lng": -58.416,
+    "elev": 3,
+    "iata": "AEP",
+    "fir": "EZE",
+    "wmo": "87582"
+  },
+  {
+    "icao": "SACI",
+    "nombre": "Pilar Observato",
+    "lat": -31.668,
+    "lng": -63.882,
+    "elev": 335,
+    "iata": null,
+    "fir": "CBA",
+    "wmo": "87349"
+  },
+  {
+    "icao": "SACO",
+    "nombre": "Cordoba/Taravella Intl",
+    "lat": -31.324,
+    "lng": -64.208,
+    "elev": 474,
+    "iata": "COR",
+    "fir": "CBA",
+    "wmo": "87344"
+  },
+  {
+    "icao": "SACP",
+    "nombre": "Chepes",
+    "lat": -31.333,
+    "lng": -66.6,
+    "elev": 663,
+    "iata": null,
+    "fir": "CBA",
+    "wmo": "87322"
+  },
+  {
+    "icao": "SACT",
+    "nombre": "Gobernador Gordillo",
+    "lat": -30.349,
+    "lng": -66.295,
+    "elev": 454,
+    "iata": null,
+    "fir": "CBA",
+    "wmo": null
+  },
+  {
+    "icao": "SACV",
+    "nombre": "Villa De Maria",
+    "lat": -29.898,
+    "lng": -63.722,
+    "elev": 353,
+    "iata": null,
+    "fir": "CBA",
+    "wmo": "87244"
+  },
+  {
+    "icao": "SADD",
+    "nombre": "Don Torcuato Arpt",
+    "lat": -34.498,
+    "lng": -58.604,
+    "elev": 4,
+    "iata": null,
+    "fir": "EZE",
+    "wmo": null
+  },
+  {
+    "icao": "SADF",
+    "nombre": "San Fernando Intl",
+    "lat": -34.457,
+    "lng": -58.593,
+    "elev": 4,
+    "iata": null,
+    "fir": "EZE",
+    "wmo": "87553"
+  },
+  {
+    "icao": "SADL",
+    "nombre": "La Plata Arpt",
+    "lat": -34.972,
+    "lng": -57.895,
+    "elev": 18,
+    "iata": "LPG",
+    "fir": "EZE",
+    "wmo": "87593"
+  },
+  {
+    "icao": "SADM",
+    "nombre": "Buenos Aires/Moron",
+    "lat": -34.676,
+    "lng": -58.643,
+    "elev": 18,
+    "iata": null,
+    "fir": "EZE",
+    "wmo": null
+  },
+  {
+    "icao": "SADP",
+    "nombre": "El Palomar Arpt",
+    "lat": -34.61,
+    "lng": -58.613,
+    "elev": 19,
+    "iata": "EPA",
+    "fir": "EZE",
+    "wmo": "87571"
+  },
+  {
+    "icao": "SAEZ",
+    "nombre": "Buenos Aires/Pistarini Arpt",
+    "lat": -34.822,
+    "lng": -58.536,
+    "elev": 16,
+    "iata": "EZE",
+    "fir": "EZE",
+    "wmo": "87576"
+  },
+  {
+    "icao": "SAME",
+    "nombre": "Mendoza/Plumerillo Arpt",
+    "lat": -32.832,
+    "lng": -68.793,
+    "elev": 709,
+    "iata": "MDZ",
+    "fir": "DOZ",
+    "wmo": "87418"
+  },
+  {
+    "icao": "SAMI",
+    "nombre": "San Martin",
+    "lat": -33.083,
+    "lng": -68.417,
+    "elev": 653,
+    "iata": null,
+    "fir": "DOZ",
+    "wmo": "87416"
+  },
+  {
+    "icao": "SAMJ",
+    "nombre": "Jachal",
+    "lat": -30.25,
+    "lng": -68.74,
+    "elev": 1168,
+    "iata": null,
+    "fir": "DOZ",
+    "wmo": "87305"
+  },
+  {
+    "icao": "SAMM",
+    "nombre": "Malargue Arpt",
+    "lat": -35.481,
+    "lng": -69.583,
+    "elev": 1428,
+    "iata": "LGS",
+    "fir": "DOZ",
+    "wmo": "87506"
+  },
+  {
+    "icao": "SAMR",
+    "nombre": "San Rafael Arpt",
+    "lat": -34.585,
+    "lng": -68.414,
+    "elev": 756,
+    "iata": "AFA",
+    "fir": "DOZ",
+    "wmo": "87509"
+  },
+  {
+    "icao": "SAMS",
+    "nombre": "San Carlos",
+    "lat": -33.771,
+    "lng": -69.034,
+    "elev": 951,
+    "iata": null,
+    "fir": "DOZ",
+    "wmo": "87412"
+  },
+  {
+    "icao": "SAMU",
+    "nombre": "Uspallata",
+    "lat": -32.601,
+    "lng": -69.335,
+    "elev": 1918,
+    "iata": null,
+    "fir": "DOZ",
+    "wmo": "87405"
+  },
+  {
+    "icao": "SANC",
+    "nombre": "Catamarca Arpt",
+    "lat": -28.593,
+    "lng": -65.754,
+    "elev": 468,
+    "iata": "CTC",
+    "fir": "CBA",
+    "wmo": "87222"
+  },
+  {
+    "icao": "SANE",
+    "nombre": "Santiago Del Estero",
+    "lat": -27.755,
+    "lng": -64.3,
+    "elev": 198,
+    "iata": "SDE",
+    "fir": "CBA",
+    "wmo": "87129"
+  },
+  {
+    "icao": "SANI",
+    "nombre": "Tinogasta",
+    "lat": -28.041,
+    "lng": -67.577,
+    "elev": 1225,
+    "iata": null,
+    "fir": "CBA",
+    "wmo": "87211"
+  },
+  {
+    "icao": "SANL",
+    "nombre": "La Rioja/Capt Vincen",
+    "lat": -29.383,
+    "lng": -66.795,
+    "elev": 438,
+    "iata": "IRJ",
+    "fir": "CBA",
+    "wmo": "87217"
+  },
+  {
+    "icao": "SANO",
+    "nombre": "Chilecito",
+    "lat": -29.224,
+    "lng": -67.439,
+    "elev": 918,
+    "iata": null,
+    "fir": "CBA",
+    "wmo": null
+  },
+  {
+    "icao": "SANR",
+    "nombre": "Termas de Rio Hondo Intl",
+    "lat": -27.497,
+    "lng": -64.936,
+    "elev": 286,
+    "iata": null,
+    "fir": "CBA",
+    "wmo": null
+  },
+  {
+    "icao": "SANT",
+    "nombre": "Tucuman/Matlenzo Intl",
+    "lat": -26.841,
+    "lng": -65.105,
+    "elev": 446,
+    "iata": "TUC",
+    "fir": "CBA",
+    "wmo": "87121"
+  },
+  {
+    "icao": "SANU",
+    "nombre": "San Juan Arpt",
+    "lat": -31.572,
+    "lng": -68.418,
+    "elev": 596,
+    "iata": "UAQ",
+    "fir": "DOZ",
+    "wmo": "87311"
+  },
+  {
+    "icao": "SANW",
+    "nombre": "Ceres",
+    "lat": -29.876,
+    "lng": -61.933,
+    "elev": 88,
+    "iata": "CRR",
+    "fir": "CBA",
+    "wmo": "87257"
+  },
+  {
+    "icao": "SAOC",
+    "nombre": "Rio Cuarto Arpt",
+    "lat": -33.095,
+    "lng": -64.273,
+    "elev": 422,
+    "iata": "RCU",
+    "fir": "CBA",
+    "wmo": "87453"
+  },
+  {
+    "icao": "SAOD",
+    "nombre": "Villa Dolores Arpt",
+    "lat": -31.951,
+    "lng": -65.149,
+    "elev": 564,
+    "iata": "VDR",
+    "fir": "CBA",
+    "wmo": "87328"
+  },
+  {
+    "icao": "SAOL",
+    "nombre": "Laboulaye",
+    "lat": -34.135,
+    "lng": -63.362,
+    "elev": 139,
+    "iata": null,
+    "fir": "EZE",
+    "wmo": "87534"
+  },
+  {
+    "icao": "SAOM",
+    "nombre": "Marcos Juarez Arpt",
+    "lat": -32.684,
+    "lng": -62.158,
+    "elev": 112,
+    "iata": null,
+    "fir": "CBA",
+    "wmo": "87467"
+  },
+  {
+    "icao": "SAOR",
+    "nombre": "Villa Reynolds Arpt",
+    "lat": -33.73,
+    "lng": -65.387,
+    "elev": 489,
+    "iata": "VME",
+    "fir": "DOZ",
+    "wmo": "87448"
+  },
+  {
+    "icao": "SAOU",
+    "nombre": "San Luis Arpt",
+    "lat": -33.273,
+    "lng": -66.356,
+    "elev": 704,
+    "iata": "LUQ",
+    "fir": "DOZ",
+    "wmo": "87436"
+  },
+  {
+    "icao": "SARC",
+    "nombre": "Corrientes Arpt",
+    "lat": -27.445,
+    "lng": -58.762,
+    "elev": 60,
+    "iata": "CNQ",
+    "fir": "SIS",
+    "wmo": "87166"
+  },
+  {
+    "icao": "SARE",
+    "nombre": "Resistencia Arpt",
+    "lat": -27.45,
+    "lng": -59.056,
+    "elev": 52,
+    "iata": "RES",
+    "fir": "SIS",
+    "wmo": "87155"
+  },
+  {
+    "icao": "SARF",
+    "nombre": "Formosa Intl",
+    "lat": -26.213,
+    "lng": -58.228,
+    "elev": 65,
+    "iata": "FMA",
+    "fir": "SIS",
+    "wmo": "87162"
+  },
+  {
+    "icao": "SARI",
+    "nombre": "Puerto Iguazú Intl",
+    "lat": -25.737,
+    "lng": -54.473,
+    "elev": 268,
+    "iata": "IGR",
+    "fir": "SIS",
+    "wmo": "87097"
+  },
+  {
+    "icao": "SARL",
+    "nombre": "Paso de los Libres Arpt",
+    "lat": -29.689,
+    "lng": -57.152,
+    "elev": 70,
+    "iata": "AOL",
+    "fir": "SIS",
+    "wmo": "87289"
+  },
+  {
+    "icao": "SARM",
+    "nombre": "Monte Caseros Arpt",
+    "lat": -30.272,
+    "lng": -57.64,
+    "elev": 48,
+    "iata": "MCS",
+    "fir": "SIS",
+    "wmo": "87393"
+  },
+  {
+    "icao": "SARP",
+    "nombre": "Posadas Arpt",
+    "lat": -27.386,
+    "lng": -55.969,
+    "elev": 123,
+    "iata": "PSS",
+    "fir": "SIS",
+    "wmo": "87178"
+  },
+  {
+    "icao": "SARS",
+    "nombre": "Presidencia Pena Arpt",
+    "lat": -26.749,
+    "lng": -60.487,
+    "elev": 95,
+    "iata": "PRQ",
+    "fir": "SIS",
+    "wmo": null
+  },
+  {
+    "icao": "SASA",
+    "nombre": "Salta/Guemes Arpt",
+    "lat": -24.856,
+    "lng": -65.486,
+    "elev": 1235,
+    "iata": "SLA",
+    "fir": "CBA",
+    "wmo": "87047"
+  },
+  {
+    "icao": "SASJ",
+    "nombre": "Jujuy/El Cadilal Arpt",
+    "lat": -24.387,
+    "lng": -65.098,
+    "elev": 913,
+    "iata": "JUJ",
+    "fir": "CBA",
+    "wmo": "87046"
+  },
+  {
+    "icao": "SASO",
+    "nombre": "Orán Arpt",
+    "lat": -23.153,
+    "lng": -64.329,
+    "elev": 358,
+    "iata": "ORA",
+    "fir": "CBA",
+    "wmo": "87016"
+  },
+  {
+    "icao": "SASQ",
+    "nombre": "La Quiaca Observator",
+    "lat": -22.103,
+    "lng": -65.6,
+    "elev": 3467,
+    "iata": null,
+    "fir": "CBA",
+    "wmo": "87007"
+  },
+  {
+    "icao": "SASR",
+    "nombre": "Rivadavia",
+    "lat": -24.185,
+    "lng": -62.885,
+    "elev": 209,
+    "iata": null,
+    "fir": "CBA",
+    "wmo": "87065"
+  },
+  {
+    "icao": "SAST",
+    "nombre": "Tartagal Arpt",
+    "lat": -22.617,
+    "lng": -63.795,
+    "elev": 448,
+    "iata": "TTG",
+    "fir": "CBA",
+    "wmo": "87022"
+  },
+  {
+    "icao": "SATU",
+    "nombre": "Curuzu Cuatia Arpt",
+    "lat": -29.771,
+    "lng": -57.979,
+    "elev": 74,
+    "iata": "UZU",
+    "fir": "SIS",
+    "wmo": null
+  },
+  {
+    "icao": "SAVB",
+    "nombre": "El Bolson Arpt",
+    "lat": -41.948,
+    "lng": -71.533,
+    "elev": 332,
+    "iata": "EHL",
+    "fir": "CRV",
+    "wmo": "87800"
+  },
+  {
+    "icao": "SAVC",
+    "nombre": "Comodoro Rivadavia Arpt",
+    "lat": -45.79,
+    "lng": -67.471,
+    "elev": 58,
+    "iata": "CRD",
+    "fir": "CRV",
+    "wmo": "87860"
+  },
+  {
+    "icao": "SAVE",
+    "nombre": "Esquel Arpt",
+    "lat": -42.906,
+    "lng": -71.147,
+    "elev": 799,
+    "iata": "EQS",
+    "fir": "CRV",
+    "wmo": "87803"
+  },
+  {
+    "icao": "SAVO",
+    "nombre": "San Antonio Oeste",
+    "lat": -40.757,
+    "lng": -65.031,
+    "elev": 14,
+    "iata": null,
+    "fir": "CRV",
+    "wmo": "87784"
+  },
+  {
+    "icao": "SAVP",
+    "nombre": "Paso De Indios",
+    "lat": -43.856,
+    "lng": -69.044,
+    "elev": 514,
+    "iata": null,
+    "fir": "CRV",
+    "wmo": "87814"
+  },
+  {
+    "icao": "SAVT",
+    "nombre": "Trelew/Almirante Zar Intl",
+    "lat": -43.209,
+    "lng": -65.282,
+    "elev": 37,
+    "iata": "REL",
+    "fir": "CRV",
+    "wmo": "87828"
+  },
+  {
+    "icao": "SAVV",
+    "nombre": "Viedma/Castello",
+    "lat": -40.867,
+    "lng": -63.001,
+    "elev": 4,
+    "iata": "VDM",
+    "fir": "CRV",
+    "wmo": "87791"
+  },
+  {
+    "icao": "SAWA",
+    "nombre": "Lago Argentino Arpt",
+    "lat": -50.327,
+    "lng": -72.276,
+    "elev": 182,
+    "iata": null,
+    "fir": "CRV",
+    "wmo": null
+  },
+  {
+    "icao": "SAWC",
+    "nombre": "El Calafate Arpt",
+    "lat": -50.284,
+    "lng": -72.052,
+    "elev": 204,
+    "iata": "FTE",
+    "fir": "CRV",
+    "wmo": null
+  },
+  {
+    "icao": "SAWD",
+    "nombre": "Puerto Deseado Arpt",
+    "lat": -47.735,
+    "lng": -65.904,
+    "elev": 78,
+    "iata": "PUD",
+    "fir": "CRV",
+    "wmo": "87896"
+  },
+  {
+    "icao": "SAWE",
+    "nombre": "Rio Grande/Quijada Intl",
+    "lat": -53.781,
+    "lng": -67.754,
+    "elev": 22,
+    "iata": "RGA",
+    "fir": "CRV",
+    "wmo": "87934"
+  },
+  {
+    "icao": "SAWG",
+    "nombre": "Rio Gallegos Intl",
+    "lat": -51.609,
+    "lng": -69.306,
+    "elev": 18,
+    "iata": "RGL",
+    "fir": "CRV",
+    "wmo": "87925"
+  },
+  {
+    "icao": "SAWH",
+    "nombre": "Ushuaia/Malvinas Arpt",
+    "lat": -54.844,
+    "lng": -68.308,
+    "elev": 22,
+    "iata": "USH",
+    "fir": "CRV",
+    "wmo": "87938"
+  },
+  {
+    "icao": "SAWJ",
+    "nombre": "San Julian Aero",
+    "lat": -49.307,
+    "lng": -67.803,
+    "elev": 48,
+    "iata": "ULA",
+    "fir": "CRV",
+    "wmo": "87909"
+  },
+  {
+    "icao": "SAWP",
+    "nombre": "Perito Moreno Arpt",
+    "lat": -46.537,
+    "lng": -70.983,
+    "elev": 429,
+    "iata": "PMQ",
+    "fir": "CRV",
+    "wmo": "87852"
+  },
+  {
+    "icao": "SAWR",
+    "nombre": "Gobernador Gregores",
+    "lat": -48.783,
+    "lng": -70.167,
+    "elev": 357,
+    "iata": "GGS",
+    "fir": "CRV",
+    "wmo": "87880"
+  },
+  {
+    "icao": "SAWU",
+    "nombre": "Santa Cruz Arpt",
+    "lat": -50.017,
+    "lng": -68.579,
+    "elev": 113,
+    "iata": "RZA",
+    "fir": "CRV",
+    "wmo": "87912"
+  },
+  {
+    "icao": "SAZA",
+    "nombre": "Azul Arpt",
+    "lat": -36.832,
+    "lng": -59.886,
+    "elev": 150,
+    "iata": null,
+    "fir": "EZE",
+    "wmo": "87642"
+  },
+  {
+    "icao": "SAZB",
+    "nombre": "Bahia Blanca/Espora Arpt",
+    "lat": -38.725,
+    "lng": -62.169,
+    "elev": 77,
+    "iata": "BHI",
+    "fir": "EZE",
+    "wmo": "87750"
+  },
+  {
+    "icao": "SAZD",
+    "nombre": "Dolores Arpt",
+    "lat": -36.32,
+    "lng": -57.721,
+    "elev": 9,
+    "iata": null,
+    "fir": "EZE",
+    "wmo": "87648"
+  },
+  {
+    "icao": "SAZE",
+    "nombre": "Pigüé Arpt",
+    "lat": -37.602,
+    "lng": -62.378,
+    "elev": 304,
+    "iata": null,
+    "fir": "EZE",
+    "wmo": "87679"
+  },
+  {
+    "icao": "SAZG",
+    "nombre": "General Pico Arpt",
+    "lat": -35.696,
+    "lng": -63.758,
+    "elev": 135,
+    "iata": "GPO",
+    "fir": "EZE",
+    "wmo": "87532"
+  },
+  {
+    "icao": "SAZH",
+    "nombre": "Tres Arroyos Arpt",
+    "lat": -38.392,
+    "lng": -60.329,
+    "elev": 113,
+    "iata": "OYO",
+    "fir": "EZE",
+    "wmo": "87688"
+  },
+  {
+    "icao": "SAZM",
+    "nombre": "Mar del Plata Arpt",
+    "lat": -37.932,
+    "lng": -57.581,
+    "elev": 17,
+    "iata": "MDQ",
+    "fir": "EZE",
+    "wmo": "87692"
+  },
+  {
+    "icao": "SAZN",
+    "nombre": "Neuquen Arpt",
+    "lat": -38.95,
+    "lng": -68.141,
+    "elev": 273,
+    "iata": "NQN",
+    "fir": "EZE",
+    "wmo": "87715"
+  },
+  {
+    "icao": "SAZP",
+    "nombre": "Pehuajo Arpt",
+    "lat": -35.839,
+    "lng": -61.858,
+    "elev": 82,
+    "iata": "PEH",
+    "fir": "EZE",
+    "wmo": "87544"
+  },
+  {
+    "icao": "SAZQ",
+    "nombre": "Rio Colorado",
+    "lat": -39.017,
+    "lng": -64.083,
+    "elev": 80,
+    "iata": null,
+    "fir": "EZE",
+    "wmo": "87736"
+  },
+  {
+    "icao": "SAZR",
+    "nombre": "Santa Rosa Arpt",
+    "lat": -36.593,
+    "lng": -64.28,
+    "elev": 190,
+    "iata": "RSA",
+    "fir": "EZE",
+    "wmo": "87623"
+  },
+  {
+    "icao": "SAZS",
+    "nombre": "San Carlos de Bariloche Arpt",
+    "lat": -41.151,
+    "lng": -71.157,
+    "elev": 843,
+    "iata": "BRC",
+    "fir": "EZE",
+    "wmo": "87765"
+  },
+  {
+    "icao": "SAZT",
+    "nombre": "Tandil Arpt",
+    "lat": -37.241,
+    "lng": -59.23,
+    "elev": 180,
+    "iata": "TDL",
+    "fir": "EZE",
+    "wmo": "87645"
+  },
+  {
+    "icao": "SAZV",
+    "nombre": "Villa Gesell",
+    "lat": -37.235,
+    "lng": -57.029,
+    "elev": 5,
+    "iata": "VLG",
+    "fir": "EZE",
+    "wmo": "87663"
+  },
+  {
+    "icao": "SAZY",
+    "nombre": "Chapelco",
+    "lat": -40.075,
+    "lng": -71.137,
+    "elev": 783,
+    "iata": "CPC",
+    "fir": "EZE",
+    "wmo": "87761"
+  }
+]

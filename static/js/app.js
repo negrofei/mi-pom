@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "synop-ar-config-v3";
+  const STORAGE_KEY = "synop-ar-config-v4";
   const BASE_W = 120;
   const BASE_H = 160;
   const REFRESH_MS = 2 * 60 * 1000;
@@ -19,6 +19,7 @@
   const configPanel = document.getElementById("configPanel");
   const configClose = document.getElementById("configClose");
   const chkNil = document.getElementById("chkNil");
+  const nilWrap = document.getElementById("nilWrap");
   const cfgAutorefresh = document.getElementById("cfgAutorefresh");
   const cfgTimelineExact = document.getElementById("cfgTimelineExact");
   const cfgTimelineLatest = document.getElementById("cfgTimelineLatest");
@@ -26,6 +27,9 @@
   const cfgGapLabel = document.getElementById("cfgGapLabel");
   const cfgFirAll = document.getElementById("cfgFirAll");
   const firChecks = document.getElementById("firChecks");
+  const btnProductSynop = document.getElementById("btnProductSynop");
+  const btnProductMetar = document.getElementById("btnProductMetar");
+  const fltLegend = document.getElementById("fltLegend");
   const detail = document.getElementById("detail");
   const detailBody = document.getElementById("detailBody");
   const detailClose = document.getElementById("detailClose");
@@ -37,6 +41,7 @@
   const tsClose = document.getElementById("tsClose");
 
   const defaults = {
+    product: "synop",
     autorefresh: false,
     timeline: "exact",
     plotGap: 0.75,
@@ -58,6 +63,9 @@
       }
       if (!Array.isArray(parsed.firs) || !parsed.firs.length) {
         parsed.firs = [...ALL_FIRS];
+      }
+      if (parsed.product !== "metar" && parsed.product !== "synop") {
+        parsed.product = "synop";
       }
       return { ...defaults, ...parsed, firs: parsed.firs.filter((c) => ALL_FIRS.includes(c)) };
     } catch {
@@ -195,10 +203,12 @@
     cfgPlotGap.value = String(settings.plotGap);
     cfgGapLabel.textContent = Number(settings.plotGap).toFixed(2);
     applyFirChecks(settings.firs);
+    applyProductUi();
   }
 
   function readSettingsFromUi() {
     settings = {
+      product: settings.product || "synop",
       autorefresh: cfgAutorefresh.checked,
       timeline: cfgTimelineLatest.checked ? "latest" : "exact",
       plotGap: Number(cfgPlotGap.value),
@@ -211,6 +221,26 @@
     refreshFirStyles();
   }
 
+  function applyProductUi() {
+    const isMetar = settings.product === "metar";
+    btnProductSynop.classList.toggle("active", !isMetar);
+    btnProductMetar.classList.toggle("active", isMetar);
+    nilWrap.classList.toggle("hidden", isMetar);
+    fltLegend.classList.toggle("hidden", !isMetar);
+    if (isMetar) fltLegend.innerHTML = MetarPlot.legendHtml();
+  }
+
+  function setProduct(product) {
+    settings.product = product === "metar" ? "metar" : "synop";
+    // METAR: por defecto último dato en ventana corta
+    if (settings.product === "metar" && settings.timeline === "exact") {
+      // mantener timeline del usuario; no forzar
+    }
+    saveSettings(settings);
+    applyProductUi();
+    loadCurrent();
+  }
+
   function syncAutorefresh() {
     if (refreshTimer) {
       clearInterval(refreshTimer);
@@ -220,7 +250,7 @@
       refreshTimer = setInterval(() => {
         // En autorefresh, avanzar a la hora UTC actual
         setDefaultHour();
-        loadSynops();
+        loadCurrent();
       }, REFRESH_MS);
     }
   }
@@ -256,8 +286,17 @@
   }
 
   function openDetail(obs) {
-    detailBody.innerHTML = StationPlot.detailHtml(obs);
+    if (settings.product === "metar") {
+      detailBody.innerHTML = MetarPlot.detailHtml(obs);
+    } else {
+      detailBody.innerHTML = StationPlot.detailHtml(obs);
+    }
     detail.classList.remove("hidden");
+  }
+
+  function loadCurrent() {
+    if (settings.product === "metar") return loadMetars();
+    return loadSynops();
   }
 
   async function openTimeSeries(omm, nombre) {
@@ -297,6 +336,60 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeTimeSeries();
   });
+
+  async function loadMetars() {
+    const hour = hourParamFromInput();
+    const timeline = settings.timeline || "latest";
+    // Ventana: 3 h para latest (como el ejemplo AW), 1–3 h para exact
+    const hours = timeline === "latest" ? 3 : 3;
+    statusEl.textContent = "Consultando AviationWeather…";
+    btnLoad.disabled = true;
+    try {
+      const url = `/api/metars?taf=1&timeline=${timeline}&hours=${hours}${
+        hour ? `&hour=${hour}` : ""
+      }`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error de API");
+
+      layerGroup.clearLayers();
+      hideHover();
+
+      let shown = 0;
+      for (const obs of data.metars) {
+        if (obs.lat == null || obs.lng == null) continue;
+        if (!firAllowed(obs)) continue;
+
+        const marker = L.circleMarker([obs.lat, obs.lng], MetarPlot.markerOptions(obs));
+        marker.on("mouseover", (e) => {
+          marker.setStyle(MetarPlot.markerOptions(obs, true));
+          showHover(MetarPlot.hoverHtml(obs), e);
+        });
+        marker.on("mousemove", (e) => moveHover(e));
+        marker.on("mouseout", () => {
+          marker.setStyle(MetarPlot.markerOptions(obs, false));
+          hideHover();
+        });
+        marker.on("click", () => openDetail(obs));
+        marker.addTo(layerGroup);
+        shown += 1;
+      }
+
+      const modeLabel = timeline === "latest" ? "último METAR" : "hora exacta";
+      const firLabel =
+        settings.firs.length === ALL_FIRS.length
+          ? "todas las FIR"
+          : settings.firs.length
+            ? `FIR ${settings.firs.join("+")}`
+            : "sin FIR";
+      statusEl.textContent = `${data.hour_label} · ${shown}/${data.count} aeródromos · ${modeLabel} · ${firLabel}`;
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = `Error: ${err.message}`;
+    } finally {
+      btnLoad.disabled = false;
+    }
+  }
 
   async function loadSynops() {
     const hour = hourParamFromInput();
@@ -432,12 +525,12 @@
 
   function onConfigChange(reload) {
     readSettingsFromUi();
-    if (reload) loadSynops();
+    if (reload) loadCurrent();
   }
 
-  btnLoad.addEventListener("click", loadSynops);
+  btnLoad.addEventListener("click", loadCurrent);
   chkNil.addEventListener("change", () => onConfigChange(true));
-  hourInput.addEventListener("change", loadSynops);
+  hourInput.addEventListener("change", loadCurrent);
   cfgAutorefresh.addEventListener("change", () => onConfigChange(false));
   cfgTimelineExact.addEventListener("change", () => onConfigChange(true));
   cfgTimelineLatest.addEventListener("change", () => onConfigChange(true));
@@ -457,10 +550,12 @@
     syncFirAllCheckbox();
     onConfigChange(true);
   });
+  btnProductSynop.addEventListener("click", () => setProduct("synop"));
+  btnProductMetar.addEventListener("click", () => setProduct("metar"));
 
   applySettingsToUi();
   setDefaultHour();
   syncAutorefresh();
   loadFirLayer();
-  loadSynops();
+  loadCurrent();
 })();

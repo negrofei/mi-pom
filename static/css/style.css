@@ -113,6 +113,80 @@ html, body {
   background: rgba(11, 95, 138, 0.08);
 }
 
+.product-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.product-btn {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+.product-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.product-btn:not(.active):hover {
+  background: rgba(11, 95, 138, 0.08);
+}
+
+.flt-legend-wrap {
+  position: absolute;
+  z-index: 800;
+  left: 0.75rem;
+  bottom: 1.4rem;
+  pointer-events: none;
+}
+
+.flt-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  box-shadow: var(--shadow);
+}
+
+.flt-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.flt-leg i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid #222;
+  display: inline-block;
+}
+
+.flt-pill {
+  display: inline-block;
+  color: #fff;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.check.hidden {
+  display: none;
+}
+
 .config-panel {
   position: fixed;
   z-index: 1100;
