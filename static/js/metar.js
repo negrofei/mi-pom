@@ -220,15 +220,77 @@
     };
   }
 
+  function amountFromAwCover(cover) {
+    const c = String(cover || "").toUpperCase();
+    if (!c) return null;
+    if (c === "FEW") return { code: "FEW", significant: false, tone: "muted" };
+    if (c === "SCT") return { code: "SCT", significant: false, tone: "soft" };
+    if (c === "BKN") return { code: "BKN", significant: true, tone: "bkn" };
+    if (c === "OVC" || c === "OVX") return { code: "OVC", significant: true, tone: "ovc" };
+    if (c === "VV") return { code: "VV", significant: true, tone: "ovc" };
+    if (c === "SKC" || c === "CLR" || c === "NSC" || c === "NCD") {
+      return { code: c, significant: false, tone: "muted" };
+    }
+    return { code: c, significant: false, tone: "muted" };
+  }
+
   function formatCloudsAw(clouds) {
     if (!Array.isArray(clouds) || !clouds.length) return "—";
     return clouds
       .map((c) => {
-        const cov = esc(String(c.cover || c.amount || "?").toUpperCase());
-        const base = c.base != null ? coloredBaseHtml(c.base) : "—";
-        return `${cov} ${base}`;
+        const amt = amountFromAwCover(c.cover || c.amount);
+        const badge = amountBadgeHtml(amt);
+        const base =
+          c.base != null ? coloredBaseHtml(c.base) : amt ? "" : "—";
+        return `${badge}${badge && base ? " " : ""}${base}`.trim() || "—";
       })
       .join(" · ");
+  }
+
+  /** Epoch ms de un obs_iso / utc SYNOP. */
+  function obsTimeMs(obs) {
+    if (!obs) return null;
+    if (obs.obs_iso) {
+      const t = Date.parse(obs.obs_iso);
+      if (!Number.isNaN(t)) return t;
+    }
+    // Fallback display SYNOP: dd/mm/yyyy HH:MM
+    if (obs.utc) {
+      const m = String(obs.utc).match(
+        /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/
+      );
+      if (m) {
+        const t = Date.UTC(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]);
+        if (!Number.isNaN(t)) return t;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * SPECI válido solo si es posterior al SYNOP de la estación.
+   * Un SYNOP nuevo cierra el período del SPECI.
+   */
+  function isSpeciActive(speci, synop) {
+    if (!speci) return false;
+    const speciT = obsTimeMs(speci);
+    const synopT = obsTimeMs(synop);
+    if (speciT == null) return true;
+    if (synopT == null) return true;
+    return speciT > synopT;
+  }
+
+  /** Elige el SPECI más reciente que siga vigente respecto del SYNOP. */
+  function pickActiveSpeci(candidates, synop) {
+    const list = (Array.isArray(candidates) ? candidates : [candidates]).filter(
+      Boolean
+    );
+    let best = null;
+    for (const s of list) {
+      if (!isSpeciActive(s, synop)) continue;
+      if (!best || (obsTimeMs(s) || 0) > (obsTimeMs(best) || 0)) best = s;
+    }
+    return best;
   }
 
   function speciPanelHtml(speci) {
@@ -495,15 +557,32 @@
     const items = points
       .map((p) => {
         const cat = catMeta(p.flt_cat);
+        const cloudsHtml = formatCloudsAw(p.clouds);
+        const ceilFallback =
+          (!p.clouds || !p.clouds.length) && p.ceiling_ft != null
+            ? `${amountBadgeHtml(amountFromAwCover(p.cover)) || ""} ${coloredBaseHtml(
+                p.ceiling_ft
+              )}`.trim()
+            : null;
         return `
           <article class="metar-hist-item${p.is_speci ? " is-speci" : ""}">
             <header>
               <time>${esc(p.obs_iso || "—")}</time>
-              <span class="flt-pill" style="background:${cat.color}">${esc(cat.label)}</span>
-              ${p.is_speci ? `<span class="speci-badge">SPECI</span>` : ""}
+              <span class="flt-pill" style="background:${cat.color}">${esc(cat.label || "—")}</span>
+              ${p.is_speci ? `<span class="speci-badge">SPECI</span>` : `<span class="metar-badge">METAR</span>`}
             </header>
             <pre class="raw">${esc(p.raw || "—")}</pre>
-            <div class="metar-hist-meta">Vis ${coloredVisHtml(p.visibility_m)}</div>
+            <div class="metar-hist-meta">
+              <div>Vis ${coloredVisHtml(p.visibility_m)}</div>
+              <div class="metar-hist-clouds">Nubes ${
+                cloudsHtml !== "—" ? cloudsHtml : ceilFallback || "—"
+              }</div>
+              ${
+                p.wind_gust_kt != null
+                  ? `<div class="av-gust">Ráfaga ${esc(String(p.wind_gust_kt))} kt</div>`
+                  : ""
+              }
+            </div>
           </article>`;
       })
       .join("");
@@ -527,7 +606,9 @@
     coloredVisHtml,
     baseHeightStyle,
     coverAmount,
+    amountFromAwCover,
     coloredBaseHtml,
+    formatCloudsAw,
     fromSynop,
     hoverHtml,
     detailHtml,
@@ -537,5 +618,8 @@
     historyHtml,
     loadHistory,
     significantWx,
+    isSpeciActive,
+    pickActiveSpeci,
+    obsTimeMs,
   };
 })(window);

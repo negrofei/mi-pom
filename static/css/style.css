@@ -339,6 +339,31 @@ html, body {
   margin-left: 0.25rem;
 }
 
+.metar-badge {
+  display: inline-block;
+  background: #455a64;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  margin-left: 0.25rem;
+}
+
+.metar-hist-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  opacity: 0.95;
+}
+
+.metar-hist-clouds {
+  line-height: 1.45;
+}
+
 .metar-hist-btn {
   width: 100%;
   margin: 0.35rem 0 0.85rem;

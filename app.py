@@ -79,10 +79,10 @@ def api_airports():
 def api_specis():
     """SPECI recientes desde AviationWeather (alerta rápida)."""
     try:
-        hours = int(request.args.get("hours", "2"))
+        hours = int(request.args.get("hours", "6"))
     except ValueError:
         return jsonify({"error": "hours inválido"}), 400
-    hours = max(1, min(hours, 6))
+    hours = max(1, min(hours, 12))
 
     try:
         specis = fetch_argentina_specis(airports=AIRPORTS, hours=hours)
