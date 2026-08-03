@@ -79,6 +79,8 @@
 
   let settings = loadSettings();
   let refreshTimer = null;
+  let seenSpeci = new Set();
+  let speciSeeded = false;
 
   const map = L.map("map", {
     center: [-40.5, -64.5],
@@ -232,12 +234,16 @@
 
   function setProduct(product) {
     settings.product = product === "metar" ? "metar" : "synop";
-    // METAR: por defecto último dato en ventana corta
-    if (settings.product === "metar" && settings.timeline === "exact") {
-      // mantener timeline del usuario; no forzar
+    if (settings.product === "metar") {
+      // En METAR se consultan mensajes cada 2 min para detectar SPECI
+      settings.autorefresh = true;
+      cfgAutorefresh.checked = true;
+      settings.timeline = "latest";
+      cfgTimelineLatest.checked = true;
     }
     saveSettings(settings);
     applyProductUi();
+    syncAutorefresh();
     loadCurrent();
   }
 
@@ -246,12 +252,59 @@
       clearInterval(refreshTimer);
       refreshTimer = null;
     }
-    if (settings.autorefresh) {
+    // METAR siempre refresca cada 2 min; SYNOP respeta el checkbox
+    const enabled = settings.product === "metar" || settings.autorefresh;
+    if (enabled) {
       refreshTimer = setInterval(() => {
-        // En autorefresh, avanzar a la hora UTC actual
         setDefaultHour();
         loadCurrent();
       }, REFRESH_MS);
+    }
+  }
+
+  function speciKey(s) {
+    return `${s.icao}|${s.obs_iso || s.raw || ""}`;
+  }
+
+  function pushToast(html, kind) {
+    const stack = document.getElementById("toastStack");
+    if (!stack) return;
+    const el = document.createElement("div");
+    el.className = `toast ${kind || ""}`;
+    el.innerHTML = html;
+    stack.appendChild(el);
+    setTimeout(() => {
+      el.classList.add("toast-out");
+      setTimeout(() => el.remove(), 350);
+    }, 8000);
+  }
+
+  function notifySpecis(specis) {
+    if (!Array.isArray(specis) || !specis.length) return;
+    const fresh = [];
+    for (const s of specis) {
+      const key = speciKey(s);
+      if (seenSpeci.has(key)) continue;
+      seenSpeci.add(key);
+      fresh.push(s);
+    }
+    if (!speciSeeded) {
+      speciSeeded = true;
+      return; // primera carga: no spamear toasts de SPECI ya vigentes
+    }
+    for (const s of fresh) {
+      const icao = String(s.icao || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      const nombre = String(s.nombre || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      const raw = String(s.raw || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/"/g, "&quot;");
+      pushToast(
+        `<div class="toast-title">SPECI · ${icao}</div>
+         <div class="toast-sub">${nombre}</div>
+         <code>${raw}</code>`,
+        "toast-speci"
+      );
     }
   }
 
@@ -329,10 +382,31 @@
     if (e.target === tsModal) closeTimeSeries();
   });
   detailBody.addEventListener("click", (e) => {
+    const hist = e.target.closest(".metar-hist-btn");
+    if (hist) {
+      openMetarHistory(hist.getAttribute("data-icao"), hist.getAttribute("data-nombre"));
+      return;
+    }
     const btn = e.target.closest(".ts-open-btn");
     if (!btn) return;
     openTimeSeries(btn.getAttribute("data-omm"), btn.getAttribute("data-nombre"));
   });
+
+  async function openMetarHistory(icao, nombre) {
+    tsTitle.textContent = `METAR · ${nombre || icao}`;
+    tsSubtitle.textContent = `${icao} · últimas 24 h`;
+    tsModal.classList.remove("hidden");
+    try {
+      const data = await MetarPlot.loadHistory(tsBody, icao);
+      tsSubtitle.textContent = `${icao} · ${data.count} reportes · últimas ${data.hours} h`;
+    } catch (err) {
+      console.error(err);
+      const msg = String(err.message || err)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;");
+      tsBody.innerHTML = `<div class="ts-empty">Error: ${msg}</div>`;
+    }
+  }
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeTimeSeries();
   });
@@ -382,7 +456,10 @@
           : settings.firs.length
             ? `FIR ${settings.firs.join("+")}`
             : "sin FIR";
-      statusEl.textContent = `${data.hour_label} · ${shown}/${data.count} aeródromos · ${modeLabel} · ${firLabel}`;
+      statusEl.textContent = `${data.hour_label} · ${shown}/${data.count} aeródromos · ${modeLabel} · ${firLabel}${
+        data.speci_count ? ` · ${data.speci_count} SPECI` : ""
+      }`;
+      notifySpecis(data.specis || data.metars.filter((m) => m.is_speci));
     } catch (err) {
       console.error(err);
       statusEl.textContent = `Error: ${err.message}`;

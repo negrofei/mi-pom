@@ -43,7 +43,7 @@
 
     <label class="config-row check">
       <input type="checkbox" id="cfgAutorefresh" />
-      <span>Autorefresh cada 2 minutos</span>
+      <span>Autorefresh cada 2 minutos <small>(en METAR siempre activo para detectar SPECI)</small></span>
     </label>
 
     <fieldset class="config-fieldset">
@@ -109,6 +109,7 @@
   </div>
 
   <div id="hoverTip" class="hover-tip hidden"></div>
+  <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/static/js/symbols.js"></script>

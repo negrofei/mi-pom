@@ -183,6 +183,131 @@ html, body {
   font-weight: 600;
 }
 
+.speci-badge {
+  display: inline-block;
+  background: #b71c1c;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  margin-left: 0.25rem;
+}
+
+.metar-hist-btn {
+  width: 100%;
+  margin: 0.35rem 0 0.85rem;
+}
+
+.vis-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  font-family: var(--mono);
+  opacity: 0.9;
+}
+
+.metar-hist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.6rem;
+}
+
+.metar-hist-item {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.55rem 0.65rem;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.metar-hist-item.is-speci {
+  border-color: #b71c1c;
+  box-shadow: inset 3px 0 0 #b71c1c;
+}
+
+.metar-hist-item header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.metar-hist-item .raw {
+  margin: 0.2rem 0;
+  font-size: 0.78rem;
+}
+
+.metar-hist-meta {
+  font-size: 0.78rem;
+  opacity: 0.9;
+}
+
+.toast-stack {
+  position: fixed;
+  z-index: 2000;
+  top: 4.8rem;
+  right: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(360px, calc(100vw - 1.5rem));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  background: rgba(20, 30, 40, 0.96);
+  color: #f4f7fa;
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  box-shadow: var(--shadow);
+  border-left: 4px solid #b71c1c;
+  animation: toast-in 0.25s ease-out;
+}
+
+.toast.toast-speci {
+  border-left-color: #ff1744;
+}
+
+.toast-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.toast-sub {
+  font-size: 0.78rem;
+  opacity: 0.85;
+  margin: 0.15rem 0 0.35rem;
+}
+
+.toast code {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  opacity: 0.95;
+}
+
+.toast-out {
+  opacity: 0;
+  transform: translateX(12px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 .check.hidden {
   display: none;
 }

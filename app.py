@@ -9,7 +9,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
-from aviationweather_client import fetch_argentina_metars
+from aviationweather_client import fetch_argentina_metars, fetch_station_metars
 from ogimet_client import fetch_argentina_synops, fetch_station_series, resolve_synop_hour
 
 logging.basicConfig(level=logging.INFO)
@@ -102,6 +102,7 @@ def api_metars():
         log.exception("Error consultando AviationWeather")
         return jsonify({"error": f"No se pudo consultar AviationWeather: {exc}"}), 502
 
+    specis = [m for m in metars if m.get("is_speci")]
     return jsonify(
         {
             "hour": when.strftime("%Y%m%d%H"),
@@ -110,7 +111,52 @@ def api_metars():
             "hours": hours,
             "source": "AviationWeather",
             "count": len(metars),
+            "speci_count": len(specis),
+            "specis": [
+                {
+                    "icao": s["icao"],
+                    "nombre": s.get("nombre"),
+                    "obs_iso": s.get("obs_iso"),
+                    "raw": s.get("raw"),
+                    "flt_cat": s.get("flt_cat"),
+                }
+                for s in specis
+            ],
             "metars": metars,
+        }
+    )
+
+
+@app.get("/api/metars/<icao>")
+def api_metar_station(icao: str):
+    """Historial METAR de un aeródromo (por defecto 24 h)."""
+    try:
+        hours = int(request.args.get("hours", "24"))
+    except ValueError:
+        return jsonify({"error": "hours inválido"}), 400
+    hours = max(1, min(hours, 48))
+    include_taf = request.args.get("taf", "1") == "1"
+    key = str(icao).upper().strip()
+    if key not in AIRPORTS:
+        return jsonify({"error": f"Aeródromo {key} no encontrado"}), 404
+
+    try:
+        points = fetch_station_metars(
+            key, airports=AIRPORTS, hours=hours, include_taf=include_taf
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Error consultando historial METAR")
+        return jsonify({"error": f"No se pudo consultar AviationWeather: {exc}"}), 502
+
+    meta = AIRPORTS[key]
+    return jsonify(
+        {
+            "icao": key,
+            "nombre": meta.get("nombre"),
+            "fir": meta.get("fir"),
+            "hours": hours,
+            "count": len(points),
+            "points": points,
         }
     )
 
