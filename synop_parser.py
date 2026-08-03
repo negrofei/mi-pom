@@ -59,6 +59,7 @@ class SynopDecoded:
     wind_dir: Optional[int] = None  # grados
     wind_speed: Optional[float] = None  # en unidades originales
     wind_speed_kt: Optional[float] = None
+    wind_gust_kt: Optional[float] = None  # ráfaga (grupo 910ff, sec. 3)
     wind_barb: str = "0"  # clave de PNG barb_*
     temp_c: Optional[float] = None
     dewpoint_c: Optional[float] = None
@@ -354,7 +355,7 @@ def parse_synop(
             out.cm = g[3] if g[3] != "/" else None
             out.ch = g[4] if g[4] != "/" else None
 
-    # Sección 3: capas 8NsChshs (todas las que haya)
+    # Sección 3: capas 8NsChshs + ráfagas 910ff
     for g in section3:
         if len(g) == 5 and g.startswith("8"):
             ns = g[1] if g[1] != "/" else None
@@ -372,6 +373,16 @@ def parse_synop(
                     raw=g,
                 )
             )
+        elif len(g) == 5 and g.startswith("910"):
+            # 910ff — máxima ráfaga en la hora precedente (mismas unidades que ff)
+            ff = g[3:5]
+            if "/" not in ff:
+                speed = _safe_int(ff)
+                if speed is not None:
+                    if out.wind_units == "kt":
+                        out.wind_gust_kt = float(speed)
+                    else:
+                        out.wind_gust_kt = round(speed * 1.94384, 1)
 
     if out.pressure_plot is None and out.station_pressure is not None:
         out.pressure_plot = _pressure_plot_digits(out.station_pressure)

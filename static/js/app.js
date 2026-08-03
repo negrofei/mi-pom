@@ -230,16 +230,20 @@
     nilWrap.classList.toggle("hidden", isMetar);
     fltLegend.classList.toggle("hidden", !isMetar);
     if (isMetar) fltLegend.innerHTML = MetarPlot.legendHtml();
+    const gapRow = cfgPlotGap && cfgPlotGap.closest(".config-row");
+    if (gapRow) gapRow.classList.toggle("hidden", isMetar);
   }
 
   function setProduct(product) {
     settings.product = product === "metar" ? "metar" : "synop";
     if (settings.product === "metar") {
-      // En METAR se consultan mensajes cada 2 min para detectar SPECI
+      // En METAR se consultan SPECI cada 2 min; el mapa usa SYNOP
       settings.autorefresh = true;
       cfgAutorefresh.checked = true;
       settings.timeline = "latest";
       cfgTimelineLatest.checked = true;
+      seenSpeci = new Set();
+      speciSeeded = false;
     }
     saveSettings(settings);
     applyProductUi();
@@ -412,27 +416,48 @@
   });
 
   async function loadMetars() {
+    // Mapa aviación = resumen desde SYNOP; SPECI solo vía AviationWeather
     const hour = hourParamFromInput();
     const timeline = settings.timeline || "latest";
-    // Ventana: 3 h para latest (como el ejemplo AW), 1–3 h para exact
-    const hours = timeline === "latest" ? 3 : 3;
-    statusEl.textContent = "Consultando AviationWeather…";
+    statusEl.textContent = "Consultando SYNOP + SPECI…";
     btnLoad.disabled = true;
     try {
-      const url = `/api/metars?taf=1&timeline=${timeline}&hours=${hours}${
+      const synopUrl = `/api/synops?nil=0&timeline=${timeline}&lookback=24${
         hour ? `&hour=${hour}` : ""
       }`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error de API");
+      const [synopRes, speciRes] = await Promise.all([
+        fetch(synopUrl),
+        fetch("/api/specis?hours=2"),
+      ]);
+      const data = await synopRes.json();
+      if (!synopRes.ok) throw new Error(data.error || "Error de API SYNOP");
+
+      let speciPayload = { specis: [], count: 0 };
+      if (speciRes.ok) {
+        speciPayload = await speciRes.json();
+      } else {
+        console.warn("SPECI no disponible", speciRes.status);
+      }
+
+      const speciByWmo = new Set(
+        (speciPayload.specis || [])
+          .map((s) => (s.wmo != null ? String(s.wmo) : null))
+          .filter(Boolean)
+      );
 
       layerGroup.clearLayers();
       hideHover();
 
       let shown = 0;
-      for (const obs of data.metars) {
-        if (obs.lat == null || obs.lng == null) continue;
-        if (!firAllowed(obs)) continue;
+      for (const raw of data.synops) {
+        if (raw.nil) continue;
+        if (raw.lat == null || raw.lng == null) continue;
+        if (!firAllowed(raw)) continue;
+
+        const obs = MetarPlot.fromSynop(raw);
+        if (speciByWmo.has(String(obs.omm))) {
+          obs.has_speci = true;
+        }
 
         const marker = L.circleMarker([obs.lat, obs.lng], MetarPlot.markerOptions(obs));
         marker.on("mouseover", (e) => {
@@ -449,17 +474,16 @@
         shown += 1;
       }
 
-      const modeLabel = timeline === "latest" ? "último METAR" : "hora exacta";
+      const modeLabel = timeline === "latest" ? "último SYNOP" : "hora exacta";
       const firLabel =
         settings.firs.length === ALL_FIRS.length
           ? "todas las FIR"
           : settings.firs.length
             ? `FIR ${settings.firs.join("+")}`
             : "sin FIR";
-      statusEl.textContent = `${data.hour_label} · ${shown}/${data.count} aeródromos · ${modeLabel} · ${firLabel}${
-        data.speci_count ? ` · ${data.speci_count} SPECI` : ""
-      }`;
-      notifySpecis(data.specis || data.metars.filter((m) => m.is_speci));
+      const speciCount = speciPayload.count || (speciPayload.specis || []).length;
+      statusEl.textContent = `${data.hour_label} · ${shown} est. aviación · ${modeLabel} · ${firLabel} · ${speciCount} SPECI`;
+      notifySpecis(speciPayload.specis || []);
     } catch (err) {
       console.error(err);
       statusEl.textContent = `Error: ${err.message}`;

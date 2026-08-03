@@ -9,7 +9,11 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
-from aviationweather_client import fetch_argentina_metars, fetch_station_metars
+from aviationweather_client import (
+    fetch_argentina_metars,
+    fetch_argentina_specis,
+    fetch_station_metars,
+)
 from ogimet_client import fetch_argentina_synops, fetch_station_series, resolve_synop_hour
 
 logging.basicConfig(level=logging.INFO)
@@ -71,6 +75,31 @@ def api_airports():
     return jsonify({"airports": list(AIRPORTS.values()), "count": len(AIRPORTS)})
 
 
+@app.get("/api/specis")
+def api_specis():
+    """SPECI recientes desde AviationWeather (alerta rápida)."""
+    try:
+        hours = int(request.args.get("hours", "2"))
+    except ValueError:
+        return jsonify({"error": "hours inválido"}), 400
+    hours = max(1, min(hours, 6))
+
+    try:
+        specis = fetch_argentina_specis(airports=AIRPORTS, hours=hours)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Error consultando SPECI")
+        return jsonify({"error": f"No se pudo consultar AviationWeather: {exc}"}), 502
+
+    return jsonify(
+        {
+            "hours": hours,
+            "source": "AviationWeather",
+            "count": len(specis),
+            "specis": specis,
+        }
+    )
+
+
 @app.get("/api/metars")
 def api_metars():
     """METARs (y TAF) de aeródromos argentinos vía AviationWeather."""
@@ -116,6 +145,7 @@ def api_metars():
                 {
                     "icao": s["icao"],
                     "nombre": s.get("nombre"),
+                    "wmo": s.get("wmo"),
                     "obs_iso": s.get("obs_iso"),
                     "raw": s.get("raw"),
                     "flt_cat": s.get("flt_cat"),

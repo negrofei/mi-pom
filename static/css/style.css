@@ -173,6 +173,90 @@ html, body {
   display: inline-block;
 }
 
+.flt-leg.flt-note {
+  opacity: 0.75;
+  font-size: 0.7rem;
+}
+
+.av-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.av-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.av-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+  margin-bottom: 0.2rem;
+  font-family: var(--mono);
+}
+
+.av-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.av-value.av-gust {
+  color: #b71c1c;
+}
+
+.av-sub {
+  font-size: 0.78rem;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-top: 0.2rem;
+}
+
+.av-bases {
+  margin: 0.35rem 0 0.85rem 1.1rem;
+  padding: 0;
+  font-size: 0.88rem;
+}
+
+.wx-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  margin-right: 0.25rem;
+}
+
+.wx-tag.danger {
+  background: #b71c1c;
+  color: #fff;
+}
+
+.wx-tag.warn {
+  background: #f9a825;
+  color: #1a1a1a;
+}
+
+.wx-tag.info {
+  background: #1565c0;
+  color: #fff;
+}
+
+.synop-line {
+  margin-top: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  opacity: 0.8;
+  word-break: break-word;
+}
+
 .flt-pill {
   display: inline-block;
   color: #fff;

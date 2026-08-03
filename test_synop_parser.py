@@ -114,6 +114,35 @@ def test_visibility_meters():
     assert d3.visibility_m == 6000
 
 
+def test_wind_gust_910ff_knots():
+    """Grupo 910ff en sec. 3 → ráfaga en kt (misma unidad que ff)."""
+    d = parse_synop(
+        "AAXX 03124 87582 41570 53615 10281 20216 39934 40078 57027 72582 82205 333 91025 82830=",
+        "87582",
+        year=2026,
+        month=8,
+        day=3,
+        hour=12,
+    )
+    assert d.wind_units == "kt"
+    assert d.wind_speed_kt == 15.0
+    assert d.wind_gust_kt == 25.0
+
+
+def test_wind_gust_910ff_mps():
+    """Con iw=0/1 el ff está en m/s; 910ff se convierte a kt."""
+    d = parse_synop(
+        "AAXX 03121 87007 42980 02310 10154 20014 36732 4//// 58012 333 91012=",
+        "87007",
+        year=2026,
+        month=8,
+        day=3,
+        hour=12,
+    )
+    assert d.wind_units == "mps"
+    assert d.wind_gust_kt == round(12 * 1.94384, 1)
+
+
 def test_nil():
     d = parse_synop("AAXX 27164 87022 NIL=", "87022")
     assert d.nil is True
@@ -125,5 +154,7 @@ if __name__ == "__main__":
     test_section1_and_section3_clouds()
     test_single_section3_layer()
     test_visibility_meters()
+    test_wind_gust_910ff_knots()
+    test_wind_gust_910ff_mps()
     test_nil()
     print("ok")
