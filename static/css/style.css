@@ -224,6 +224,54 @@ html, body {
   font-size: 0.88rem;
 }
 
+.av-base-row.is-ceiling {
+  font-weight: 600;
+}
+
+.av-base-row.is-ceiling .cloud-amt.strong {
+  box-shadow: 0 0 0 1px rgba(183, 28, 28, 0.35);
+}
+
+.cloud-amt {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.cloud-amt.muted {
+  background: rgba(0, 0, 0, 0.08);
+  color: #666;
+}
+
+.cloud-amt.soft {
+  background: rgba(21, 101, 192, 0.12);
+  color: #1565c0;
+}
+
+.cloud-amt.strong {
+  background: #b71c1c;
+  color: #fff;
+}
+
+.cloud-oktas {
+  opacity: 0.7;
+  font-family: var(--mono);
+}
+
+.hover-bases {
+  margin-top: 0.15rem;
+  line-height: 1.45;
+}
+
+.cloud-base-h {
+  font-variant-numeric: tabular-nums;
+}
+
 .wx-tag {
   display: inline-block;
   font-family: var(--mono);
