@@ -64,6 +64,31 @@
       </label>
     </fieldset>
 
+    <fieldset class="config-fieldset" id="colorByWrap">
+      <legend>Color de puntos (METAR)</legend>
+      <label class="config-row radio">
+        <input type="radio" name="colorBy" id="cfgColorFlight" value="flight" checked />
+        <span>
+          <strong>Categoría de vuelo</strong>
+          <small>VFR / MVFR / IFR / LIFR (vis + techo BKN/OVC)</small>
+        </span>
+      </label>
+      <label class="config-row radio">
+        <input type="radio" name="colorBy" id="cfgColorBase" value="base" />
+        <span>
+          <strong>Base de nubes</strong>
+          <small>Altura del techo operativo (o base más baja)</small>
+        </span>
+      </label>
+      <label class="config-row radio">
+        <input type="radio" name="colorBy" id="cfgColorVis" value="vis" />
+        <span>
+          <strong>Visibilidad</strong>
+          <small>&lt;1 · 1–3 · 3–5 · 5–9 · ≥10 km</small>
+        </span>
+      </label>
+    </fieldset>
+
     <fieldset class="config-fieldset">
       <legend>FIR</legend>
       <label class="config-row check">
