@@ -35,6 +35,12 @@
   const btnProductSynop = document.getElementById("btnProductSynop");
   const btnProductMetar = document.getElementById("btnProductMetar");
   const fltLegend = document.getElementById("fltLegend");
+  const btnSpeciList = document.getElementById("btnSpeciList");
+  const speciListPanel = document.getElementById("speciListPanel");
+  const speciListBody = document.getElementById("speciListBody");
+  const speciListClose = document.getElementById("speciListClose");
+  const speciListCount = document.getElementById("speciListCount");
+  const speciListFabCount = document.getElementById("speciListFabCount");
   const detail = document.getElementById("detail");
   const detailBody = document.getElementById("detailBody");
   const detailClose = document.getElementById("detailClose");
@@ -93,6 +99,8 @@
   let speciSeeded = false;
   let aviationByOmm = {};
   let aviationByIcao = {};
+  let activeSpeciList = [];
+  let lastFocusedMarker = null;
 
   const map = L.map("map", {
     center: [-40.5, -64.5],
@@ -260,6 +268,83 @@
     const gapRow = cfgPlotGap && cfgPlotGap.closest(".config-row");
     if (gapRow) gapRow.classList.toggle("hidden", isMetar);
     if (colorByWrap) colorByWrap.classList.toggle("hidden", !isMetar);
+    if (!isMetar) setSpeciListOpen(false);
+    if (btnSpeciList) btnSpeciList.classList.toggle("hidden", !isMetar);
+  }
+
+  function setSpeciListOpen(open) {
+    if (!speciListPanel) return;
+    speciListPanel.classList.toggle("hidden", !open);
+    if (btnSpeciList) btnSpeciList.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function renderSpeciList(items) {
+    activeSpeciList = Array.isArray(items) ? items.slice() : [];
+    const n = activeSpeciList.length;
+    if (speciListCount) speciListCount.textContent = String(n);
+    if (speciListFabCount) speciListFabCount.textContent = String(n);
+    if (btnSpeciList) {
+      btnSpeciList.classList.toggle("has-items", n > 0);
+      btnSpeciList.disabled = false;
+    }
+    if (speciListBody) speciListBody.innerHTML = MetarPlot.speciListHtml(activeSpeciList);
+  }
+
+  function focusStationFromSpeci(item) {
+    if (!item) return;
+    const omm = item.omm != null ? String(item.omm) : null;
+    const icao = item.icao ? String(item.icao).toUpperCase() : null;
+    const obs =
+      (omm && aviationByOmm[omm]) ||
+      (icao && aviationByIcao[icao]) ||
+      null;
+    const lat = obs?.lat ?? item.lat;
+    const lng = obs?.lng ?? item.lng;
+    if (lat != null && lng != null) {
+      const targetZoom = Math.max(map.getZoom(), 8);
+      map.setView([lat, lng], targetZoom, { animate: true });
+    }
+    if (obs) {
+      openDetail(obs);
+      if (lastFocusedMarker) {
+        try {
+          lastFocusedMarker.setStyle(
+            MetarPlot.markerOptions(lastFocusedMarker._avObs || obs, false, settings.colorBy)
+          );
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      // pulse via temporary circle
+      if (lat != null && lng != null) {
+        const pulse = L.circleMarker([lat, lng], {
+          radius: 16,
+          color: "#b71c1c",
+          weight: 3,
+          fill: false,
+          opacity: 0.9,
+          className: "speci-focus-pulse",
+        }).addTo(layerGroup);
+        setTimeout(() => layerGroup.removeLayer(pulse), 1600);
+      }
+    } else if (item.raw) {
+      // SPECI sin estación SYNOP: mostrar panel mínimo
+      detailBody.innerHTML = MetarPlot.detailHtml({
+        omm: item.wmo || item.icao || "—",
+        nombre: item.nombre || item.icao,
+        fir: item.fir,
+        lat: item.lat,
+        lng: item.lng,
+        speci: item,
+        has_speci: true,
+        cloud_bases: [],
+        visibility_m: item.visibility_m,
+        flt_cat: item.flt_cat,
+        raw: "",
+      });
+      detail.classList.remove("hidden");
+    }
+    setSpeciListOpen(false);
   }
 
   function setProduct(product) {
@@ -525,7 +610,13 @@
           obs.has_speci = true;
           obs.speci = speci;
           activeSpeciCount += 1;
-          activeSpecis.push(speci);
+          activeSpecis.push({
+            ...speci,
+            omm: obs.omm,
+            station_nombre: obs.nombre,
+            lat: obs.lat,
+            lng: obs.lng,
+          });
           if (speci.icao) aviationByIcao[String(speci.icao).toUpperCase()] = obs;
         }
         aviationByOmm[String(obs.omm)] = obs;
@@ -534,6 +625,7 @@
           [obs.lat, obs.lng],
           MetarPlot.markerOptions(obs, false, colorBy)
         );
+        marker._avObs = obs;
         marker.on("mouseover", (e) => {
           marker.setStyle(MetarPlot.markerOptions(obs, true, colorBy));
           showHover(MetarPlot.hoverHtml(obs), e);
@@ -545,10 +637,33 @@
         });
         marker.on("click", () => openDetail(obs));
         marker.addTo(layerGroup);
+
+        if (speci) {
+          const warn = L.marker([obs.lat, obs.lng], {
+            icon: MetarPlot.speciWarnIcon(),
+            interactive: true,
+            keyboard: false,
+            zIndexOffset: 600,
+          });
+          warn.on("click", () => openDetail(obs));
+          warn.on("mouseover", (e) => showHover(MetarPlot.hoverHtml(obs), e));
+          warn.on("mousemove", (e) => moveHover(e));
+          warn.on("mouseout", hideHover);
+          warn.addTo(layerGroup);
+        }
         shown += 1;
       }
 
-      // SPECI sin WMO no se asocia a un punto SYNOP; igual se notifican por toast
+      // SPECI sin WMO no se asocia a un punto SYNOP; igual se listan si tienen coords
+      const listedIcaos = new Set(activeSpecis.map((s) => String(s.icao || "").toUpperCase()));
+      for (const s of speciPayload.specis || []) {
+        const icao = String(s.icao || "").toUpperCase();
+        if (!icao || listedIcaos.has(icao)) continue;
+        if (s.lat == null || s.lng == null) continue;
+        if (!firAllowed(s)) continue;
+        activeSpecis.push(s);
+        listedIcaos.add(icao);
+      }
 
       const modeLabel = timeline === "latest" ? "último SYNOP" : "hora exacta";
       const firLabel =
@@ -561,7 +676,8 @@
         colorBy === "vis" ? "vis" : colorBy === "base" ? "base" : "cat. vuelo";
       statusEl.textContent = `${data.hour_label} · ${shown} est. · ${modeLabel} · ${firLabel} · color ${colorLabel} · ${activeSpeciCount} SPECI vigentes`;
       if (fltLegend) fltLegend.innerHTML = MetarPlot.legendHtml(colorBy);
-      notifySpecis(activeSpecis);
+      renderSpeciList(activeSpecis);
+      notifySpecis(activeSpecis.filter((s) => s.omm));
     } catch (err) {
       console.error(err);
       statusEl.textContent = `Error: ${err.message}`;
@@ -587,6 +703,8 @@
 
       layerGroup.clearLayers();
       hideHover();
+      renderSpeciList([]);
+      setSpeciListOpen(false);
 
       const w = Math.round(BASE_W * gap);
       const h = Math.round(BASE_H * gap);
@@ -735,6 +853,30 @@
   });
   btnProductSynop.addEventListener("click", () => setProduct("synop"));
   btnProductMetar.addEventListener("click", () => setProduct("metar"));
+  if (btnSpeciList) {
+    btnSpeciList.addEventListener("click", () => {
+      const open = speciListPanel && speciListPanel.classList.contains("hidden");
+      setSpeciListOpen(open);
+    });
+  }
+  if (speciListClose) {
+    speciListClose.addEventListener("click", () => setSpeciListOpen(false));
+  }
+  if (speciListBody) {
+    speciListBody.addEventListener("click", (e) => {
+      const btn = e.target.closest(".speci-list-item");
+      if (!btn) return;
+      const icao = btn.getAttribute("data-icao");
+      const omm = btn.getAttribute("data-omm");
+      const item =
+        activeSpeciList.find(
+          (s) =>
+            (icao && String(s.icao || "").toUpperCase() === String(icao).toUpperCase()) ||
+            (omm && String(s.omm || "") === String(omm))
+        ) || null;
+      focusStationFromSpeci(item);
+    });
+  }
 
   applySettingsToUi();
   setDefaultHour();

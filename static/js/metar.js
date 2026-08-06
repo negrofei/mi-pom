@@ -112,12 +112,32 @@
   function enrichLayer(layer) {
     const amount = coverAmount(layer.cover);
     const heightStyle = baseHeightStyle(layer.height_ft);
+    const convective = convectiveFromSynopLayer(layer);
     return {
       ...layer,
       amount,
       height_style: heightStyle,
       is_ceiling: !!(amount && amount.significant),
+      convective,
     };
+  }
+
+  /** CB (género 9 / Cumulonimbus) o TCU si aparece en el texto. */
+  function convectiveFromSynopLayer(layer) {
+    const code = layer.genus_code != null ? String(layer.genus_code) : "";
+    const name = String(layer.genus || layer.genus_name || "");
+    if (code === "9" || /\bCb\b|Cumulonimbus/i.test(name)) return "CB";
+    if (/\bTCU\b|Towering/i.test(name)) return "TCU";
+    return null;
+  }
+
+  function convectiveBadgeHtml(kind) {
+    if (!kind) return "";
+    const k = String(kind).toUpperCase();
+    if (k !== "CB" && k !== "TCU") return "";
+    return `<span class="cloud-convective ${k.toLowerCase()}" title="${
+      k === "CB" ? "Cumulonimbus" : "Towering Cumulus"
+    }">${esc(k)}</span>`;
   }
 
   function cloudBases(obs) {
@@ -129,6 +149,7 @@
           height_ft: l.height_ft,
           cover: l.ns ?? obs.nh ?? obs.total_cloud,
           genus: l.genus_name || (l.genus != null ? `C=${l.genus}` : null),
+          genus_code: l.genus,
           source: "sec.3",
         })
       )
@@ -136,11 +157,13 @@
     if (fromLayers.length) return fromLayers;
     const h = obs.cloud_base_h != null ? String(obs.cloud_base_h) : null;
     if (h != null && H_BASE_FT[h] != null) {
+      const cl = obs.cl != null ? String(obs.cl) : null;
       return [
         enrichLayer({
           height_ft: H_BASE_FT[h],
           cover: obs.nh ?? obs.total_cloud,
-          genus: `h=${h}`,
+          genus: cl === "9" ? "Cb — Cumulonimbus (CL)" : `h=${h}`,
+          genus_code: cl === "9" ? "9" : null,
           source: "sec.1",
         }),
       ];
@@ -171,10 +194,11 @@
     const amt = b.amount || coverAmount(b.cover);
     const height = coloredBaseHtml(b.height_ft);
     const badge = amountBadgeHtml(amt);
-    const genus = b.genus ? ` · ${esc(b.genus)}` : "";
+    const conv = convectiveBadgeHtml(b.convective);
+    const genus = b.genus && !b.convective ? ` · ${esc(b.genus)}` : "";
     const oktas =
       amt && amt.oktas != null ? ` <small class="cloud-oktas">${esc(String(amt.oktas))}/8</small>` : "";
-    return `${badge}${badge ? " " : ""}${height}${oktas}${genus}`;
+    return `${badge}${badge ? " " : ""}${height}${oktas}${conv ? " " + conv : ""}${genus}`;
   }
 
   function significantWx(ww) {
@@ -206,6 +230,7 @@
     const flt = flightCategory(ceiling_ft, vis);
     const sig = significantWx(obs.present_weather);
     const wwText = obs.present_weather ? WW().wwText(obs.present_weather) : null;
+    const hasCb = bases.some((b) => b.convective === "CB" || b.convective === "TCU");
     return {
       ...obs,
       source: "SYNOP/OGIMET",
@@ -216,8 +241,25 @@
       flt_cat_color: catMeta(flt).color,
       significant: sig,
       ww_text: wwText,
+      has_convective: hasCb,
       is_speci: false,
     };
+  }
+
+  /** Extrae CB/TCU del texto METAR/SPECI (p.ej. FEW045CB, SCT030TCU). */
+  function parseConvectiveFromRaw(raw) {
+    const out = [];
+    if (!raw) return out;
+    const re = /\b(FEW|SCT|BKN|OVC|VV)(\d{3})?(CB|TCU)\b/gi;
+    let m;
+    while ((m = re.exec(String(raw)))) {
+      out.push({
+        cover: m[1].toUpperCase(),
+        base: m[2] != null ? Number(m[2]) * 100 : null,
+        convective: m[3].toUpperCase(),
+      });
+    }
+    return out;
   }
 
   function amountFromAwCover(cover) {
@@ -234,15 +276,46 @@
     return { code: c, significant: false, tone: "muted" };
   }
 
-  function formatCloudsAw(clouds) {
-    if (!Array.isArray(clouds) || !clouds.length) return "—";
-    return clouds
+  function formatCloudsAw(clouds, raw) {
+    const fromRaw = parseConvectiveFromRaw(raw);
+    const list = Array.isArray(clouds) ? clouds.slice() : [];
+    if (!list.length && fromRaw.length) {
+      return fromRaw
+        .map((c) => {
+          const amt = amountFromAwCover(c.cover);
+          return `${amountBadgeHtml(amt)} ${
+            c.base != null ? coloredBaseHtml(c.base) : ""
+          } ${convectiveBadgeHtml(c.convective)}`.trim();
+        })
+        .join(" · ");
+    }
+    if (!list.length) return "—";
+    return list
       .map((c) => {
-        const amt = amountFromAwCover(c.cover || c.amount);
+        const cover = String(c.cover || c.amount || "").toUpperCase();
+        const base = c.base != null ? Number(c.base) : null;
+        let conv =
+          String(c.type || c.cloudType || c.convective || "").toUpperCase() || null;
+        if (conv !== "CB" && conv !== "TCU") conv = null;
+        if (!conv) {
+          const match = fromRaw.find(
+            (r) =>
+              r.cover === cover &&
+              (base == null || r.base == null || Math.abs(r.base - base) < 50)
+          );
+          if (match) conv = match.convective;
+        }
+        if (!conv && /CB$/.test(cover)) conv = "CB";
+        if (!conv && /TCU$/.test(cover)) conv = "TCU";
+        const amt = amountFromAwCover(cover.replace(/(CB|TCU)$/, ""));
         const badge = amountBadgeHtml(amt);
-        const base =
-          c.base != null ? coloredBaseHtml(c.base) : amt ? "" : "—";
-        return `${badge}${badge && base ? " " : ""}${base}`.trim() || "—";
+        const height = base != null ? coloredBaseHtml(base) : "";
+        const convBadge = convectiveBadgeHtml(conv);
+        return (
+          `${badge}${badge && height ? " " : ""}${height}${
+            convBadge ? " " + convBadge : ""
+          }`.trim() || "—"
+        );
       })
       .join(" · ");
   }
@@ -333,7 +406,7 @@
             <div class="av-value">${esc(speci.wx_string || "—")}</div>
           </div>
         </div>
-        <div><b>Nubes</b> ${formatCloudsAw(speci.clouds)}</div>
+        <div><b>Nubes</b> ${formatCloudsAw(speci.clouds, speci.raw)}</div>
         <div><b>Viento</b> ${esc(wind)}</div>
         ${
           speci.icao
@@ -473,6 +546,8 @@
         <span class="cloud-amt soft">SCT</span>
         <span class="cloud-amt bkn">BKN</span>
         <span class="cloud-amt ovc">OVC</span>
+        <span class="cloud-convective cb">CB</span>
+        <span class="cloud-convective tcu">TCU</span>
         <small>(techo = BKN/OVC)</small>
       </div>
     `;
@@ -538,14 +613,54 @@
     const a = obs.flt_cat != null || obs.cloud_bases ? obs : fromSynop(obs);
     const danger = a.significant && a.significant.tone === "danger";
     const hasSpeci = !!(a.has_speci || a.speci);
+    const hasConv = !!a.has_convective;
     return {
       radius: selected ? 9 : hasSpeci || a.significant ? 8 : 7,
-      color: hasSpeci ? "#b71c1c" : danger ? "#7f0000" : "#111",
-      weight: selected || hasSpeci || a.significant ? 2.5 : 1,
+      color: hasSpeci ? "#b71c1c" : danger ? "#7f0000" : hasConv ? "#e65100" : "#111",
+      weight: selected || hasSpeci || a.significant || hasConv ? 2.5 : 1,
       fillColor: markerFillColor(a, colorBy),
       fillOpacity: 0.92,
       opacity: 0.95,
     };
+  }
+
+  function speciWarnIcon() {
+    return L.divIcon({
+      className: "speci-warn-icon",
+      html: '<span class="speci-warn-badge" title="SPECI vigente">⚠</span>',
+      iconSize: [22, 22],
+      iconAnchor: [-8, 20],
+    });
+  }
+
+  function speciListHtml(items) {
+    if (!items || !items.length) {
+      return `<div class="speci-list-empty">No hay SPECI vigentes respecto del SYNOP actual.</div>`;
+    }
+    return items
+      .map((s, idx) => {
+        const cat = catMeta(s.flt_cat);
+        const name = esc(s.nombre || s.station_nombre || s.icao || s.omm || "—");
+        const icao = esc(s.icao || "—");
+        const omm = s.omm ? esc(String(s.omm)) : "";
+        const when = esc(s.obs_iso || "—");
+        const raw = esc(s.raw || "");
+        const clouds = formatCloudsAw(s.clouds, s.raw);
+        const key = esc(String(s.icao || s.omm || idx));
+        return `
+          <button type="button" class="speci-list-item" data-speci-key="${key}" data-omm="${omm}" data-icao="${icao}">
+            <div class="speci-list-item-top">
+              <span class="speci-warn-inline" aria-hidden="true">⚠</span>
+              <strong>${icao}</strong>
+              <span class="speci-list-name">${name}</span>
+              <span class="flt-pill" style="background:${cat.color}">${esc(cat.label || "—")}</span>
+            </div>
+            <div class="speci-list-when">${when}${omm ? ` · OMM ${omm}` : ""}</div>
+            <div class="speci-list-meta">Vis ${coloredVisHtml(s.visibility_m)} · Nubes ${clouds}</div>
+            <code class="speci-list-raw">${raw}</code>
+          </button>`;
+      })
+      .join("");
   }
 
   // Historial METAR AW (solo si se pide explícitamente para un ICAO)
@@ -557,7 +672,7 @@
     const items = points
       .map((p) => {
         const cat = catMeta(p.flt_cat);
-        const cloudsHtml = formatCloudsAw(p.clouds);
+        const cloudsHtml = formatCloudsAw(p.clouds, p.raw);
         const ceilFallback =
           (!p.clouds || !p.clouds.length) && p.ceiling_ft != null
             ? `${amountBadgeHtml(amountFromAwCover(p.cover)) || ""} ${coloredBaseHtml(
@@ -609,12 +724,15 @@
     amountFromAwCover,
     coloredBaseHtml,
     formatCloudsAw,
+    convectiveBadgeHtml,
     fromSynop,
     hoverHtml,
     detailHtml,
     legendHtml,
     markerOptions,
     markerFillColor,
+    speciWarnIcon,
+    speciListHtml,
     historyHtml,
     loadHistory,
     significantWx,
