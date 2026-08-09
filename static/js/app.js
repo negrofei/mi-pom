@@ -268,6 +268,8 @@
     const gapRow = cfgPlotGap && cfgPlotGap.closest(".config-row");
     if (gapRow) gapRow.classList.toggle("hidden", isMetar);
     if (colorByWrap) colorByWrap.classList.toggle("hidden", !isMetar);
+    const timelineFs = cfgTimelineExact && cfgTimelineExact.closest(".config-fieldset");
+    if (timelineFs) timelineFs.classList.toggle("hidden", isMetar);
     if (!isMetar) setSpeciListOpen(false);
     if (btnSpeciList) btnSpeciList.classList.toggle("hidden", !isMetar);
   }
@@ -433,6 +435,7 @@
           if (obs) openDetail(obs);
         }
       );
+      MetarPlot.playSpeciSound();
     }
   }
 
@@ -528,13 +531,14 @@
       const data = await MetarPlot.loadHistory(tsBody, icao);
       tsSubtitle.textContent = `${icao} · ${data.count} reportes · últimas ${data.hours} h`;
 
-      // Si el historial trae un SPECI más nuevo (y aún vigente vs SYNOP), actualizar el detalle
+      // Si el historial trae un SPECI más nuevo (y aún vigente vs METAR), actualizar el detalle
       const key = String(icao || "").toUpperCase();
       const obs = aviationByIcao[key];
       if (obs && Array.isArray(data.points)) {
+        const latestMetar = data.points.find((p) => !p.is_speci) || null;
         const freshest = MetarPlot.pickActiveSpeci(
           data.points.filter((p) => p.is_speci),
-          obs
+          latestMetar
         );
         const prevT = MetarPlot.obsTimeMs(obs.speci);
         const nextT = MetarPlot.obsTimeMs(freshest);
@@ -542,7 +546,7 @@
           obs.speci = freshest;
           obs.has_speci = true;
           if (!detail.classList.contains("hidden")) openDetail(obs);
-        } else if (!freshest && obs.speci && !MetarPlot.isSpeciActive(obs.speci, obs)) {
+        } else if (!freshest && obs.speci && !MetarPlot.isSpeciActive(obs.speci, latestMetar || obs)) {
           obs.speci = null;
           obs.has_speci = false;
           if (!detail.classList.contains("hidden")) openDetail(obs);
@@ -561,34 +565,14 @@
   });
 
   async function loadMetars() {
-    // Mapa aviación = resumen desde SYNOP; SPECI solo vía AviationWeather
-    const hour = hourParamFromInput();
-    const timeline = settings.timeline || "latest";
+    // Vigilancia: SMN METAR/SYNOP/SPECI (+ contingencias) vía /api/surveillance
     const colorBy = settings.colorBy || "flight";
-    statusEl.textContent = "Consultando SYNOP + SPECI…";
+    statusEl.textContent = "Consultando vigilancia SMN…";
     btnLoad.disabled = true;
     try {
-      const synopUrl = `/api/synops?nil=0&timeline=${timeline}&lookback=24${
-        hour ? `&hour=${hour}` : ""
-      }`;
-      const [synopRes, speciRes] = await Promise.all([
-        fetch(synopUrl),
-        fetch("/api/specis?hours=6"),
-      ]);
-      const data = await synopRes.json();
-      if (!synopRes.ok) throw new Error(data.error || "Error de API SYNOP");
-
-      let speciPayload = { specis: [], count: 0 };
-      if (speciRes.ok) {
-        speciPayload = await speciRes.json();
-      } else {
-        console.warn("SPECI no disponible", speciRes.status);
-      }
-
-      const speciByWmo = {};
-      for (const s of speciPayload.specis || []) {
-        if (s.wmo != null) speciByWmo[String(s.wmo)] = s;
-      }
+      const res = await fetch("/api/surveillance");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error de API vigilancia");
 
       layerGroup.clearLayers();
       hideHover();
@@ -596,30 +580,27 @@
       aviationByIcao = {};
 
       let shown = 0;
-      let activeSpeciCount = 0;
+      let staleCount = 0;
       const activeSpecis = [];
-      for (const raw of data.synops) {
-        if (raw.nil) continue;
+
+      for (const raw of data.stations || []) {
         if (raw.lat == null || raw.lng == null) continue;
         if (!firAllowed(raw)) continue;
 
-        const obs = MetarPlot.fromSynop(raw);
-        const candidate = speciByWmo[String(obs.omm)];
-        const speci = MetarPlot.pickActiveSpeci(candidate, obs);
-        if (speci) {
+        const obs = MetarPlot.fromSurveillance(raw);
+        if (obs.speci) {
           obs.has_speci = true;
-          obs.speci = speci;
-          activeSpeciCount += 1;
           activeSpecis.push({
-            ...speci,
+            ...obs.speci,
             omm: obs.omm,
             station_nombre: obs.nombre,
             lat: obs.lat,
             lng: obs.lng,
           });
-          if (speci.icao) aviationByIcao[String(speci.icao).toUpperCase()] = obs;
+          if (obs.icao) aviationByIcao[String(obs.icao).toUpperCase()] = obs;
         }
-        aviationByOmm[String(obs.omm)] = obs;
+        if (obs.omm) aviationByOmm[String(obs.omm)] = obs;
+        if (obs.stale) staleCount += 1;
 
         const marker = L.circleMarker(
           [obs.lat, obs.lng],
@@ -638,7 +619,7 @@
         marker.on("click", () => openDetail(obs));
         marker.addTo(layerGroup);
 
-        if (speci) {
+        if (obs.speci) {
           const warn = L.marker([obs.lat, obs.lng], {
             icon: MetarPlot.speciWarnIcon(),
             interactive: true,
@@ -654,18 +635,17 @@
         shown += 1;
       }
 
-      // SPECI sin WMO no se asocia a un punto SYNOP; igual se listan si tienen coords
-      const listedIcaos = new Set(activeSpecis.map((s) => String(s.icao || "").toUpperCase()));
-      for (const s of speciPayload.specis || []) {
+      // SPECI del payload sin estación plotada
+      const listed = new Set(activeSpecis.map((s) => String(s.icao || "").toUpperCase()));
+      for (const s of data.specis || []) {
         const icao = String(s.icao || "").toUpperCase();
-        if (!icao || listedIcaos.has(icao)) continue;
+        if (icao && listed.has(icao)) continue;
         if (s.lat == null || s.lng == null) continue;
         if (!firAllowed(s)) continue;
         activeSpecis.push(s);
-        listedIcaos.add(icao);
+        if (icao) listed.add(icao);
       }
 
-      const modeLabel = timeline === "latest" ? "último SYNOP" : "hora exacta";
       const firLabel =
         settings.firs.length === ALL_FIRS.length
           ? "todas las FIR"
@@ -674,10 +654,19 @@
             : "sin FIR";
       const colorLabel =
         colorBy === "vis" ? "vis" : colorBy === "base" ? "base" : "cat. vuelo";
-      statusEl.textContent = `${data.hour_label} · ${shown} est. · ${modeLabel} · ${firLabel} · color ${colorLabel} · ${activeSpeciCount} SPECI vigentes`;
-      if (fltLegend) fltLegend.innerHTML = MetarPlot.legendHtml(colorBy);
+      const src = data.sources || {};
+      statusEl.textContent =
+        `${data.hour_label} · ${shown} est. · ${staleCount} desact. · ${firLabel} · color ${colorLabel} · ` +
+        `${activeSpecis.length} SPECI · METAR ${src.metar || "?"} · SYNOP ${src.synop || "?"} · SPECI ${
+          src.speci || "?"
+        }`;
+      if (fltLegend) {
+        fltLegend.innerHTML =
+          MetarPlot.legendHtml(colorBy) +
+          `<div class="flt-legend stale-legend"><span class="flt-leg flt-note">opaco = hora actual · transparente = dato de hora anterior</span></div>`;
+      }
       renderSpeciList(activeSpecis);
-      notifySpecis(activeSpecis.filter((s) => s.omm));
+      notifySpecis(activeSpecis);
     } catch (err) {
       console.error(err);
       statusEl.textContent = `Error: ${err.message}`;

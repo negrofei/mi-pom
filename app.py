@@ -1,4 +1,4 @@
-"""Visor SYNOP / METAR Argentina — OGIMET + AviationWeather."""
+"""Visor SYNOP / METAR Argentina — SMN + OGIMET + AviationWeather."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ from aviationweather_client import (
     fetch_station_metars,
 )
 from ogimet_client import fetch_argentina_synops, fetch_station_series, resolve_synop_hour
+from smn_client import fetch_smn_messages
+from surveillance import build_surveillance, is_speci_active_vs_metar
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -75,25 +77,71 @@ def api_airports():
     return jsonify({"airports": list(AIRPORTS.values()), "count": len(AIRPORTS)})
 
 
+@app.get("/api/surveillance")
+def api_surveillance():
+    """
+    Vigilancia METAR: último dato por estación.
+    SMN (METAR/SYNOP/SPECI) con contingencia OGIMET / AviationWeather.
+    """
+    try:
+        payload = build_surveillance(stations=STATIONS, airports=AIRPORTS)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Error vigilancia")
+        return jsonify({"error": f"No se pudo armar vigilancia: {exc}"}), 502
+    return jsonify(payload)
+
+
 @app.get("/api/specis")
 def api_specis():
-    """SPECI recientes desde AviationWeather (alerta rápida)."""
+    """SPECI vigentes: SMN primero, AviationWeather como contingencia."""
     try:
         hours = int(request.args.get("hours", "6"))
     except ValueError:
         return jsonify({"error": "hours inválido"}), 400
     hours = max(1, min(hours, 12))
 
+    wmo_ids = sorted(
+        set(list(STATIONS.keys()) + [str(a["wmo"]) for a in AIRPORTS.values() if a.get("wmo")])
+    )
+    source = "SMN"
     try:
-        specis = fetch_argentina_specis(airports=AIRPORTS, hours=hours)
+        specis = fetch_smn_messages("speci", wmo_ids, airports=AIRPORTS)
+        if not specis:
+            raise RuntimeError("SMN sin SPECI")
     except Exception as exc:  # noqa: BLE001
-        log.exception("Error consultando SPECI")
-        return jsonify({"error": f"No se pudo consultar AviationWeather: {exc}"}), 502
+        log.warning("SPECI SMN falló (%s); contingencia AW", exc)
+        source = "AviationWeather"
+        try:
+            specis = fetch_argentina_specis(airports=AIRPORTS, hours=hours)
+        except Exception as exc2:  # noqa: BLE001
+            log.exception("Error consultando SPECI")
+            return jsonify({"error": f"No se pudo consultar SPECI: {exc2}"}), 502
+
+    # Filtrar vencidos vs último METAR (si hay vigilancia cacheada sería ideal;
+    # aquí pedimos METAR SMN/AW best-effort)
+    try:
+        from surveillance import _fetch_metars_with_fallback
+
+        metars, _ = _fetch_metars_with_fallback(airports=AIRPORTS, wmo_ids=wmo_ids)
+        by_wmo = {str(m["wmo"]): m for m in metars if m.get("wmo")}
+        by_icao = {str(m["icao"]).upper(): m for m in metars if m.get("icao")}
+        active = []
+        for s in specis:
+            metar = None
+            if s.get("wmo") is not None:
+                metar = by_wmo.get(str(s["wmo"]))
+            if metar is None and s.get("icao"):
+                metar = by_icao.get(str(s["icao"]).upper())
+            if is_speci_active_vs_metar(s, metar):
+                active.append(s)
+        specis = active
+    except Exception as exc:  # noqa: BLE001
+        log.warning("No se pudo filtrar SPECI vs METAR: %s", exc)
 
     return jsonify(
         {
             "hours": hours,
-            "source": "AviationWeather",
+            "source": source,
             "count": len(specis),
             "specis": specis,
         }

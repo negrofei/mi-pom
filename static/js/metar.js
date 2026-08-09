@@ -341,29 +341,126 @@
   }
 
   /**
-   * SPECI válido solo si es posterior al SYNOP de la estación.
-   * Un SYNOP nuevo cierra el período del SPECI.
+   * SPECI válido solo si es posterior al METAR de la estación.
+   * Un METAR nuevo (p.ej. xx:00) cierra el período del SPECI.
    */
-  function isSpeciActive(speci, synop) {
+  function isSpeciActive(speci, metar) {
     if (!speci) return false;
     const speciT = obsTimeMs(speci);
-    const synopT = obsTimeMs(synop);
+    const metarT = obsTimeMs(metar);
     if (speciT == null) return true;
-    if (synopT == null) return true;
-    return speciT > synopT;
+    if (metarT == null) return true;
+    return speciT > metarT;
   }
 
-  /** Elige el SPECI más reciente que siga vigente respecto del SYNOP. */
-  function pickActiveSpeci(candidates, synop) {
+  /** Elige el SPECI más reciente vigente respecto del METAR. */
+  function pickActiveSpeci(candidates, metar) {
     const list = (Array.isArray(candidates) ? candidates : [candidates]).filter(
       Boolean
     );
     let best = null;
     for (const s of list) {
-      if (!isSpeciActive(s, synop)) continue;
+      if (!isSpeciActive(s, metar)) continue;
       if (!best || (obsTimeMs(s) || 0) > (obsTimeMs(best) || 0)) best = s;
     }
     return best;
+  }
+
+  function layersFromAwClouds(clouds, raw) {
+    const fromRaw = parseConvectiveFromRaw(raw);
+    const list = Array.isArray(clouds) ? clouds : [];
+    return list
+      .filter((c) => c.base != null)
+      .map((c) => {
+        const cover = String(c.cover || c.amount || "").toUpperCase();
+        let conv =
+          String(c.type || c.cloudType || c.convective || "").toUpperCase() || null;
+        if (conv !== "CB" && conv !== "TCU") conv = null;
+        if (!conv) {
+          const match = fromRaw.find(
+            (r) =>
+              r.cover === cover &&
+              (c.base == null || r.base == null || Math.abs(r.base - c.base) < 50)
+          );
+          if (match) conv = match.convective;
+        }
+        const amount = amountFromAwCover(cover.replace(/(CB|TCU)$/, ""));
+        return {
+          height_ft: c.base,
+          cover: amount ? amount.oktas : null,
+          amount,
+          convective: conv,
+          is_ceiling: !!(amount && amount.significant),
+          genus: conv || null,
+          source: "METAR",
+        };
+      })
+      .sort((a, b) => a.height_ft - b.height_ft);
+  }
+
+  /** Normaliza un punto de /api/surveillance para el front. */
+  function fromSurveillance(point) {
+    if (!point) return point;
+    if (point.product === "SYNOP" || (point.omm && !point.clouds && point.cloud_layers)) {
+      const a = fromSynop(point);
+      return {
+        ...a,
+        ...point,
+        cloud_bases: a.cloud_bases,
+        ceiling_ft: a.ceiling_ft ?? point.ceiling_ft,
+        flt_cat: a.flt_cat || point.flt_cat,
+        stale: !!point.stale,
+        product: "SYNOP",
+      };
+    }
+    const bases = layersFromAwClouds(point.clouds, point.raw);
+    const ceilingLayer = bases.find((b) => b.is_ceiling) || null;
+    const ceiling_ft =
+      point.ceiling_ft != null
+        ? point.ceiling_ft
+        : ceilingLayer
+          ? ceilingLayer.height_ft
+          : null;
+    const hasConv = bases.some((b) => b.convective === "CB" || b.convective === "TCU");
+    return {
+      ...point,
+      cloud_bases: bases,
+      ceiling_ft,
+      ceiling_amount: ceilingLayer ? ceilingLayer.amount : null,
+      flt_cat: point.flt_cat || flightCategory(ceiling_ft, point.visibility_m),
+      flt_cat_color: catMeta(point.flt_cat).color,
+      has_convective: hasConv,
+      stale: !!point.stale,
+      product: point.product || "METAR",
+      source: point.source || "METAR",
+    };
+  }
+
+  function playSpeciSound() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = playSpeciSound._ctx || new Ctx();
+      playSpeciSound._ctx = ctx;
+      const now = ctx.currentTime;
+      const beep = (t0, freq, dur) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start(t0);
+        o.stop(t0 + dur + 0.02);
+      };
+      beep(now, 880, 0.16);
+      beep(now + 0.2, 1175, 0.22);
+    } catch (_) {
+      /* autoplay / contexto no disponible */
+    }
   }
 
   function speciPanelHtml(speci) {
@@ -419,22 +516,26 @@
   }
 
   function hoverHtml(obs) {
-    const a = obs.cloud_bases ? obs : fromSynop(obs);
+    const a = obs.cloud_bases || obs.product ? obs : fromSynop(obs);
     const cat = catMeta(a.flt_cat);
     const bases = (a.cloud_bases || [])
       .slice(0, 3)
       .map((b) => formatBaseLine(b))
       .join("<br/>");
     const speci = a.speci;
+    const product = a.product || "SYNOP";
     const lines = [
-      `<b>${esc(a.omm)}</b> · ${esc(a.nombre || "")}`,
+      `<b>${esc(a.icao || a.omm)}</b> · ${esc(a.nombre || "")}`,
       a.fir ? `FIR ${esc(a.fir)}` : "",
+      a.stale ? `<span class="stale-badge">Dato hora anterior</span>` : "",
       speci
         ? `<span class="speci-badge">SPECI</span> ${esc(speci.obs_iso || "")}`
         : "",
       speci ? `<div class="synop-line speci-line">${esc(speci.raw || "")}</div>` : "",
-      `<span style="color:${cat.color}"><b>${esc(cat.label)}</b></span> · SYNOP`,
-      a.utc ? `UTC ${esc(a.utc)}` : "",
+      `<span style="color:${cat.color}"><b>${esc(cat.label)}</b></span> · ${esc(product)}${
+        a.source ? ` · ${esc(a.source)}` : ""
+      }`,
+      a.obs_iso ? `UTC ${esc(a.obs_iso)}` : a.utc ? `UTC ${esc(a.utc)}` : "",
       `Vis ${coloredVisHtml(a.visibility_m)}`,
       bases
         ? `<div class="hover-bases"><b>Bases</b><br/>${bases}</div>`
@@ -446,14 +547,16 @@
           )}`
         : a.ww_text
           ? esc(a.ww_text)
-          : "",
+          : a.wx_string
+            ? esc(a.wx_string)
+            : "",
       !speci ? `<div class="synop-line">${esc(a.raw || "")}</div>` : "",
     ];
     return lines.filter(Boolean).join("<br/>");
   }
 
   function detailHtml(obs) {
-    const a = obs.cloud_bases ? obs : fromSynop(obs);
+    const a = obs.cloud_bases || obs.product ? obs : fromSynop(obs);
     const cat = catMeta(a.flt_cat);
     const wind =
       a.wind_dir != null || a.wind_speed_kt != null
@@ -472,11 +575,14 @@
 
     const ceilAmt = a.ceiling_amount ? amountBadgeHtml(a.ceiling_amount) + " " : "";
     const hasSpeci = !!a.speci;
+    const product = a.product || "SYNOP";
 
     return `
-      <h2>${esc(a.nombre || a.omm)}</h2>
+      <h2>${esc(a.nombre || a.icao || a.omm)}</h2>
       <div class="meta">
         ${hasSpeci ? `<span class="speci-badge">SPECI activo</span> · ` : ""}
+        ${a.stale ? `<span class="stale-badge">Dato hora anterior</span> · ` : ""}
+        ${a.icao ? `${esc(a.icao)} · ` : ""}
         ${a.omm ? `${esc(a.omm)}` : ""}
         ${a.fir ? `· FIR ${esc(a.fir)}` : ""}
       </div>
@@ -484,14 +590,24 @@
       <section class="synop-panel${hasSpeci ? " synop-secondary" : ""}">
         <div class="meta">
           <span class="flt-pill" style="background:${cat.color}">${esc(cat.label)}</span>
-          · SYNOP
-          ${a.utc ? `· ${esc(a.utc)}` : ""}
+          · ${esc(product)}
+          ${a.source ? `· ${esc(a.source)}` : ""}
+          ${a.obs_iso ? `· ${esc(a.obs_iso)}` : a.utc ? `· ${esc(a.utc)}` : ""}
         </div>
-        <button type="button" class="btn primary ts-open-btn" data-omm="${esc(a.omm)}" data-nombre="${esc(
-          a.nombre || a.omm
-        )}">
-          Ver serie temporal SYNOP
-        </button>
+        ${
+          a.omm
+            ? `<button type="button" class="btn primary ts-open-btn" data-omm="${esc(
+                a.omm
+              )}" data-nombre="${esc(a.nombre || a.omm)}">Ver serie temporal SYNOP</button>`
+            : ""
+        }
+        ${
+          a.icao
+            ? `<button type="button" class="btn ghost metar-hist-btn" data-icao="${esc(
+                a.icao
+              )}" data-nombre="${esc(a.nombre || a.icao)}">Historial METAR/SPECI 24 h</button>`
+            : ""
+        }
         <div class="av-grid">
           <div class="av-card">
             <div class="av-label">Visibilidad</div>
@@ -515,16 +631,18 @@
               ${
                 a.significant
                   ? `<span class="wx-tag ${a.significant.tone}">${esc(a.significant.label)}</span>`
-                  : "—"
+                  : a.wx_string
+                    ? esc(a.wx_string)
+                    : "—"
               }
-              <div class="av-sub">${esc(a.ww_text || "Sin ww")}</div>
+              <div class="av-sub">${esc(a.ww_text || a.wx_string || "Sin fenómeno")}</div>
             </div>
           </div>
         </div>
         <div><b>Bases de nubes</b></div>
         <ul class="av-bases">${basesHtml}</ul>
         <div><b>Viento</b> ${esc(wind)}</div>
-        <div><b>SYNOP</b></div>
+        <div><b>${esc(product)}</b></div>
         <pre class="raw">${esc(a.raw || "—")}</pre>
       </section>
       <div class="vis-legend">
@@ -614,13 +732,15 @@
     const danger = a.significant && a.significant.tone === "danger";
     const hasSpeci = !!(a.has_speci || a.speci);
     const hasConv = !!a.has_convective;
+    const stale = !!a.stale;
     return {
       radius: selected ? 9 : hasSpeci || a.significant ? 8 : 7,
       color: hasSpeci ? "#b71c1c" : danger ? "#7f0000" : hasConv ? "#e65100" : "#111",
       weight: selected || hasSpeci || a.significant || hasConv ? 2.5 : 1,
       fillColor: markerFillColor(a, colorBy),
-      fillOpacity: 0.92,
-      opacity: 0.95,
+      fillOpacity: stale ? (selected ? 0.5 : 0.32) : 0.92,
+      opacity: stale ? 0.55 : 0.95,
+      className: stale ? "av-marker-stale" : "av-marker-fresh",
     };
   }
 
@@ -726,6 +846,7 @@
     formatCloudsAw,
     convectiveBadgeHtml,
     fromSynop,
+    fromSurveillance,
     hoverHtml,
     detailHtml,
     legendHtml,
@@ -739,5 +860,6 @@
     isSpeciActive,
     pickActiveSpeci,
     obsTimeMs,
+    playSpeciSound,
   };
 })(window);
