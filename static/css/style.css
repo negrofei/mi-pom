@@ -555,6 +555,22 @@ html, body {
   margin-left: 0.25rem;
 }
 
+.stale-badge {
+  display: inline-block;
+  background: #78909c;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+}
+
+.stale-legend {
+  margin-top: 0.25rem;
+}
+
 .metar-badge {
   display: inline-block;
   background: #455a64;

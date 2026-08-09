@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py ogimet_client.py synop_parser.py aviationweather_client.py ./
+COPY app.py ogimet_client.py synop_parser.py aviationweather_client.py smn_client.py metar_parser.py surveillance.py ./
 COPY data ./data
 COPY img ./img
 COPY static ./static

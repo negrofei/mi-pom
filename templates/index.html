@@ -19,7 +19,7 @@
     <div class="controls">
       <div class="product-toggle" role="group" aria-label="Producto">
         <button type="button" class="btn product-btn active" data-product="synop" id="btnProductSynop">SYNOP</button>
-        <button type="button" class="btn product-btn" data-product="metar" id="btnProductMetar" title="Resumen aviación desde SYNOP + alertas SPECI">METAR</button>
+        <button type="button" class="btn product-btn" data-product="metar" id="btnProductMetar" title="Vigilancia METAR/SPECI (SMN, contingencia OGIMET/AW)">METAR</button>
       </div>
       <label class="field">
         <span>Hora UTC</span>
@@ -43,7 +43,7 @@
 
     <label class="config-row check">
       <input type="checkbox" id="cfgAutorefresh" />
-      <span>Autorefresh cada 2 minutos <small>(en METAR: mapa SYNOP + SPECI vía AviationWeather)</small></span>
+      <span>Autorefresh cada 2 minutos <small>(METAR: vigilancia SMN→OGIMET/AW + SPECI con sonido)</small></span>
     </label>
 
     <fieldset class="config-fieldset">
