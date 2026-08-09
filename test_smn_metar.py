@@ -1,21 +1,17 @@
 """Tests parseo SMN / METAR y vigencia SPECI vs METAR."""
 
 from datetime import datetime, timezone
+from pathlib import Path
+import json
 
 from metar_parser import parse_metar_raw
 from smn_client import parse_smn_metar_speci_html, parse_smn_synop_html
 from surveillance import is_speci_active_vs_metar
 
-
+ROOT = Path(__file__).resolve().parent
 AIRPORTS = {
-    "SAZY": {
-        "icao": "SAZY",
-        "nombre": "Chapelco",
-        "lat": -40.07,
-        "lng": -71.13,
-        "wmo": "87582",
-        "fir": "DOZ",
-    }
+    str(a["icao"]).upper(): a
+    for a in json.loads((ROOT / "data" / "airports.json").read_text(encoding="utf-8"))
 }
 
 STATIONS = {
@@ -27,15 +23,6 @@ STATIONS = {
         "fir": "DOZ",
     }
 }
-
-FIXTURE_METAR = """
-<html><body>
-<table>
-<tr><td>87582</td><td>METAR SAZY 091700Z 18005KT 9999 FEW030 15/08 Q1018=</td></tr>
-<tr><td>87641</td><td>SPECI SAAR 091642Z 17006KT 7000 -DZ OVC006 16/15 Q1014=</td></tr>
-</table>
-</body></html>
-"""
 
 FIXTURE_SYNOP = """
 <html><body>
@@ -69,31 +56,37 @@ def test_parse_speci_raw_cb():
     now = datetime(2026, 8, 9, 18, 0, tzinfo=timezone.utc)
     m = parse_metar_raw(
         "SPECI SARP 091734Z 05005KT 9999 TS SCT025 FEW045CB OVC050 20/20 Q1016=",
-        airports={"SARP": {"icao": "SARP", "wmo": "87178", "nombre": "Posadas"}},
+        airports=AIRPORTS,
         now=now,
     )
     assert m["is_speci"] is True
     assert any(c.get("convective") == "CB" for c in m["clouds"])
 
 
-def test_smn_html_metar_and_speci():
-    metars = parse_smn_metar_speci_html(FIXTURE_METAR, kind="metar", airports=AIRPORTS)
-    assert len(metars) == 1
-    assert metars[0]["icao"] == "SAZY"
-    assert metars[0]["wmo"] == "87582"
+def test_smn_real_html_metar_icao_to_wmo():
+    """HTML real SMN: METAR con OACI; WMO sale del catálogo (SABE→87582)."""
+    html = (ROOT / "testdata" / "smn_metar_sample.html").read_text(encoding="utf-8")
+    now = datetime(2026, 8, 9, 19, 30, tzinfo=timezone.utc)
+    metars = parse_smn_metar_speci_html(html, kind="metar", airports=AIRPORTS, now=now)
+    by_icao = {m["icao"]: m for m in metars}
+    assert set(by_icao) == {"SABE", "SAZA"}
 
-    airports2 = {
-        **AIRPORTS,
-        "SAAR": {"icao": "SAAR", "wmo": "87467", "nombre": "Rosario"},
-    }
-    specis = parse_smn_metar_speci_html(FIXTURE_METAR, kind="speci", airports=airports2)
-    assert len(specis) == 1
-    assert specis[0]["is_speci"] is True
+    sabe = by_icao["SABE"]
+    assert sabe["wmo"] == "87582"
+    assert sabe["obs_iso"] == "2026-08-09T19:00:00Z"
+    assert sabe["visibility_m"] == 10000  # CAVOK
+    assert "CAVOK" in sabe["raw"]
+    assert sabe["raw"].rstrip().endswith("=")
+
+    saza = by_icao["SAZA"]
+    assert saza["wmo"] == "87642"
+    assert saza["obs_iso"] == "2026-08-09T18:00:00Z"
+    assert saza["visibility_m"] == 9999
+    assert any(c.get("cover") == "BKN" and c.get("base") == 3000 for c in saza["clouds"])
 
 
 def test_smn_html_synop():
     now = datetime(2026, 8, 9, 18, 0, tzinfo=timezone.utc)
-    # monkey: parse uses now for year/month
     rows = parse_smn_synop_html(FIXTURE_SYNOP, stations=STATIONS, now=now)
     assert len(rows) == 1
     assert rows[0]["omm"] == "87582"
@@ -112,7 +105,7 @@ def test_speci_expires_on_newer_metar():
 if __name__ == "__main__":
     test_parse_metar_raw()
     test_parse_speci_raw_cb()
-    test_smn_html_metar_and_speci()
+    test_smn_real_html_metar_icao_to_wmo()
     test_smn_html_synop()
     test_speci_expires_on_newer_metar()
     print("ok")
