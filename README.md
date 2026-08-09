@@ -53,6 +53,12 @@ Panel **Configuración** en la barra superior:
 - `GET /api/airports` — catálogo aeródromos
 - `GET /health` — healthcheck
 
+## Fuentes de datos (vigilancia METAR)
+
+- **SMN** (`mensajes_new`): fuente primaria para METAR / SYNOP / SPECI en la pestaña de vigilancia. Requiere acceso a la **intranet SMN** (`www3.smn.gov.ar`).
+- **Contingencia**: si SMN no está disponible, el backend usa **AviationWeather** (METAR/SPECI) y **OGIMET** (SYNOP). En agentes cloud / redes externas esto es el camino habitual.
+- La pestaña SYNOP del mapa sigue consultando **OGIMET** directamente.
+
 ## Notas
 
 - OGIMET a veces tarda o limita; el backend tiene timeout y muestra el error en pantalla.
