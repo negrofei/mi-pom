@@ -411,6 +411,7 @@
         flt_cat: a.flt_cat || point.flt_cat,
         stale: !!point.stale,
         product: "SYNOP",
+        source: point.source || a.source || "SYNOP",
       };
     }
     const bases = layersFromAwClouds(point.clouds, point.raw);
@@ -422,6 +423,7 @@
           ? ceilingLayer.height_ft
           : null;
     const hasConv = bases.some((b) => b.convective === "CB" || b.convective === "TCU");
+    const product = point.product || (point.is_speci ? "SPECI" : "METAR");
     return {
       ...point,
       cloud_bases: bases,
@@ -431,8 +433,10 @@
       flt_cat_color: catMeta(point.flt_cat).color,
       has_convective: hasConv,
       stale: !!point.stale,
-      product: point.product || "METAR",
-      source: point.source || "METAR",
+      product,
+      source: point.source || product,
+      has_speci: !!(point.has_speci || point.speci || product === "SPECI" || point.is_speci),
+      is_speci: !!(point.is_speci || product === "SPECI"),
     };
   }
 

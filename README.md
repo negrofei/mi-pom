@@ -49,9 +49,31 @@ Panel **Configuración** en la barra superior:
 - `GET /api/synops?hour=YYYYMMDDHH&nil=0&timeline=exact|latest&lookback=24`
 - `GET /api/synops/<omm>?hours=24&hour=YYYYMMDDHH&nil=0` — serie horaria de una estación
 - `GET /api/metars?hour=YYYYMMDDHH&hours=3&timeline=exact|latest&taf=1` — METAR/TAF (AviationWeather)
+- `GET /api/surveillance` — vigilancia METAR (cascade SMN → AW → OGIMET)
+- `GET /api/smn/debug?kind=metar|synop|speci&omm=87582&raw=1` — diagnóstico de la respuesta SMN
 - `GET /api/stations` — catálogo SYNOP
 - `GET /api/airports` — catálogo aeródromos
 - `GET /health` — healthcheck
+
+## Vigilancia METAR (pestaña METAR)
+
+Por estación, en este orden:
+
+1. **SMN SPECI** (si está y es posterior al METAR SMN)
+2. **SMN METAR**
+3. **SMN SYNOP** (se muestra como dato aviación)
+4. Si aún falta: **AviationWeather** (SPECI/METAR) y luego **OGIMET** (SYNOP)
+
+### Cómo ver qué devuelve el SMN
+
+Desde la **intranet SMN**, con la app corriendo, abrí en el navegador:
+
+- `/api/smn/debug?kind=metar&omm=87582&raw=1`
+- `/api/smn/debug?kind=speci&omm=87582&raw=1`
+- `/api/smn/debug?kind=synop&omm=87582&raw=1`
+
+Revisá `ok`, `http_status`, `html_preview` / `html_raw`, `messages_extracted` y `parsed`.  
+También están los links en **Configuración → Diagnóstico SMN**.
 
 ## Notas
 

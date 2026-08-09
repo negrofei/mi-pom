@@ -43,8 +43,23 @@
 
     <label class="config-row check">
       <input type="checkbox" id="cfgAutorefresh" />
-      <span>Autorefresh cada 2 minutos <small>(METAR: vigilancia SMN→OGIMET/AW + SPECI con sonido)</small></span>
+      <span>Autorefresh cada 2 minutos <small>(METAR: SMN SPECI→METAR→SYNOP → AW → OGIMET)</small></span>
     </label>
+
+    <fieldset class="config-fieldset" id="smnDebugWrap">
+      <legend>Diagnóstico SMN</legend>
+      <p class="config-hint">
+        Para ver qué devuelve <code>mensajes_new</code>, abrí estos links
+        <strong>desde la red/intranet SMN</strong> (en el navegador del servidor o PC con acceso):
+      </p>
+      <ul class="config-links">
+        <li><a href="/api/smn/debug?kind=metar&amp;omm=87582&amp;raw=1" target="_blank" rel="noopener">METAR (SABE/87582) + HTML</a></li>
+        <li><a href="/api/smn/debug?kind=speci&amp;omm=87582&amp;raw=1" target="_blank" rel="noopener">SPECI + HTML</a></li>
+        <li><a href="/api/smn/debug?kind=synop&amp;omm=87582&amp;raw=1" target="_blank" rel="noopener">SYNOP + HTML</a></li>
+        <li><a href="/api/surveillance" target="_blank" rel="noopener">Vigilancia completa (JSON)</a></li>
+      </ul>
+      <small>Mirar <code>ok</code>, <code>http_status</code>, <code>html_preview</code>, <code>parsed</code> y <code>error</code>.</small>
+    </fieldset>
 
     <fieldset class="config-fieldset">
       <legend>Timeline</legend>

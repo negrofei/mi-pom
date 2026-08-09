@@ -588,10 +588,22 @@
         if (!firAllowed(raw)) continue;
 
         const obs = MetarPlot.fromSurveillance(raw);
-        if (obs.speci) {
+        const speciObs =
+          obs.speci ||
+          (obs.product === "SPECI" || obs.is_speci
+            ? {
+                ...obs,
+                is_speci: true,
+              }
+            : null);
+        if (speciObs) {
           obs.has_speci = true;
+          if (!obs.speci && obs.product === "SPECI") {
+            // primario es SPECI: el detalle ya es el SPECI (sin panel duplicado)
+            obs.speci = null;
+          }
           activeSpecis.push({
-            ...obs.speci,
+            ...speciObs,
             omm: obs.omm,
             station_nombre: obs.nombre,
             lat: obs.lat,
@@ -619,7 +631,7 @@
         marker.on("click", () => openDetail(obs));
         marker.addTo(layerGroup);
 
-        if (obs.speci) {
+        if (obs.has_speci) {
           const warn = L.marker([obs.lat, obs.lng], {
             icon: MetarPlot.speciWarnIcon(),
             interactive: true,
@@ -654,11 +666,16 @@
             : "sin FIR";
       const colorLabel =
         colorBy === "vis" ? "vis" : colorBy === "base" ? "base" : "cat. vuelo";
+      const fb = data.filled_by || {};
       const src = data.sources || {};
+      const smnOk =
+        src.smn_metar && src.smn_metar.ok === false
+          ? `SMN⚠`
+          : `SMN ${fb.SMN ?? 0}`;
       statusEl.textContent =
         `${data.hour_label} · ${shown} est. · ${staleCount} desact. · ${firLabel} · color ${colorLabel} · ` +
-        `${activeSpecis.length} SPECI · METAR ${src.metar || "?"} · SYNOP ${src.synop || "?"} · SPECI ${
-          src.speci || "?"
+        `${activeSpecis.length} SPECI · ${smnOk} · AW ${fb.AviationWeather ?? 0} · OGIMET ${
+          fb.OGIMET ?? 0
         }`;
       if (fltLegend) {
         fltLegend.innerHTML =

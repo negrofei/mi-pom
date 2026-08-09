@@ -296,6 +296,36 @@ def parse_smn_synop_html(
     return out
 
 
+def _parse_html(
+    kind: ObsKind,
+    html: str,
+    *,
+    airports: dict[str, dict],
+    stations: dict[str, dict],
+) -> list[dict[str, Any]]:
+    if kind in ("metar", "speci"):
+        return parse_smn_metar_speci_html(html, kind=kind, airports=airports)
+    return parse_smn_synop_html(html, stations=stations)
+
+
+def _latest_messages(kind: ObsKind, merged: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if kind == "synop":
+        by: dict[str, dict] = {}
+        for n in merged:
+            omm = str(n.get("omm") or "")
+            prev = by.get(omm)
+            if prev is None or (n.get("obs_iso") or "") >= (prev.get("obs_iso") or ""):
+                by[omm] = n
+        return list(by.values())
+    by_icao: dict[str, dict] = {}
+    for n in merged:
+        icao = str(n.get("icao") or "")
+        prev = by_icao.get(icao)
+        if prev is None or (n.get("obs_iso") or "") >= (prev.get("obs_iso") or ""):
+            by_icao[icao] = n
+    return list(by_icao.values())
+
+
 def fetch_smn_messages(
     kind: ObsKind,
     station_ids: list[str],
@@ -324,27 +354,145 @@ def fetch_smn_messages(
             if i == 0:
                 raise
             continue
-        if kind in ("metar", "speci"):
-            merged.extend(
-                parse_smn_metar_speci_html(html, kind=kind, airports=airports)
-            )
-        else:
-            merged.extend(parse_smn_synop_html(html, stations=stations))
+        merged.extend(_parse_html(kind, html, airports=airports, stations=stations))
     if not merged and errors:
         raise RuntimeError(errors[0])
-    # Último por estación
-    if kind == "synop":
-        by: dict[str, dict] = {}
-        for n in merged:
-            omm = str(n.get("omm") or "")
-            prev = by.get(omm)
-            if prev is None or (n.get("obs_iso") or "") >= (prev.get("obs_iso") or ""):
-                by[omm] = n
-        return list(by.values())
-    by_icao: dict[str, dict] = {}
-    for n in merged:
-        icao = str(n.get("icao") or "")
-        prev = by_icao.get(icao)
-        if prev is None or (n.get("obs_iso") or "") >= (prev.get("obs_iso") or ""):
-            by_icao[icao] = n
-    return list(by_icao.values())
+    return _latest_messages(kind, merged)
+
+
+def probe_smn(
+    kind: ObsKind,
+    station_ids: list[str],
+    *,
+    airports: Optional[dict[str, dict]] = None,
+    stations: Optional[dict[str, dict]] = None,
+    include_raw: bool = False,
+    raw_limit: int = 20000,
+    preview_limit: int = 2500,
+) -> dict[str, Any]:
+    """
+    Diagnóstico de una consulta SMN (un lote).
+
+    No lanza: devuelve status HTTP, URL, preview del HTML y mensajes parseados
+    para poder ver desde la intranet qué responde mensajes_new.
+    """
+    ids = sorted({str(s) for s in station_ids if s})
+    airports = airports or {}
+    stations = stations or {}
+    params: list[tuple[str, str]] = [
+        ("observacion", kind),
+        ("operacion", "consultar"),
+    ]
+    for sid in ids:
+        params.append((str(sid), "on"))
+    qs = urlencode(params)
+
+    attempts: list[dict[str, Any]] = []
+    chosen_html: Optional[str] = None
+    chosen_url: Optional[str] = None
+    chosen_status: Optional[int] = None
+    last_body: Optional[str] = None
+    last_url: Optional[str] = None
+    last_status: Optional[int] = None
+
+    for base in SMN_BASES:
+        url = f"{base}?{qs}"
+        attempt: dict[str, Any] = {"base": base, "url": url}
+        try:
+            resp = _session().get(url, timeout=DEFAULT_TIMEOUT, allow_redirects=True)
+            attempt["http_status"] = resp.status_code
+            attempt["bytes"] = len(resp.content or b"")
+            body = resp.text or ""
+            last_body, last_url, last_status = body, url, resp.status_code
+            head = body[:2500].lower()
+            if resp.status_code == 403 or "cf-error" in head or "cloudflare" in head:
+                attempt["ok"] = False
+                attempt["error"] = f"bloqueado/Cloudflare HTTP {resp.status_code}"
+                attempt["body_preview"] = body[:800]
+            elif resp.status_code >= 400:
+                attempt["ok"] = False
+                attempt["error"] = f"HTTP {resp.status_code}"
+                attempt["body_preview"] = body[:800]
+            else:
+                attempt["ok"] = True
+                if chosen_html is None:
+                    chosen_html = body
+                    chosen_url = url
+                    chosen_status = resp.status_code
+        except Exception as exc:  # noqa: BLE001
+            attempt["ok"] = False
+            attempt["error"] = str(exc)
+        attempts.append(attempt)
+        if chosen_html is not None:
+            break
+
+    # Si no hubo HTML útil, igual mostramos el último cuerpo (p.ej. Cloudflare)
+    display_html = chosen_html if chosen_html is not None else last_body
+    out: dict[str, Any] = {
+        "kind": kind,
+        "station_ids": ids,
+        "station_count": len(ids),
+        "bases": list(SMN_BASES),
+        "attempts": attempts,
+        "ok": chosen_html is not None,
+        "url": chosen_url or last_url,
+        "http_status": chosen_status if chosen_status is not None else last_status,
+        "error": None
+        if chosen_html is not None
+        else (attempts[-1].get("error") if attempts else "sin intentos"),
+        "hint": (
+            "Abrí este endpoint desde la red/intranet SMN. "
+            "Si http_status=403 o error Cloudflare, la máquina no llega a mensajes_new. "
+            "Usá ?kind=metar|synop|speci&omm=87582&raw=1"
+        ),
+    }
+
+    if not display_html:
+        out["html_bytes"] = 0
+        out["html_preview"] = ""
+        out["messages_extracted"] = []
+        out["messages_extracted_count"] = 0
+        out["parsed_count"] = 0
+        out["parsed"] = []
+        return out
+
+    messages: list[str] = []
+    parsed: list[dict[str, Any]] = []
+    if chosen_html is not None:
+        messages = _extract_metar_messages(chosen_html) if kind in ("metar", "speci") else []
+        if kind == "synop":
+            text = _strip_tags(chosen_html)
+            messages = [" ".join(m.group("msg").split()) for m in _RE_SYNOP_LINE.finditer(text)]
+        parsed = _latest_messages(
+            kind, _parse_html(kind, chosen_html, airports=airports, stations=stations)
+        )
+
+    summary = []
+    for p in parsed:
+        summary.append(
+            {
+                "icao": p.get("icao"),
+                "wmo": p.get("wmo") or p.get("omm"),
+                "omm": p.get("omm") or p.get("wmo"),
+                "obs_iso": p.get("obs_iso"),
+                "raw": p.get("raw"),
+                "is_speci": p.get("is_speci"),
+                "visibility_m": p.get("visibility_m"),
+                "flt_cat": p.get("flt_cat"),
+            }
+        )
+
+    out.update(
+        {
+            "html_bytes": len(display_html.encode("utf-8", errors="replace")),
+            "html_preview": display_html[:preview_limit],
+            "messages_extracted": messages[:80],
+            "messages_extracted_count": len(messages),
+            "parsed_count": len(parsed),
+            "parsed": summary,
+        }
+    )
+    if include_raw:
+        out["html_raw"] = display_html[: max(0, raw_limit)]
+        out["html_raw_truncated"] = len(display_html) > raw_limit
+    return out
