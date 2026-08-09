@@ -1,0 +1,21 @@
+<html>
+<head>
+<link rel="stylesheet" href="../style.css" />
+<link rel="stylesheet" href="style/style.css" />
+<title>Mensajes Meteorol&oacute;gicos</title>
+</head>
+<body >
+<table width="100%" border="0" cellspacing="0" cellpadding="5">
+<tr class="consultar">
+        <th align="left" nowrap><input type="button" value="Volver al men&uacute; principal" onclick="window.location='index.php';"></th>
+		<th align="center" width="100%">
+	 Observaciones METAR <a href='http://www3.smn.gob.ar/mensajes/RMK_PP_METAR.pdf' target='_blank'> - <font color='#FF0000'>Nuevo: </font>Referencias del RMK en METAR </a>	</th>
+        <th align="right" nowrap>&nbsp; </th>
+</tr>
+</table>
+<br/>
+<form name="imprimir" action="imprimir.php" target="_blank" method="POST">
+<script language="javascript" src="include/divs.js"></script>
+<input type="submit" value="Imprimir"/><div style="padding-bottom:6px;padding-top:4px;"><table width="100%"  border="0" cellspacing="0" cellpadding="5" style="border: 1px solid #82A6DB;"><tr class="headerResult"><td colspan="2">Aeropuerto AEROPARQUE J. NEWBERY</td></tr><tr class="result" valign="middle"><td nowrap><b>09 - 19:00</b></td><td width="100%">METAR SABE 091900Z 25006KT 180V300 CAVOK 13/01 Q1023 NOSIG RMK PP000 =<input type="hidden" name="0" value="09 - 19:00 - METAR SABE 091900Z 25006KT 180V300 CAVOK 13/01 Q1023 NOSIG RMK PP000 ="/></td></tr></table></div><div style="padding-bottom:6px;padding-top:4px;"><table width="100%"  border="0" cellspacing="0" cellpadding="5" style="border: 1px solid #82A6DB;"><tr class="headerResult"><td colspan="2">Aeropuerto AZUL</td></tr><tr class="result" valign="middle"><td nowrap><b>09 - 18:00</b></td><td width="100%">METAR SAZA 091800Z 23007KT 9999 BKN030 10/01 Q1022 =<input type="hidden" name="1" value="09 - 18:00 - METAR SAZA 091800Z 23007KT 9999 BKN030 10/01 Q1022 ="/></td></tr></table></div><input type="submit" value="Imprimir"/></form>
+</body>
+</html>
