@@ -415,15 +415,17 @@
   function formatCloudsAw(clouds, raw) {
     const fromRaw = parseConvectiveFromRaw(raw);
     const list = Array.isArray(clouds) ? clouds.slice() : [];
-    if (!list.length && fromRaw.length) {
-      return fromRaw
-        .map((c) => {
-          const amt = amountFromAwCover(c.cover);
-          return `${amountBadgeHtml(amt)} ${
-            c.base != null ? coloredBaseHtml(c.base) : ""
-          } ${convectiveBadgeHtml(c.convective)}`.trim();
-        })
-        .join(" · ");
+    const items = list.length
+      ? list
+      : fromRaw.map((c) => ({
+          cover: c.cover,
+          base: c.base,
+          type: c.convective,
+          convective: c.convective,
+        }));
+    if (!items.length) {
+      if (/\bCAVOK\b/i.test(String(raw || ""))) return "CAVOK";
+      return "—";
     }
     if (!list.length) {
       if (/\bCAVOK\b/i.test(String(raw || ""))) return "CAVOK";
@@ -765,8 +767,16 @@
           </div>
           <div class="av-card">
             <div class="av-label">Techo (BKN/OVC)</div>
-            <div class="av-value">${ceilAmt}${
-              a.ceiling_ft != null ? coloredBaseHtml(a.ceiling_ft) : "—"
+            <div class="av-value">${
+              a.ceiling_ft != null
+                ? esc(
+                    metarCloudToken({
+                      cover: (a.ceiling_amount && a.ceiling_amount.code) || "BKN",
+                      height_ft: a.ceiling_ft,
+                      amount: a.ceiling_amount,
+                    })
+                  )
+                : "—"
             }</div>
           </div>
           <div class="av-card">
