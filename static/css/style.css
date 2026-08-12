@@ -1084,12 +1084,12 @@ html, body {
 }
 .plot-metar-clouds {
   left: 18px;
-  top: -52px;
-  width: 72px;
+  top: -58px;
+  width: 110px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 1px;
+  gap: 2px;
   z-index: 6;
   pointer-events: none;
 }
@@ -1098,9 +1098,9 @@ html, body {
   left: auto !important;
   top: auto !important;
   font-family: var(--mono);
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 600;
-  line-height: 1.15;
+  line-height: 1.2;
   color: #1a2430;
   text-shadow:
     0 0 2px #fff,
@@ -1110,6 +1110,17 @@ html, body {
     0 1px 0 #fff,
     0 -1px 0 #fff;
   white-space: nowrap;
+}
+.plot-metar-cloud .cloud-amt {
+  font-size: 0.55rem;
+  padding: 0 0.2rem;
+}
+.plot-metar-cloud .cloud-base-h {
+  font-size: 0.58rem;
+}
+.plot-metar-cloud .cloud-oktas {
+  font-size: 0.5rem;
+  opacity: 0.75;
 }
 .plot-metar-icao {
   left: -18px;
