@@ -8,6 +8,8 @@ from typing import Any, Optional
 
 import requests
 
+from synop_parser import barb_key
+
 log = logging.getLogger(__name__)
 
 AW_METAR_URL = "https://aviationweather.gov/api/data/metar"
@@ -152,6 +154,17 @@ def _normalize_metar(row: dict, airports: dict[str, dict]) -> dict[str, Any]:
     metar_type = str(row.get("metarType") or "").upper() or None
     is_speci = metar_type == "SPECI" or raw.strip().upper().startswith("SPECI")
 
+    wind_dir = row.get("wdir")
+    wind_speed = row.get("wspd")
+    wind_variable = isinstance(wind_dir, str) and str(wind_dir).upper() == "VRB"
+    if wind_variable:
+        wind_dir = None
+    elif wind_dir is not None:
+        try:
+            wind_dir = int(wind_dir)
+        except (TypeError, ValueError):
+            wind_dir = None
+
     return {
         "icao": icao,
         "nombre": meta.get("nombre") or row.get("name") or icao,
@@ -165,9 +178,14 @@ def _normalize_metar(row: dict, airports: dict[str, dict]) -> dict[str, Any]:
         "hour_key": hour_key,
         "temp_c": row.get("temp"),
         "dewpoint_c": row.get("dewp"),
-        "wind_dir": row.get("wdir"),
-        "wind_speed_kt": row.get("wspd"),
+        "wind_dir": wind_dir,
+        "wind_speed_kt": wind_speed,
         "wind_gust_kt": row.get("wgst"),
+        "wind_barb": barb_key(
+            float(wind_speed) if wind_speed is not None else None,
+            wind_dir,
+            variable=wind_variable,
+        ),
         "visibility_m": vis_m,
         "visib_raw": row.get("visib"),
         "altim_hpa": row.get("altim"),

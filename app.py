@@ -11,12 +11,11 @@ from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from aviationweather_client import (
     fetch_argentina_metars,
-    fetch_argentina_specis,
     fetch_station_metars,
 )
 from ogimet_client import fetch_argentina_synops, fetch_station_series, resolve_synop_hour
-from smn_client import fetch_smn_messages
-from surveillance import build_surveillance, is_speci_active_vs_metar
+from smn_client import smn_status
+from surveillance import build_surveillance
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -80,8 +79,7 @@ def api_airports():
 @app.get("/api/surveillance")
 def api_surveillance():
     """
-    Vigilancia METAR: último dato por estación.
-    SMN (METAR/SYNOP/SPECI) con contingencia OGIMET / AviationWeather.
+    Vigilancia METAR: cascade SMN (si intranet) o solo contingencia AW/OGIMET.
     """
     try:
         payload = build_surveillance(stations=STATIONS, airports=AIRPORTS)
@@ -91,59 +89,35 @@ def api_surveillance():
     return jsonify(payload)
 
 
+@app.get("/api/smn/status")
+def api_smn_status():
+    """Estado del sondeo SMN (intranet vs contingencia)."""
+    force = (request.args.get("refresh") or "0") in ("1", "true", "yes")
+    return jsonify(smn_status(force_refresh=force))
+
+
 @app.get("/api/specis")
 def api_specis():
-    """SPECI vigentes: SMN primero, AviationWeather como contingencia."""
+    """SPECI vigentes según /api/surveillance."""
     try:
         hours = int(request.args.get("hours", "6"))
     except ValueError:
         return jsonify({"error": "hours inválido"}), 400
     hours = max(1, min(hours, 12))
-
-    wmo_ids = sorted(
-        set(list(STATIONS.keys()) + [str(a["wmo"]) for a in AIRPORTS.values() if a.get("wmo")])
-    )
-    source = "SMN"
     try:
-        specis = fetch_smn_messages("speci", wmo_ids, airports=AIRPORTS)
-        if not specis:
-            raise RuntimeError("SMN sin SPECI")
+        payload = build_surveillance(stations=STATIONS, airports=AIRPORTS)
     except Exception as exc:  # noqa: BLE001
-        log.warning("SPECI SMN falló (%s); contingencia AW", exc)
-        source = "AviationWeather"
-        try:
-            specis = fetch_argentina_specis(airports=AIRPORTS, hours=hours)
-        except Exception as exc2:  # noqa: BLE001
-            log.exception("Error consultando SPECI")
-            return jsonify({"error": f"No se pudo consultar SPECI: {exc2}"}), 502
-
-    # Filtrar vencidos vs último METAR (si hay vigilancia cacheada sería ideal;
-    # aquí pedimos METAR SMN/AW best-effort)
-    try:
-        from surveillance import _fetch_metars_with_fallback
-
-        metars, _ = _fetch_metars_with_fallback(airports=AIRPORTS, wmo_ids=wmo_ids)
-        by_wmo = {str(m["wmo"]): m for m in metars if m.get("wmo")}
-        by_icao = {str(m["icao"]).upper(): m for m in metars if m.get("icao")}
-        active = []
-        for s in specis:
-            metar = None
-            if s.get("wmo") is not None:
-                metar = by_wmo.get(str(s["wmo"]))
-            if metar is None and s.get("icao"):
-                metar = by_icao.get(str(s["icao"]).upper())
-            if is_speci_active_vs_metar(s, metar):
-                active.append(s)
-        specis = active
-    except Exception as exc:  # noqa: BLE001
-        log.warning("No se pudo filtrar SPECI vs METAR: %s", exc)
-
+        log.exception("Error consultando SPECI")
+        return jsonify({"error": f"No se pudo consultar SPECI: {exc}"}), 502
+    specis = payload.get("specis") or []
     return jsonify(
         {
             "hours": hours,
-            "source": source,
+            "source": "contingency" if payload.get("contingency_only") else "SMN",
+            "contingency_only": payload.get("contingency_only"),
             "count": len(specis),
             "specis": specis,
+            "filled_by": payload.get("filled_by"),
         }
     )
 
@@ -336,8 +310,15 @@ def api_station_series(omm: str):
 
 @app.get("/health")
 def health():
+    status = smn_status()
     return jsonify(
-        {"ok": True, "stations": len(STATIONS), "airports": len(AIRPORTS)}
+        {
+            "ok": True,
+            "stations": len(STATIONS),
+            "airports": len(AIRPORTS),
+            "smn": status,
+            "contingency_only": not bool(status.get("ok")),
+        }
     )
 
 

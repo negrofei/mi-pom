@@ -83,7 +83,7 @@
     return cats.reduce((a, b) => (rank[a] < rank[b] ? a : b));
   }
 
-  /** Color por altura de base (ft). */
+  /** Color por altura de base (ft) cuando hay techo BKN/OVC. */
   function baseHeightStyle(ft) {
     if (ft == null || Number.isNaN(Number(ft))) return null;
     const h = Number(ft);
@@ -92,6 +92,44 @@
     if (h < 1000) return { color: "#ef6c00", label: "500–1000 ft", key: "ifr" };
     if (h <= 2000) return { color: "#f9a825", label: "1000–2000 ft", key: "mvfr" };
     return { color: "#2e7d32", label: "> 2000 ft", key: "vfr" };
+  }
+
+  // Verdes distintos: cielo despejado vs nubosidad poco significativa (FEW/SCT)
+  const SKY_CLEAR_GREEN = "#00c853"; // brillante: sin nubes / CAVOK / SKC
+  const SKY_FEW_GREEN = "#9ccc65"; // oliváceo: FEW/SCT sin techo
+
+  /**
+   * Estado de cielo para colorear por bases.
+   * clear | few | ceiling
+   */
+  function skyState(obs) {
+    const a = obs || {};
+    const raw = String(a.raw || "").toUpperCase();
+    const bases = Array.isArray(a.cloud_bases) ? a.cloud_bases : [];
+    const clouds = Array.isArray(a.clouds) ? a.clouds : [];
+    const hasCeiling =
+      a.ceiling_ft != null ||
+      bases.some((b) => b && b.is_ceiling) ||
+      clouds.some((c) => {
+        const cover = String(c.cover || c.amount || "").toUpperCase();
+        return cover === "BKN" || cover === "OVC" || cover === "VV" || cover === "OVX";
+      });
+    if (hasCeiling) return "ceiling";
+
+    const clearToken =
+      /\bCAVOK\b/.test(raw) ||
+      /\bSKC\b/.test(raw) ||
+      /\bCLR\b/.test(raw) ||
+      /\bNCD\b/.test(raw) ||
+      /\bNSC\b/.test(raw);
+    const hasAnyCloud =
+      bases.length > 0 ||
+      clouds.some((c) => {
+        const cover = String(c.cover || c.amount || "").toUpperCase();
+        return cover && cover !== "SKC" && cover !== "CLR" && cover !== "NCD" && cover !== "NSC";
+      });
+    if (!hasAnyCloud || clearToken) return "clear";
+    return "few";
   }
 
   /**
@@ -191,14 +229,94 @@
   }
 
   function formatBaseLine(b) {
-    const amt = b.amount || coverAmount(b.cover);
-    const height = coloredBaseHtml(b.height_ft);
-    const badge = amountBadgeHtml(amt);
-    const conv = convectiveBadgeHtml(b.convective);
-    const genus = b.genus && !b.convective ? ` · ${esc(b.genus)}` : "";
-    const oktas =
-      amt && amt.oktas != null ? ` <small class="cloud-oktas">${esc(String(amt.oktas))}/8</small>` : "";
-    return `${badge}${badge ? " " : ""}${height}${oktas}${conv ? " " + conv : ""}${genus}`;
+    // Texto plano estilo METAR: BKN013 / SCT008CB (sin colores)
+    return metarCloudToken(b);
+  }
+
+  /** Token METAR de una capa: COVER + height/100 + CB/TCU. */
+  function metarCloudToken(b) {
+    if (!b) return "";
+    const amt = b.amount || coverAmount(b.cover) || amountFromAwCover(b.cover);
+    const code = (amt && amt.code) || String(b.cover || "").toUpperCase() || "///";
+    let h = b.height_ft != null ? Number(b.height_ft) : b.base != null ? Number(b.base) : null;
+    let hh = "";
+    if (h != null && !Number.isNaN(h)) {
+      hh = String(Math.max(0, Math.round(h / 100))).padStart(3, "0");
+    }
+    const conv = b.convective ? String(b.convective).toUpperCase() : "";
+    const convOk = conv === "CB" || conv === "TCU" ? conv : "";
+    if (code === "VV") return `VV${hh || "///"}${convOk}`;
+    return `${code}${hh}${convOk}`;
+  }
+
+  /** Capas METAR como líneas de texto plano, más altas arriba. */
+  function metarCloudLines(obs) {
+    const bases = Array.isArray(obs.cloud_bases) ? obs.cloud_bases.slice() : [];
+    if (!bases.length && Array.isArray(obs.clouds)) {
+      return (obs.clouds || [])
+        .filter((c) => c && (c.base != null || c.cover))
+        .map((c) =>
+          metarCloudToken({
+            cover: c.cover || c.amount,
+            height_ft: c.base,
+            convective: c.type || c.convective,
+            amount: amountFromAwCover(c.cover || c.amount),
+          })
+        )
+        .filter(Boolean)
+        .reverse();
+    }
+    return bases
+      .slice()
+      .sort((a, b) => (b.height_ft || 0) - (a.height_ft || 0))
+      .map(metarCloudToken)
+      .filter(Boolean);
+  }
+
+  function barbKeyFromObs(obs) {
+    if (obs && obs.wind_barb) return String(obs.wind_barb);
+    const spd = obs && obs.wind_speed_kt != null ? Number(obs.wind_speed_kt) : null;
+    const dir = obs && obs.wind_dir != null ? Number(obs.wind_dir) : null;
+    if ((dir == null || Number.isNaN(dir)) && spd != null && spd >= 1) return "v";
+    if (spd == null || spd < 0.5) return "0";
+    if (spd < 2.5) return "1";
+    const rounded = Math.max(5, Math.min(150, Math.round(spd / 5) * 5));
+    return String(rounded);
+  }
+
+  /**
+   * Plot METAR estilo SYNOP: barba + códigos de nube (BKN013 / SCT008).
+   * El disco de color refleja flight/base/vis.
+   */
+  function buildMetarStationHtml(obs, options) {
+    const gap = Math.max(0.4, Math.min(1.5, Number(options && options.gap) || 0.75));
+    const colorBy = (options && options.colorBy) || "flight";
+    const fill = markerFillColor(obs, colorBy);
+    const dir = obs.wind_dir != null ? Number(obs.wind_dir) : 0;
+    const barb = barbKeyFromObs(obs);
+    const clouds = metarCloudLines(obs);
+    const cloudHtml = clouds
+      .map((t) => `<div class="plot-metar-cloud">${esc(t)}</div>`)
+      .join("");
+    const staleCls = obs.stale ? " is-stale" : "";
+    const speciCls = obs.has_speci || obs.product === "SPECI" || obs.is_speci ? " has-speci" : "";
+    return `
+      <div class="plot plot-metar${staleCls}${speciCls}" style="--plot-gap:${gap};--metar-fill:${fill}">
+        <div class="plot-anchor">
+          <div class="plot-metar-disc" title="${esc(obs.flt_cat || colorBy)}"></div>
+          <div class="plot-metar-clouds">${cloudHtml}</div>
+          <img class="plot-barb" src="/img/barbs/barb_${esc(barb)}.png" alt=""
+               style="transform: rotate(${dir}deg);" draggable="false" />
+          ${
+            obs.icao
+              ? `<span class="plot-metar-icao">${esc(obs.icao)}</span>`
+              : obs.omm
+                ? `<span class="plot-metar-icao">${esc(obs.omm)}</span>`
+                : ""
+          }
+        </div>
+      </div>
+    `;
   }
 
   function significantWx(ww) {
@@ -279,45 +397,32 @@
   function formatCloudsAw(clouds, raw) {
     const fromRaw = parseConvectiveFromRaw(raw);
     const list = Array.isArray(clouds) ? clouds.slice() : [];
-    if (!list.length && fromRaw.length) {
-      return fromRaw
-        .map((c) => {
-          const amt = amountFromAwCover(c.cover);
-          return `${amountBadgeHtml(amt)} ${
-            c.base != null ? coloredBaseHtml(c.base) : ""
-          } ${convectiveBadgeHtml(c.convective)}`.trim();
-        })
-        .join(" · ");
+    const items = list.length
+      ? list
+      : fromRaw.map((c) => ({
+          cover: c.cover,
+          base: c.base,
+          type: c.convective,
+          convective: c.convective,
+        }));
+    if (!items.length) {
+      if (/\bCAVOK\b/i.test(String(raw || ""))) return "CAVOK";
+      return "—";
     }
-    if (!list.length) return "—";
-    return list
-      .map((c) => {
-        const cover = String(c.cover || c.amount || "").toUpperCase();
-        const base = c.base != null ? Number(c.base) : null;
-        let conv =
-          String(c.type || c.cloudType || c.convective || "").toUpperCase() || null;
-        if (conv !== "CB" && conv !== "TCU") conv = null;
-        if (!conv) {
-          const match = fromRaw.find(
-            (r) =>
-              r.cover === cover &&
-              (base == null || r.base == null || Math.abs(r.base - base) < 50)
-          );
-          if (match) conv = match.convective;
-        }
-        if (!conv && /CB$/.test(cover)) conv = "CB";
-        if (!conv && /TCU$/.test(cover)) conv = "TCU";
-        const amt = amountFromAwCover(cover.replace(/(CB|TCU)$/, ""));
-        const badge = amountBadgeHtml(amt);
-        const height = base != null ? coloredBaseHtml(base) : "";
-        const convBadge = convectiveBadgeHtml(conv);
-        return (
-          `${badge}${badge && height ? " " : ""}${height}${
-            convBadge ? " " + convBadge : ""
-          }`.trim() || "—"
-        );
-      })
-      .join(" · ");
+    // Más altas primero, texto plano BKN013 / SCT008
+    return items
+      .slice()
+      .sort((a, b) => (Number(b.base) || 0) - (Number(a.base) || 0))
+      .map((c) =>
+        metarCloudToken({
+          cover: c.cover || c.amount,
+          height_ft: c.base,
+          convective: c.type || c.cloudType || c.convective,
+          amount: amountFromAwCover(String(c.cover || c.amount || "").replace(/(CB|TCU)$/i, "")),
+        })
+      )
+      .filter(Boolean)
+      .join("<br/>");
   }
 
   /** Epoch ms de un obs_iso / utc SYNOP. */
@@ -401,7 +506,9 @@
   /** Normaliza un punto de /api/surveillance para el front. */
   function fromSurveillance(point) {
     if (!point) return point;
+    if (point.nil) return null;
     if (point.product === "SYNOP" || (point.omm && !point.clouds && point.cloud_layers)) {
+      if (point.nil) return null;
       const a = fromSynop(point);
       return {
         ...a,
@@ -411,6 +518,8 @@
         flt_cat: a.flt_cat || point.flt_cat,
         stale: !!point.stale,
         product: "SYNOP",
+        source: point.source || a.source || "SYNOP",
+        wind_barb: point.wind_barb || a.wind_barb || barbKeyFromObs(point),
       };
     }
     const bases = layersFromAwClouds(point.clouds, point.raw);
@@ -422,6 +531,7 @@
           ? ceilingLayer.height_ft
           : null;
     const hasConv = bases.some((b) => b.convective === "CB" || b.convective === "TCU");
+    const product = point.product || (point.is_speci ? "SPECI" : "METAR");
     return {
       ...point,
       cloud_bases: bases,
@@ -431,8 +541,11 @@
       flt_cat_color: catMeta(point.flt_cat).color,
       has_convective: hasConv,
       stale: !!point.stale,
-      product: point.product || "METAR",
-      source: point.source || "METAR",
+      product,
+      source: point.source || product,
+      has_speci: !!(point.has_speci || point.speci || product === "SPECI" || point.is_speci),
+      is_speci: !!(point.is_speci || product === "SPECI"),
+      wind_barb: point.wind_barb || barbKeyFromObs(point),
     };
   }
 
@@ -518,10 +631,8 @@
   function hoverHtml(obs) {
     const a = obs.cloud_bases || obs.product ? obs : fromSynop(obs);
     const cat = catMeta(a.flt_cat);
-    const bases = (a.cloud_bases || [])
-      .slice(0, 3)
-      .map((b) => formatBaseLine(b))
-      .join("<br/>");
+    const cloudLines = metarCloudLines(a);
+    const bases = cloudLines.length ? cloudLines.map(esc).join("<br/>") : "—";
     const speci = a.speci;
     const product = a.product || "SYNOP";
     const lines = [
@@ -537,9 +648,9 @@
       }`,
       a.obs_iso ? `UTC ${esc(a.obs_iso)}` : a.utc ? `UTC ${esc(a.utc)}` : "",
       `Vis ${coloredVisHtml(a.visibility_m)}`,
-      bases
-        ? `<div class="hover-bases"><b>Bases</b><br/>${bases}</div>`
-        : "Bases —",
+      bases !== "—"
+        ? `<div class="hover-bases"><b>Nubes</b><br/>${bases}</div>`
+        : "Nubes —",
       a.wind_gust_kt != null ? `<b>Ráfaga ${esc(String(a.wind_gust_kt))} kt</b>` : "",
       a.significant
         ? `<span class="wx-tag ${a.significant.tone}">${esc(a.significant.label)}</span> ${esc(
@@ -564,17 +675,12 @@
             a.wind_speed_kt != null ? a.wind_speed_kt + " kt" : "—"
           }${a.wind_gust_kt != null ? ` · ráfaga ${a.wind_gust_kt} kt` : ""}`
         : "—";
-    const basesHtml = (a.cloud_bases || []).length
-      ? (a.cloud_bases || [])
-          .map((b) => {
-            const cls = b.is_ceiling ? "av-base-row is-ceiling" : "av-base-row";
-            return `<li class="${cls}">${formatBaseLine(b)} <small>(${esc(b.source)})</small></li>`;
-          })
-          .join("")
+    const cloudLines = metarCloudLines(a);
+    const basesHtml = cloudLines.length
+      ? cloudLines.map((t) => `<li class="av-base-row">${esc(t)}</li>`).join("")
       : "<li>—</li>";
 
-    const ceilAmt = a.ceiling_amount ? amountBadgeHtml(a.ceiling_amount) + " " : "";
-    const hasSpeci = !!a.speci;
+    const hasSpeci = !!(a.speci || a.has_speci || a.product === "SPECI");
     const product = a.product || "SYNOP";
 
     return `
@@ -615,8 +721,16 @@
           </div>
           <div class="av-card">
             <div class="av-label">Techo (BKN/OVC)</div>
-            <div class="av-value">${ceilAmt}${
-              a.ceiling_ft != null ? coloredBaseHtml(a.ceiling_ft) : "—"
+            <div class="av-value">${
+              a.ceiling_ft != null
+                ? esc(
+                    metarCloudToken({
+                      cover: (a.ceiling_amount && a.ceiling_amount.code) || "BKN",
+                      height_ft: a.ceiling_ft,
+                      amount: a.ceiling_amount,
+                    })
+                  )
+                : "—"
             }</div>
           </div>
           <div class="av-card">
@@ -672,19 +786,22 @@
   }
 
   function markerFillColor(obs, colorBy) {
-    const a = obs.flt_cat != null || obs.cloud_bases ? obs : fromSynop(obs);
+    const a = obs.flt_cat != null || obs.cloud_bases || obs.clouds ? obs : fromSynop(obs);
     const mode = colorBy || "flight";
     if (mode === "vis") {
       return (visStyle(a.visibility_m) || {}).color || "#888888";
     }
     if (mode === "base") {
+      const state = skyState(a);
+      if (state === "clear") return SKY_CLEAR_GREEN;
+      if (state === "few") return SKY_FEW_GREEN;
       const ft =
         a.ceiling_ft != null
           ? a.ceiling_ft
           : a.cloud_bases && a.cloud_bases.length
             ? a.cloud_bases[0].height_ft
             : null;
-      return (baseHeightStyle(ft) || {}).color || "#888888";
+      return (baseHeightStyle(ft) || {}).color || SKY_CLEAR_GREEN;
     }
     return catMeta(a.flt_cat).color;
   }
@@ -700,7 +817,6 @@
           <span class="flt-leg"><i style="background:#ef6c00"></i>3–5</span>
           <span class="flt-leg"><i style="background:#f9a825"></i>5–9</span>
           <span class="flt-leg"><i style="background:#2e7d32"></i>≥10 km</span>
-          <span class="flt-leg flt-note">SPECI vía AW</span>
         </div>`;
     }
     if (mode === "base") {
@@ -711,19 +827,19 @@
           <span class="flt-leg"><i style="background:#c62828"></i>200–500</span>
           <span class="flt-leg"><i style="background:#ef6c00"></i>500–1k</span>
           <span class="flt-leg"><i style="background:#f9a825"></i>1–2k</span>
-          <span class="flt-leg"><i style="background:#2e7d32"></i>&gt;2k ft</span>
-          <span class="flt-leg flt-note">techo BKN/OVC · SPECI vía AW</span>
+          <span class="flt-leg"><i style="background:#2e7d32"></i>&gt;2k</span>
+          <span class="flt-leg"><i style="background:${SKY_FEW_GREEN}"></i>FEW/SCT</span>
+          <span class="flt-leg"><i style="background:${SKY_CLEAR_GREEN}"></i>despejado</span>
         </div>`;
     }
     return `
-      <div class="flt-legend" aria-label="Categorías de vuelo (desde SYNOP)">
+      <div class="flt-legend" aria-label="Categorías de vuelo">
         ${Object.keys(CAT)
           .map(
             (k) =>
               `<span class="flt-leg"><i style="background:${CAT[k].color}"></i>${CAT[k].label}</span>`
           )
           .join("")}
-        <span class="flt-leg flt-note">cat. vuelo · SPECI vía AW</span>
       </div>`;
   }
 
@@ -840,10 +956,14 @@
     fmtVis,
     coloredVisHtml,
     baseHeightStyle,
+    skyState,
     coverAmount,
     amountFromAwCover,
     coloredBaseHtml,
     formatCloudsAw,
+    metarCloudToken,
+    metarCloudLines,
+    buildMetarStationHtml,
     convectiveBadgeHtml,
     fromSynop,
     fromSurveillance,

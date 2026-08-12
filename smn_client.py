@@ -51,10 +51,28 @@ for _u in SMN_BASE_FALLBACKS:
         SMN_BASES.append(_u)
 
 DEFAULT_TIMEOUT = float(os.environ.get("SMN_TIMEOUT", "35"))
+PROBE_TIMEOUT = float(os.environ.get("SMN_PROBE_TIMEOUT", "4"))
+PROBE_TTL = float(os.environ.get("SMN_PROBE_TTL", "600"))
+# auto = sondear intranet; on = forzar SMN; off = solo contingencia (Render)
+_raw_mode = (os.environ.get("SMN_MODE") or "").strip().lower()
+if _raw_mode:
+    SMN_MODE = _raw_mode
+elif os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"):
+    # Render.com: SMN intranet nunca alcanza → contingencia directa
+    SMN_MODE = "off"
+else:
+    SMN_MODE = "auto"
 USER_AGENT = "mi-pom/1.0 (argentina-wx-surveillance)"
 CHUNK = 35
 
 ObsKind = Literal["metar", "synop", "speci"]
+
+_smn_probe_cache: dict[str, Any] = {
+    "checked_at": 0.0,
+    "ok": None,
+    "reason": None,
+    "url": None,
+}
 
 _RE_STATION = re.compile(r"\b(?P<omm>\d{5})\b")
 # Captura desde METAR/SPECI hasta el '=' final (formato real SMN)
@@ -81,6 +99,110 @@ def _session() -> requests.Session:
         }
     )
     return s
+
+
+def smn_mode() -> str:
+    if SMN_MODE in ("off", "contingency", "0", "false", "no"):
+        return "off"
+    if SMN_MODE in ("on", "force", "1", "true", "yes"):
+        return "on"
+    return "auto"
+
+
+def _probe_once() -> tuple[bool, str, Optional[str]]:
+    """Sondeo liviano: un GET corto a mensajes_new (solo base primaria)."""
+    params = [
+        ("observacion", "metar"),
+        ("operacion", "consultar"),
+        ("87582", "on"),
+    ]
+    qs = urlencode(params)
+    bases = SMN_BASES[:1] or [SMN_BASE]
+    last_err = "SMN inaccesible"
+    for base in bases:
+        url = f"{base}?{qs}"
+        try:
+            resp = _session().get(url, timeout=PROBE_TIMEOUT, allow_redirects=True)
+        except Exception as exc:  # noqa: BLE001
+            last_err = str(exc)
+            continue
+        head = (resp.text or "")[:2500].lower()
+        if resp.status_code == 403 or "cf-error" in head or "cloudflare" in head:
+            last_err = f"Cloudflare/HTTP {resp.status_code}"
+            continue
+        if resp.status_code >= 400:
+            last_err = f"HTTP {resp.status_code}"
+            continue
+        body = resp.text or ""
+        if (
+            "METAR" in body.upper()
+            or "SPECI" in body.upper()
+            or "mensajes" in head
+            or "headerResult" in body
+            or "observacion" in head
+            or "operacion" in head
+        ):
+            return True, "reachable", url
+        last_err = "respuesta no reconocida"
+    return False, last_err, None
+
+
+def smn_status(*, force_refresh: bool = False) -> dict[str, Any]:
+    """
+    Estado SMN cacheado.
+
+    En Render / redes externas: ok=False → vigilancia solo contingencia.
+    En intranet SMN (auto): ok=True tras sondeo exitoso.
+    """
+    mode = smn_mode()
+    now = datetime.now(timezone.utc).timestamp()
+    if mode == "off":
+        return {
+            "ok": False,
+            "mode": mode,
+            "reason": "SMN_MODE=off (solo contingencia)",
+            "url": None,
+            "cached": False,
+        }
+    if mode == "on":
+        return {
+            "ok": True,
+            "mode": mode,
+            "reason": "SMN_MODE=on (forzado)",
+            "url": SMN_BASES[0] if SMN_BASES else SMN_BASE,
+            "cached": False,
+        }
+
+    cached_ok = _smn_probe_cache.get("ok")
+    age = now - float(_smn_probe_cache.get("checked_at") or 0)
+    if not force_refresh and cached_ok is not None and age < PROBE_TTL:
+        return {
+            "ok": bool(cached_ok),
+            "mode": mode,
+            "reason": _smn_probe_cache.get("reason"),
+            "url": _smn_probe_cache.get("url"),
+            "cached": True,
+            "age_s": round(age, 1),
+        }
+
+    ok, reason, url = _probe_once()
+    _smn_probe_cache["checked_at"] = now
+    _smn_probe_cache["ok"] = ok
+    _smn_probe_cache["reason"] = reason
+    _smn_probe_cache["url"] = url
+    log.info("SMN probe ok=%s reason=%s", ok, reason)
+    return {
+        "ok": ok,
+        "mode": mode,
+        "reason": reason,
+        "url": url,
+        "cached": False,
+        "age_s": 0,
+    }
+
+
+def smn_available() -> bool:
+    return bool(smn_status().get("ok"))
 
 
 def _chunks(ids: list[str], size: int) -> list[list[str]]:

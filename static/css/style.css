@@ -1062,6 +1062,76 @@ html, body {
 
 .plot-layer-ft { color: #1a2430; letter-spacing: 0.02em; }
 
+/* Plot METAR: disco de color + barbas + códigos BKN013 */
+.plot-metar-disc {
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--metar-fill, #888);
+  border: 1.5px solid #111;
+  opacity: 0.92;
+  z-index: 0;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+.plot-metar.is-stale .plot-metar-disc {
+  opacity: 0.35;
+}
+.plot-metar.has-speci .plot-metar-disc {
+  border-color: #b71c1c;
+  box-shadow: 0 0 0 2px rgba(183, 28, 28, 0.35);
+}
+.plot-metar-clouds {
+  left: 18px;
+  top: -52px;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  z-index: 6;
+  pointer-events: none;
+}
+.plot-metar-cloud {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #1a2430;
+  text-shadow:
+    0 0 2px #fff,
+    0 0 3px #fff,
+    1px 0 0 #fff,
+    -1px 0 0 #fff,
+    0 1px 0 #fff,
+    0 -1px 0 #fff;
+  white-space: nowrap;
+}
+.plot-metar-icao {
+  left: -18px;
+  top: 22px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  font-weight: 600;
+  color: #243044;
+  text-shadow: 0 0 2px #fff, 1px 0 0 #fff, -1px 0 0 #fff;
+  z-index: 6;
+}
+.plot-metar.is-stale {
+  opacity: 0.55;
+}
+
+.config-hint {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #3a3a3a;
+}
+
 .station-svg {
   overflow: visible;
   filter: drop-shadow(0 1px 0 rgba(255,255,255,0.65));

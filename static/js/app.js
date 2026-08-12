@@ -565,9 +565,10 @@
   });
 
   async function loadMetars() {
-    // Vigilancia: SMN METAR/SYNOP/SPECI (+ contingencias) vía /api/surveillance
+    // Vigilancia: SMN (intranet) o contingencia AW/OGIMET
     const colorBy = settings.colorBy || "flight";
-    statusEl.textContent = "Consultando vigilancia SMN…";
+    const gap = settings.plotGap || 0.75;
+    statusEl.textContent = "Consultando vigilancia…";
     btnLoad.disabled = true;
     try {
       const res = await fetch("/api/surveillance");
@@ -582,16 +583,26 @@
       let shown = 0;
       let staleCount = 0;
       const activeSpecis = [];
+      const w = Math.round(BASE_W * gap);
+      const h = Math.round(BASE_H * gap);
 
       for (const raw of data.stations || []) {
         if (raw.lat == null || raw.lng == null) continue;
+        if (raw.nil) continue;
         if (!firAllowed(raw)) continue;
 
         const obs = MetarPlot.fromSurveillance(raw);
-        if (obs.speci) {
+        if (!obs) continue;
+        const speciObs =
+          obs.speci ||
+          (obs.product === "SPECI" || obs.is_speci
+            ? { ...obs, is_speci: true }
+            : null);
+        if (speciObs) {
           obs.has_speci = true;
+          if (!obs.speci && obs.product === "SPECI") obs.speci = null;
           activeSpecis.push({
-            ...obs.speci,
+            ...speciObs,
             omm: obs.omm,
             station_nombre: obs.nombre,
             lat: obs.lat,
@@ -602,24 +613,28 @@
         if (obs.omm) aviationByOmm[String(obs.omm)] = obs;
         if (obs.stale) staleCount += 1;
 
-        const marker = L.circleMarker(
-          [obs.lat, obs.lng],
-          MetarPlot.markerOptions(obs, false, colorBy)
-        );
+        // Barbas + códigos de nube (BKN013) para METAR/SPECI/SYNOP
+        const html = MetarPlot.buildMetarStationHtml(obs, { gap, colorBy });
+        const icon = L.divIcon({
+          className: "station-icon metar-station-icon",
+          html,
+          iconSize: [w, h],
+          iconAnchor: [Math.round(w / 2), Math.round(h / 2)],
+        });
+        const marker = L.marker([obs.lat, obs.lng], {
+          icon,
+          interactive: true,
+          keyboard: true,
+          riseOnHover: true,
+        });
         marker._avObs = obs;
-        marker.on("mouseover", (e) => {
-          marker.setStyle(MetarPlot.markerOptions(obs, true, colorBy));
-          showHover(MetarPlot.hoverHtml(obs), e);
-        });
+        marker.on("mouseover", (e) => showHover(MetarPlot.hoverHtml(obs), e));
         marker.on("mousemove", (e) => moveHover(e));
-        marker.on("mouseout", () => {
-          marker.setStyle(MetarPlot.markerOptions(obs, false, colorBy));
-          hideHover();
-        });
+        marker.on("mouseout", hideHover);
         marker.on("click", () => openDetail(obs));
         marker.addTo(layerGroup);
 
-        if (obs.speci) {
+        if (obs.has_speci) {
           const warn = L.marker([obs.lat, obs.lng], {
             icon: MetarPlot.speciWarnIcon(),
             interactive: true,
@@ -635,7 +650,6 @@
         shown += 1;
       }
 
-      // SPECI del payload sin estación plotada
       const listed = new Set(activeSpecis.map((s) => String(s.icao || "").toUpperCase()));
       for (const s of data.specis || []) {
         const icao = String(s.icao || "").toUpperCase();
@@ -654,12 +668,15 @@
             : "sin FIR";
       const colorLabel =
         colorBy === "vis" ? "vis" : colorBy === "base" ? "base" : "cat. vuelo";
-      const src = data.sources || {};
+      const fb = data.filled_by || {};
+      const modeLabel = data.contingency_only
+        ? "contingencia AW/OGIMET"
+        : "SMN+contingencia";
       statusEl.textContent =
-        `${data.hour_label} · ${shown} est. · ${staleCount} desact. · ${firLabel} · color ${colorLabel} · ` +
-        `${activeSpecis.length} SPECI · METAR ${src.metar || "?"} · SYNOP ${src.synop || "?"} · SPECI ${
-          src.speci || "?"
-        }`;
+        `${data.hour_label} · ${shown} est. · ${staleCount} desact. · ${firLabel} · ${colorLabel} · ` +
+        `${activeSpecis.length} SPECI · ${modeLabel} · SMN ${fb.SMN ?? 0} · AW ${
+          fb.AviationWeather ?? 0
+        } · OGIMET ${fb.OGIMET ?? 0}`;
       if (fltLegend) {
         fltLegend.innerHTML =
           MetarPlot.legendHtml(colorBy) +

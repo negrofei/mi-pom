@@ -49,14 +49,20 @@ Panel **Configuración** en la barra superior:
 - `GET /api/synops?hour=YYYYMMDDHH&nil=0&timeline=exact|latest&lookback=24`
 - `GET /api/synops/<omm>?hours=24&hour=YYYYMMDDHH&nil=0` — serie horaria de una estación
 - `GET /api/metars?hour=YYYYMMDDHH&hours=3&timeline=exact|latest&taf=1` — METAR/TAF (AviationWeather)
+- `GET /api/surveillance` — vigilancia METAR (SMN o contingencia)
+- `GET /api/smn/status` — sondeo SMN
 - `GET /api/stations` — catálogo SYNOP
 - `GET /api/airports` — catálogo aeródromos
-- `GET /health` — healthcheck
+- `GET /health` — healthcheck (+ estado SMN)
 
 ## Fuentes de datos (vigilancia METAR)
 
-- **SMN** (`mensajes_new`): fuente primaria para METAR / SYNOP / SPECI en la pestaña de vigilancia. Requiere acceso a la **intranet SMN** (`www3.smn.gov.ar`).
-- **Contingencia**: si SMN no está disponible, el backend usa **AviationWeather** (METAR/SPECI) y **OGIMET** (SYNOP). En agentes cloud / redes externas esto es el camino habitual.
+- **Intranet SMN**: SPECI → METAR → SYNOP (mensajes_new), luego AW / OGIMET.
+- **Render / red externa**: modo contingencia automático (AviationWeather + OGIMET). Forzar con `SMN_MODE=off`.
+- Variables: `SMN_MODE=off|auto|on`, `SMN_MENSAJES_URL`, `SMN_PROBE_TTL`.
+- SYNOP **NIL** no se muestran en la pestaña METAR.
+- Mapa METAR: barbas de viento + códigos de nube en texto plano (`BKN013` / `SCT008`).
+- Color por bases: verde brillante = despejado; verde oliva = FEW/SCT; resto por altura de techo.
 - La pestaña SYNOP del mapa sigue consultando **OGIMET** directamente.
 
 ## Notas
