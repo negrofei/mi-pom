@@ -1,18 +1,20 @@
 """
-Vigilancia METAR: combina SMN (primario) con contingencias OGIMET / AviationWeather.
+Vigilancia METAR (pestaña METAR).
 
-Prioridad:
-  METAR  → SMN → AviationWeather
-  SYNOP  → SMN → OGIMET
-  SPECI  → SMN → AviationWeather
+Si SMN está disponible (intranet / SMN_MODE=on):
+  SMN SPECI → SMN METAR → SMN SYNOP → AW SPECI/METAR → OGIMET SYNOP
 
-SPECI vigente solo si es posterior al último METAR de la estación.
+Si no (Render / SMN_MODE=off / probe fallido):
+  solo contingencia: AW SPECI/METAR → OGIMET SYNOP
+
+Los SYNOP NIL no se muestran (confunden en vigilancia).
+SPECI vigente solo si es estrictamente posterior al METAR de la misma etapa.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from aviationweather_client import (
@@ -20,7 +22,7 @@ from aviationweather_client import (
     fetch_argentina_specis,
 )
 from ogimet_client import fetch_argentina_synops, resolve_synop_hour
-from smn_client import fetch_smn_messages
+from smn_client import fetch_smn_messages, smn_status
 
 log = logging.getLogger(__name__)
 
@@ -65,17 +67,31 @@ def _latest_by_key(items: list[dict], key: str) -> dict[str, dict]:
     return out
 
 
-def _fetch_metars_with_fallback(
+def _index_metar_like(rows: list[dict]) -> dict[str, dict]:
+    return _latest_by_key([r for r in rows if r.get("wmo")], "wmo")
+
+
+def _try_smn(
+    kind: str,
+    wmo_ids: list[str],
     *,
     airports: dict[str, dict],
-    wmo_ids: list[str],
-) -> tuple[list[dict], str]:
+    stations: dict[str, dict],
+) -> tuple[list[dict], Optional[str]]:
     try:
-        rows = fetch_smn_messages("metar", wmo_ids, airports=airports)
-        if rows:
-            return rows, "SMN"
+        rows = fetch_smn_messages(
+            kind,  # type: ignore[arg-type]
+            wmo_ids,
+            airports=airports,
+            stations=stations,
+        )
+        return rows or [], None
     except Exception as exc:  # noqa: BLE001
-        log.warning("SMN METAR falló, contingencia AW: %s", exc)
+        log.warning("SMN %s falló: %s", kind, exc)
+        return [], str(exc)
+
+
+def _fetch_aw_metars(airports: dict[str, dict]) -> tuple[list[dict], Optional[str]]:
     try:
         rows = fetch_argentina_metars(
             airports=airports,
@@ -84,24 +100,22 @@ def _fetch_metars_with_fallback(
             timeline="latest",
             when=resolve_synop_hour(None),
         )
-        # latest per icao already
-        return rows, "AviationWeather"
+        return rows or [], None
     except Exception as exc:  # noqa: BLE001
-        log.exception("AW METAR también falló")
-        return [], f"error:{exc}"
+        log.exception("AW METAR falló")
+        return [], str(exc)
 
 
-def _fetch_synops_with_fallback(
-    *,
-    stations: dict[str, dict],
-    wmo_ids: list[str],
-) -> tuple[list[dict], str]:
+def _fetch_aw_specis(airports: dict[str, dict]) -> tuple[list[dict], Optional[str]]:
     try:
-        rows = fetch_smn_messages("synop", wmo_ids, stations=stations)
-        if rows:
-            return rows, "SMN"
+        rows = fetch_argentina_specis(airports=airports, hours=6)
+        return rows or [], None
     except Exception as exc:  # noqa: BLE001
-        log.warning("SMN SYNOP falló, contingencia OGIMET: %s", exc)
+        log.exception("AW SPECI falló")
+        return [], str(exc)
+
+
+def _fetch_ogimet_synops(stations: dict[str, dict]) -> tuple[list[dict], Optional[str]]:
     try:
         when = resolve_synop_hour(None)
         decoded = fetch_argentina_synops(
@@ -109,6 +123,8 @@ def _fetch_synops_with_fallback(
         )
         rows = []
         for d in decoded:
+            if d.nil:
+                continue
             item = d.to_dict()
             item["source"] = "OGIMET"
             if d.obs_iso:
@@ -119,29 +135,62 @@ def _fetch_synops_with_fallback(
                     + d.obs_iso[11:13]
                 )
             rows.append(item)
-        return rows, "OGIMET"
+        return rows, None
     except Exception as exc:  # noqa: BLE001
-        log.exception("OGIMET SYNOP también falló")
-        return [], f"error:{exc}"
+        log.exception("OGIMET SYNOP falló")
+        return [], str(exc)
 
 
-def _fetch_specis_with_fallback(
+def _pick_speci_or_metar(
+    speci: Optional[dict],
+    metar: Optional[dict],
+) -> tuple[Optional[dict], Optional[str]]:
+    if speci and is_speci_active_vs_metar(speci, metar):
+        return speci, "SPECI"
+    if metar:
+        return metar, "METAR"
+    if speci:
+        return speci, "SPECI"
+    return None, None
+
+
+def _icao_for_omm(omm: str, airports: dict[str, dict], base: dict) -> Optional[str]:
+    icao = base.get("icao")
+    if icao:
+        return str(icao).upper()
+    for a in airports.values():
+        if str(a.get("wmo")) == str(omm):
+            return str(a.get("icao") or "").upper() or None
+    return None
+
+
+def _stale_flags(
     *,
-    airports: dict[str, dict],
-    wmo_ids: list[str],
-) -> tuple[list[dict], str]:
-    try:
-        rows = fetch_smn_messages("speci", wmo_ids, airports=airports)
-        if rows:
-            return rows, "SMN"
-    except Exception as exc:  # noqa: BLE001
-        log.warning("SMN SPECI falló, contingencia AW: %s", exc)
-    try:
-        rows = fetch_argentina_specis(airports=airports, hours=6)
-        return rows, "AviationWeather"
-    except Exception as exc:  # noqa: BLE001
-        log.exception("AW SPECI también falló")
-        return [], f"error:{exc}"
+    hour_key: Optional[str],
+    obs_iso: Optional[str],
+    current_hour: datetime,
+    current_hour_key: str,
+) -> bool:
+    if hour_key:
+        return str(hour_key) < current_hour_key
+    if obs_iso:
+        try:
+            dt = datetime.fromisoformat(str(obs_iso).replace("Z", "+00:00"))
+            return _floor_hour(dt) < current_hour
+        except ValueError:
+            return True
+    return True
+
+
+def _usable_synop(syn: Optional[dict]) -> Optional[dict]:
+    if not syn:
+        return None
+    if syn.get("nil"):
+        return None
+    raw = str(syn.get("raw") or "").upper()
+    if " NIL" in f" {raw}" or raw.rstrip("=").endswith("NIL"):
+        return None
+    return syn
 
 
 def build_surveillance(
@@ -156,89 +205,159 @@ def build_surveillance(
     wmo_from_airports = [str(a["wmo"]) for a in airports.values() if a.get("wmo")]
     wmo_ids = sorted(set(list(stations.keys()) + wmo_from_airports))
 
-    metars, metar_src = _fetch_metars_with_fallback(airports=airports, wmo_ids=wmo_ids)
-    synops, synop_src = _fetch_synops_with_fallback(stations=stations, wmo_ids=wmo_ids)
-    specis_raw, speci_src = _fetch_specis_with_fallback(airports=airports, wmo_ids=wmo_ids)
+    status = smn_status()
+    use_smn = bool(status.get("ok"))
 
-    metar_by_wmo = _latest_by_key(
-        [m for m in metars if m.get("wmo")], "wmo"
+    smn_speci_rows: list[dict] = []
+    smn_metar_rows: list[dict] = []
+    smn_synop_rows: list[dict] = []
+    err_smn_speci = err_smn_metar = err_smn_synop = None
+
+    if use_smn:
+        smn_speci_rows, err_smn_speci = _try_smn(
+            "speci", wmo_ids, airports=airports, stations=stations
+        )
+        smn_metar_rows, err_smn_metar = _try_smn(
+            "metar", wmo_ids, airports=airports, stations=stations
+        )
+        smn_synop_rows, err_smn_synop = _try_smn(
+            "synop", wmo_ids, airports=airports, stations=stations
+        )
+        # Si las tres fallan, marcar SMN como caído para esta respuesta
+        if err_smn_speci and err_smn_metar and err_smn_synop:
+            use_smn = False
+            status = {
+                **status,
+                "ok": False,
+                "reason": err_smn_metar or err_smn_speci or err_smn_synop,
+            }
+
+    smn_speci = _index_metar_like(smn_speci_rows)
+    smn_metar = _index_metar_like(smn_metar_rows)
+    smn_synop = _latest_by_key(
+        [s for s in smn_synop_rows if _usable_synop(s)], "omm"
     )
-    metar_by_icao = _latest_by_key(metars, "icao")
-    synop_by_omm = _latest_by_key(synops, "omm")
 
-    # SPECI activos vs METAR
-    active_specis: list[dict] = []
-    speci_by_wmo: dict[str, dict] = {}
-    for s in specis_raw:
-        wmo = str(s["wmo"]) if s.get("wmo") is not None else None
-        icao = str(s.get("icao") or "").upper() or None
-        metar = None
-        if wmo and wmo in metar_by_wmo:
-            metar = metar_by_wmo[wmo]
-        elif icao and icao in metar_by_icao:
-            metar = metar_by_icao[icao]
-        if not is_speci_active_vs_metar(s, metar):
-            continue
-        active_specis.append(s)
-        if wmo:
-            prev = speci_by_wmo.get(wmo)
-            if prev is None or (s.get("obs_iso") or "") >= (prev.get("obs_iso") or ""):
-                speci_by_wmo[wmo] = s
+    chosen: dict[str, dict[str, Any]] = {}
+    filled_by = {"SMN": 0, "AviationWeather": 0, "OGIMET": 0}
+    missing: list[str] = []
 
-    active_specis.sort(key=lambda x: x.get("obs_iso") or "", reverse=True)
-
-    points: list[dict[str, Any]] = []
     for omm, meta in stations.items():
         if meta.get("lat") is None or meta.get("lng") is None:
             continue
-        metar = metar_by_wmo.get(str(omm))
-        synop = synop_by_omm.get(str(omm))
-        speci = speci_by_wmo.get(str(omm))
+        key = str(omm)
+        if use_smn:
+            obs, product = _pick_speci_or_metar(smn_speci.get(key), smn_metar.get(key))
+            if obs is not None:
+                chosen[key] = {
+                    "obs": obs,
+                    "product": product or "METAR",
+                    "source": obs.get("source") or "SMN",
+                    "speci": (
+                        smn_speci.get(key)
+                        if product == "SPECI"
+                        or (
+                            smn_speci.get(key)
+                            and is_speci_active_vs_metar(
+                                smn_speci[key], smn_metar.get(key)
+                            )
+                        )
+                        else None
+                    ),
+                }
+                filled_by["SMN"] += 1
+                continue
+            syn = _usable_synop(smn_synop.get(key))
+            if syn is not None:
+                chosen[key] = {
+                    "obs": syn,
+                    "product": "SYNOP",
+                    "source": syn.get("source") or "SMN",
+                    "speci": None,
+                }
+                filled_by["SMN"] += 1
+                continue
+        missing.append(key)
 
-        if metar:
-            product = "METAR"
-            base = {**metar}
-            obs_iso = metar.get("obs_iso")
-            hour_key = metar.get("hour_key")
-            source = metar.get("source") or metar_src
-        elif synop:
-            product = "SYNOP"
-            base = {**synop}
-            obs_iso = synop.get("obs_iso")
-            hour_key = synop.get("hour_key")
-            source = synop.get("source") or synop_src
-        else:
+    aw_metar: dict[str, dict] = {}
+    aw_speci: dict[str, dict] = {}
+    ogimet_synop: dict[str, dict] = {}
+    err_aw_metar = err_aw_speci = err_ogimet = None
+
+    if missing:
+        aw_metar_rows, err_aw_metar = _fetch_aw_metars(airports)
+        aw_speci_rows, err_aw_speci = _fetch_aw_specis(airports)
+        ogimet_rows, err_ogimet = _fetch_ogimet_synops(stations)
+        aw_metar = _index_metar_like(aw_metar_rows)
+        aw_speci = _index_metar_like(aw_speci_rows)
+        ogimet_synop = _latest_by_key(ogimet_rows, "omm")
+
+        for key in missing:
+            obs, product = _pick_speci_or_metar(aw_speci.get(key), aw_metar.get(key))
+            if obs is not None:
+                chosen[key] = {
+                    "obs": obs,
+                    "product": product or "METAR",
+                    "source": obs.get("source") or "AviationWeather",
+                    "speci": (
+                        aw_speci.get(key)
+                        if product == "SPECI"
+                        or (
+                            aw_speci.get(key)
+                            and is_speci_active_vs_metar(
+                                aw_speci[key], aw_metar.get(key)
+                            )
+                        )
+                        else None
+                    ),
+                }
+                filled_by["AviationWeather"] += 1
+                continue
+            syn = _usable_synop(ogimet_synop.get(key))
+            if syn is not None:
+                chosen[key] = {
+                    "obs": syn,
+                    "product": "SYNOP",
+                    "source": syn.get("source") or "OGIMET",
+                    "speci": None,
+                }
+                filled_by["OGIMET"] += 1
+
+    points: list[dict[str, Any]] = []
+    active_specis: list[dict] = []
+    seen_speci: set[str] = set()
+
+    for omm, meta in stations.items():
+        if meta.get("lat") is None or meta.get("lng") is None:
             continue
+        key = str(omm)
+        pick = chosen.get(key)
+        if not pick:
+            continue
+        base = {**pick["obs"]}
+        product = pick["product"]
+        source = pick["source"]
+        speci = pick.get("speci")
+        if product == "SPECI":
+            speci = base
 
-        stale = True
-        if hour_key:
-            stale = str(hour_key) < current_hour_key
-        elif obs_iso:
-            try:
-                dt = datetime.fromisoformat(str(obs_iso).replace("Z", "+00:00"))
-                stale = _floor_hour(dt) < current_hour
-            except ValueError:
-                stale = True
-
-        # Edad en horas (para UI)
+        obs_iso = base.get("obs_iso")
+        hour_key = base.get("hour_key")
+        stale = _stale_flags(
+            hour_key=hour_key,
+            obs_iso=obs_iso,
+            current_hour=current_hour,
+            current_hour_key=current_hour_key,
+        )
         age_hours = None
         tms = _obs_ms({"obs_iso": obs_iso})
         if tms is not None:
             age_hours = round((now.timestamp() - tms) / 3600.0, 2)
 
-        icao = base.get("icao")
-        if not icao and metar:
-            icao = metar.get("icao")
-        # map omm→icao via airports
-        if not icao:
-            for a in airports.values():
-                if str(a.get("wmo")) == str(omm):
-                    icao = a.get("icao")
-                    break
-
+        icao = _icao_for_omm(key, airports, base)
         point = {
             **base,
-            "omm": str(omm),
+            "omm": key,
             "nombre": meta.get("nombre") or base.get("nombre"),
             "lat": meta.get("lat"),
             "lng": meta.get("lng"),
@@ -250,35 +369,100 @@ def build_surveillance(
             "hour_key": hour_key,
             "stale": stale,
             "age_hours": age_hours,
-            "has_speci": bool(speci),
-            "speci": speci,
+            "has_speci": bool(speci) or product == "SPECI",
+            "speci": None if product == "SPECI" else speci,
+            "is_speci": product == "SPECI" or bool(base.get("is_speci")),
         }
         points.append(point)
 
-    # Enriquecer SPECI list con coords de estación
-    speci_list = []
-    for s in active_specis:
-        item = dict(s)
-        wmo = str(s["wmo"]) if s.get("wmo") is not None else None
-        if wmo and wmo in stations:
-            item["omm"] = wmo
-            item["station_nombre"] = stations[wmo].get("nombre")
-            item["lat"] = stations[wmo].get("lat")
-            item["lng"] = stations[wmo].get("lng")
-            item["fir"] = stations[wmo].get("fir") or item.get("fir")
-        speci_list.append(item)
+        if speci:
+            sk = str(speci.get("icao") or speci.get("wmo") or key)
+            if sk not in seen_speci:
+                seen_speci.add(sk)
+                item = dict(speci)
+                item["omm"] = key
+                item["station_nombre"] = meta.get("nombre")
+                item["lat"] = meta.get("lat")
+                item["lng"] = meta.get("lng")
+                item["fir"] = meta.get("fir") or item.get("fir")
+                item["source"] = item.get("source") or source
+                active_specis.append(item)
 
+    active_specis.sort(key=lambda x: x.get("obs_iso") or "", reverse=True)
+
+    contingency_only = not bool(status.get("ok"))
     return {
         "now_iso": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "current_hour": current_hour_key,
         "hour_label": current_hour.strftime("%d/%m/%Y %H:00 UTC"),
+        "smn": status,
+        "contingency_only": contingency_only,
+        "cascade": (
+            [
+                "SMN SPECI",
+                "SMN METAR",
+                "SMN SYNOP",
+                "AviationWeather SPECI/METAR",
+                "OGIMET SYNOP",
+            ]
+            if not contingency_only
+            else ["AviationWeather SPECI/METAR", "OGIMET SYNOP"]
+        ),
         "sources": {
-            "metar": metar_src,
-            "synop": synop_src,
-            "speci": speci_src,
+            "smn_speci": {
+                "ok": err_smn_speci is None if status.get("ok") else False,
+                "count": len(smn_speci_rows),
+                "error": err_smn_speci
+                if status.get("ok")
+                else status.get("reason") or "SMN no disponible",
+            },
+            "smn_metar": {
+                "ok": err_smn_metar is None if status.get("ok") else False,
+                "count": len(smn_metar_rows),
+                "error": err_smn_metar
+                if status.get("ok")
+                else status.get("reason") or "SMN no disponible",
+            },
+            "smn_synop": {
+                "ok": err_smn_synop is None if status.get("ok") else False,
+                "count": len(smn_synop_rows),
+                "error": err_smn_synop
+                if status.get("ok")
+                else status.get("reason") or "SMN no disponible",
+            },
+            "aw_metar": {
+                "ok": err_aw_metar is None if missing else None,
+                "count": len(aw_metar) if missing else 0,
+                "error": err_aw_metar,
+                "used": bool(missing),
+            },
+            "aw_speci": {
+                "ok": err_aw_speci is None if missing else None,
+                "count": len(aw_speci) if missing else 0,
+                "error": err_aw_speci,
+                "used": bool(missing),
+            },
+            "ogimet_synop": {
+                "ok": err_ogimet is None if missing else None,
+                "count": len(ogimet_synop) if missing else 0,
+                "error": err_ogimet,
+                "used": bool(missing),
+            },
+            # Compatibilidad UI previa
+            "metar": "SMN"
+            if filled_by["SMN"] and not contingency_only
+            else ("AviationWeather" if filled_by["AviationWeather"] else "—"),
+            "synop": "SMN"
+            if filled_by["SMN"] and not contingency_only
+            else ("OGIMET" if filled_by["OGIMET"] else "—"),
+            "speci": "SMN"
+            if filled_by["SMN"] and not contingency_only
+            else ("AviationWeather" if filled_by["AviationWeather"] else "—"),
         },
+        "filled_by": filled_by,
+        "missing_after_smn": len(missing),
         "count": len(points),
-        "speci_count": len(speci_list),
+        "speci_count": len(active_specis),
         "stations": points,
-        "specis": speci_list,
+        "specis": active_specis,
     }

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from aviationweather_client import FLT_CAT_COLORS, _ceil_ft_from_clouds, flight_category
+from synop_parser import barb_key
 
 _RE_HEADER = re.compile(
     r"\b(?P<kind>METAR|SPECI)\s+(?P<icao>[A-Z]{4})\s+(?P<ddhhmm>\d{6})Z\b",
@@ -87,9 +88,11 @@ def parse_metar_raw(
     wind_dir = None
     wind_speed = None
     wind_gust = None
+    wind_variable = False
     if wind:
         d = wind.group("dir").upper()
-        wind_dir = None if d == "VRB" else int(d)
+        wind_variable = d == "VRB"
+        wind_dir = None if wind_variable else int(d)
         wind_speed = int(wind.group("spd"))
         if wind.group("gust"):
             wind_gust = int(wind.group("gust"))
@@ -158,6 +161,11 @@ def parse_metar_raw(
         "wind_dir": wind_dir,
         "wind_speed_kt": wind_speed,
         "wind_gust_kt": wind_gust,
+        "wind_barb": barb_key(
+            float(wind_speed) if wind_speed is not None else None,
+            wind_dir,
+            variable=wind_variable,
+        ),
         "visibility_m": vis_m,
         "visib_raw": None,
         "altim_hpa": altim,

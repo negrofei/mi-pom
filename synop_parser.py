@@ -205,20 +205,33 @@ def _visibility_meters(vv: Optional[str]) -> Optional[int]:
     return special.get(code)
 
 
-def _barb_key(speed_kt: Optional[float], wind_dir: Optional[int], notes: list[str]) -> str:
-    """Clave de archivo barb_*.png como en el sistema original."""
-    if any("variable" in n for n in notes) or wind_dir is None and speed_kt and speed_kt > 0:
-        # viento variable con intensidad
+def barb_key(
+    speed_kt: Optional[float],
+    wind_dir: Optional[int] = None,
+    *,
+    notes: Optional[list[str]] = None,
+    variable: bool = False,
+) -> str:
+    """Clave de archivo barb_*.png (compartida SYNOP/METAR)."""
+    notes = notes or []
+    if (
+        variable
+        or any("variable" in n for n in notes)
+        or (wind_dir is None and speed_kt and speed_kt > 0)
+    ):
         if speed_kt and speed_kt >= 1:
             return "v"
     if speed_kt is None or speed_kt < 0.5:
         return "0"
     if speed_kt < 2.5:
         return "1"
-    # redondeo a múltiplos de 5 kt (máx 150)
     rounded = int(round(speed_kt / 5.0) * 5)
     rounded = max(5, min(150, rounded))
     return str(rounded)
+
+
+def _barb_key(speed_kt: Optional[float], wind_dir: Optional[int], notes: list[str]) -> str:
+    return barb_key(speed_kt, wind_dir, notes=notes)
 
 
 def _split_sections(tokens: list[str]) -> tuple[list[str], list[str], list[str]]:

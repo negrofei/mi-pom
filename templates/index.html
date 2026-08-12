@@ -19,7 +19,7 @@
     <div class="controls">
       <div class="product-toggle" role="group" aria-label="Producto">
         <button type="button" class="btn product-btn active" data-product="synop" id="btnProductSynop">SYNOP</button>
-        <button type="button" class="btn product-btn" data-product="metar" id="btnProductMetar" title="Vigilancia METAR/SPECI (SMN, contingencia OGIMET/AW)">METAR</button>
+        <button type="button" class="btn product-btn" data-product="metar" id="btnProductMetar" title="Vigilancia METAR: SMN en intranet, AW/OGIMET en Render">METAR</button>
       </div>
       <label class="field">
         <span>Hora UTC</span>
@@ -43,8 +43,18 @@
 
     <label class="config-row check">
       <input type="checkbox" id="cfgAutorefresh" />
-      <span>Autorefresh cada 2 minutos <small>(METAR: vigilancia SMN→OGIMET/AW + SPECI con sonido)</small></span>
+      <span>Autorefresh cada 2 minutos <small>(METAR: SMN si hay intranet; si no, solo AW/OGIMET)</small></span>
     </label>
+
+    <fieldset class="config-fieldset">
+      <legend>Fuente METAR</legend>
+      <p class="config-hint">
+        En <strong>Render</strong> u otras redes externas el SMN no es alcanzable:
+        la app usa automáticamente <strong>modo contingencia</strong>
+        (AviationWeather + OGIMET). En la intranet SMN se prioriza mensajes_new.
+        Podés forzar con la variable de entorno <code>SMN_MODE=off|auto|on</code>.
+      </p>
+    </fieldset>
 
     <fieldset class="config-fieldset">
       <legend>Timeline</legend>
