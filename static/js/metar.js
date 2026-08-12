@@ -90,8 +90,10 @@
     if (h < 200) return { color: "#6a1b9a", label: "< 200 ft", key: "vlifr" };
     if (h < 500) return { color: "#c62828", label: "200–500 ft", key: "lifr" };
     if (h < 1000) return { color: "#ef6c00", label: "500–1000 ft", key: "ifr" };
-    if (h <= 2000) return { color: "#f9a825", label: "1000–2000 ft", key: "mvfr" };
-    return { color: "#2e7d32", label: "> 2000 ft", key: "vfr" };
+    if (h < 2000) return { color: "#f9a825", label: "1000–2000 ft", key: "mvfr" };
+    // Entre naranja y verde
+    if (h <= 2500) return { color: "#c0d63a", label: "2000–2500 ft", key: "hi" };
+    return { color: "#2e7d32", label: "> 2500 ft", key: "vfr" };
   }
 
   // Verdes distintos: cielo despejado vs nubosidad poco significativa (FEW/SCT)
@@ -303,8 +305,8 @@
   }
 
   /**
-   * Plot METAR estilo SYNOP: barba + capas (badge BKN/OVC + pies coloreados).
-   * El disco de color refleja flight/base/vis.
+   * Plot METAR: barba + códigos planos (BKN013), sin badges de color.
+   * Colores de BKN/OVC y pies van en el hover/detalle.
    */
   function buildMetarStationHtml(obs, options) {
     const gap = Math.max(0.4, Math.min(1.5, Number(options && options.gap) || 0.75));
@@ -312,9 +314,8 @@
     const fill = markerFillColor(obs, colorBy);
     const dir = obs.wind_dir != null ? Number(obs.wind_dir) : 0;
     const barb = barbKeyFromObs(obs);
-    const layers = metarCloudLayers(obs);
-    const cloudHtml = layers
-      .map((b) => `<div class="plot-metar-cloud">${formatBaseLine(b)}</div>`)
+    const cloudHtml = metarCloudLines(obs)
+      .map((t) => `<div class="plot-metar-cloud">${esc(t)}</div>`)
       .join("");
     const staleCls = obs.stale ? " is-stale" : "";
     const speciCls = obs.has_speci || obs.product === "SPECI" || obs.is_speci ? " has-speci" : "";
@@ -849,7 +850,8 @@
           <span class="flt-leg"><i style="background:#c62828"></i>200–500</span>
           <span class="flt-leg"><i style="background:#ef6c00"></i>500–1k</span>
           <span class="flt-leg"><i style="background:#f9a825"></i>1–2k</span>
-          <span class="flt-leg"><i style="background:#2e7d32"></i>&gt;2k</span>
+          <span class="flt-leg"><i style="background:#c0d63a"></i>2–2.5k</span>
+          <span class="flt-leg"><i style="background:#2e7d32"></i>&gt;2.5k</span>
           <span class="flt-leg"><i style="background:${SKY_FEW_GREEN}"></i>FEW/SCT</span>
           <span class="flt-leg"><i style="background:${SKY_CLEAR_GREEN}"></i>despejado</span>
         </div>`;
