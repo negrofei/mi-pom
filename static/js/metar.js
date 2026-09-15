@@ -582,6 +582,9 @@
       source: point.source || product,
       has_speci: !!(point.has_speci || point.speci || product === "SPECI" || point.is_speci),
       is_speci: !!(point.is_speci || product === "SPECI"),
+      has_taf_amend: !!(point.has_taf_amend || point.taf_amend),
+      taf_amend: point.taf_amend || null,
+      raw_taf: point.raw_taf || (point.taf_amend && point.taf_amend.taf_raw) || null,
       wind_barb: point.wind_barb || barbKeyFromObs(point),
     };
   }
@@ -608,6 +611,35 @@
       };
       beep(now, 880, 0.16);
       beep(now + 0.2, 1175, 0.22);
+    } catch (_) {
+      /* autoplay / contexto no disponible */
+    }
+  }
+
+  function playTafAmendSound() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = playTafAmendSound._ctx || playSpeciSound._ctx || new Ctx();
+      playTafAmendSound._ctx = ctx;
+      playSpeciSound._ctx = ctx;
+      const now = ctx.currentTime;
+      const beep = (t0, freq, dur) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "triangle";
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start(t0);
+        o.stop(t0 + dur + 0.02);
+      };
+      beep(now, 523, 0.14);
+      beep(now + 0.16, 659, 0.14);
+      beep(now + 0.32, 784, 0.2);
     } catch (_) {
       /* autoplay / contexto no disponible */
     }
@@ -682,6 +714,14 @@
         ? `<span class="speci-badge">SPECI</span> ${esc(speci.obs_iso || "")}`
         : "",
       speci ? `<div class="synop-line speci-line">${esc(speci.raw || "")}</div>` : "",
+      a.has_taf_amend
+        ? `<span class="taf-amend-badge">TAF AMD?</span>`
+        : "",
+      a.has_taf_amend && a.taf_amend && a.taf_amend.reason_labels
+        ? `<div class="synop-line">${esc(
+            (a.taf_amend.reason_labels || []).slice(0, 2).join(" · ")
+          )}</div>`
+        : "",
       `<span style="color:${cat.color}"><b>${esc(cat.label)}</b></span> · ${esc(product)}${
         a.source ? ` · ${esc(a.source)}` : ""
       }`,
@@ -729,17 +769,21 @@
     const ceilAmt = a.ceiling_amount ? amountBadgeHtml(a.ceiling_amount) + " " : "";
     const hasSpeci = !!(a.speci || a.has_speci || a.product === "SPECI");
     const product = a.product || "SYNOP";
+    const tafAmend = a.taf_amend;
+    const rawTaf = a.raw_taf || (tafAmend && tafAmend.taf_raw) || "";
 
     return `
       <h2>${esc(a.nombre || a.icao || a.omm)}</h2>
       <div class="meta">
         ${hasSpeci ? `<span class="speci-badge">SPECI activo</span> · ` : ""}
+        ${a.has_taf_amend ? `<span class="taf-amend-badge">TAF AMD?</span> · ` : ""}
         ${a.stale ? `<span class="stale-badge">Dato hora anterior</span> · ` : ""}
         ${a.icao ? `${esc(a.icao)} · ` : ""}
         ${a.omm ? `${esc(a.omm)}` : ""}
         ${a.fir ? `· FIR ${esc(a.fir)}` : ""}
       </div>
       ${speciPanelHtml(a.speci)}
+      ${tafAmendPanelHtml(tafAmend, rawTaf)}
       <section class="synop-panel${hasSpeci ? " synop-secondary" : ""}">
         <div class="meta">
           <span class="flt-pill" style="background:${cat.color}">${esc(cat.label)}</span>
@@ -805,7 +849,38 @@
         <div><b>Viento</b> ${esc(wind)}</div>
         <pre class="raw">${esc(a.raw || "—")}</pre>
       </section>
+      ${
+        rawTaf && !tafAmend
+          ? `<section class="taf-panel"><div class="meta"><b>TAF</b></div><pre class="raw taf-raw">${esc(
+              rawTaf
+            )}</pre></section>`
+          : ""
+      }
     `;
+  }
+
+  function tafAmendPanelHtml(alert, rawTafFallback) {
+    if (!alert && !rawTafFallback) return "";
+    if (!alert) return "";
+    const reasons = alert.reason_labels || (alert.reasons || []).map((r) => r.label || r);
+    const reasonsHtml = reasons.length
+      ? `<ul class="taf-amend-reasons">${reasons
+          .map((r) => `<li>${esc(String(r))}</li>`)
+          .join("")}</ul>`
+      : "";
+    const raw = alert.taf_raw || rawTafFallback || "";
+    const obsRaw = alert.obs_raw || "";
+    return `
+      <section class="taf-amend-panel">
+        <div class="meta">
+          <span class="taf-amend-badge">Posible enmienda TAF</span>
+          ${alert.obs_product ? `· ${esc(alert.obs_product)}` : ""}
+          ${alert.obs_iso ? `· ${esc(alert.obs_iso)}` : ""}
+        </div>
+        ${reasonsHtml}
+        ${obsRaw ? `<div><b>Obs</b></div><pre class="raw">${esc(obsRaw)}</pre>` : ""}
+        ${raw ? `<div><b>TAF</b></div><pre class="raw taf-raw">${esc(raw)}</pre>` : ""}
+      </section>`;
   }
 
   function markerFillColor(obs, colorBy) {
@@ -893,6 +968,15 @@
     });
   }
 
+  function tafAmendWarnIcon() {
+    return L.divIcon({
+      className: "taf-amend-warn-icon",
+      html: '<span class="taf-amend-warn-badge" title="Posible enmienda TAF">AMD</span>',
+      iconSize: [28, 18],
+      iconAnchor: [36, 22],
+    });
+  }
+
   function speciListHtml(items) {
     if (!items || !items.length) {
       return `<div class="speci-list-empty">No hay SPECI vigentes respecto del SYNOP actual.</div>`;
@@ -918,6 +1002,39 @@
             <div class="speci-list-when">${when}${omm ? ` · OMM ${omm}` : ""}</div>
             <div class="speci-list-meta">Vis ${coloredVisHtml(s.visibility_m)} · Nubes ${clouds}</div>
             <code class="speci-list-raw">${raw}</code>
+          </button>`;
+      })
+      .join("");
+  }
+
+  function tafAmendListHtml(items) {
+    if (!items || !items.length) {
+      return `<div class="speci-list-empty">No hay diferencias TAF/obs por umbrales de enmienda.</div>`;
+    }
+    return items
+      .map((s, idx) => {
+        const name = esc(s.nombre || s.station_nombre || s.icao || s.omm || "—");
+        const icao = esc(s.icao || "—");
+        const omm = s.omm ? esc(String(s.omm)) : "";
+        const when = esc(s.obs_iso || "—");
+        const reasons = s.reason_labels || (s.reasons || []).map((r) => r.label || r);
+        const reasonsHtml = reasons.length
+          ? `<ul class="taf-amend-reasons">${reasons
+              .map((r) => `<li>${esc(String(r))}</li>`)
+              .join("")}</ul>`
+          : "";
+        const key = esc(String(s.icao || s.omm || idx));
+        return `
+          <button type="button" class="taf-amend-list-item" data-taf-key="${key}" data-omm="${omm}" data-icao="${icao}">
+            <div class="speci-list-item-top">
+              <span class="taf-amend-warn-inline" aria-hidden="true">AMD</span>
+              <strong>${icao}</strong>
+              <span class="speci-list-name">${name}</span>
+              ${s.obs_product ? `<span class="metar-badge">${esc(s.obs_product)}</span>` : ""}
+            </div>
+            <div class="speci-list-when">${when}${omm ? ` · OMM ${omm}` : ""}</div>
+            ${reasonsHtml}
+            <code class="speci-list-raw">${esc(s.obs_raw || "")}</code>
           </button>`;
       })
       .join("");
@@ -997,7 +1114,9 @@
     markerOptions,
     markerFillColor,
     speciWarnIcon,
+    tafAmendWarnIcon,
     speciListHtml,
+    tafAmendListHtml,
     historyHtml,
     loadHistory,
     significantWx,
@@ -1005,5 +1124,6 @@
     pickActiveSpeci,
     obsTimeMs,
     playSpeciSound,
+    playTafAmendSound,
   };
 })(window);

@@ -41,6 +41,12 @@
   const speciListClose = document.getElementById("speciListClose");
   const speciListCount = document.getElementById("speciListCount");
   const speciListFabCount = document.getElementById("speciListFabCount");
+  const btnTafAmendList = document.getElementById("btnTafAmendList");
+  const tafAmendListPanel = document.getElementById("tafAmendListPanel");
+  const tafAmendListBody = document.getElementById("tafAmendListBody");
+  const tafAmendListClose = document.getElementById("tafAmendListClose");
+  const tafAmendListCount = document.getElementById("tafAmendListCount");
+  const tafAmendListFabCount = document.getElementById("tafAmendListFabCount");
   const detail = document.getElementById("detail");
   const detailBody = document.getElementById("detailBody");
   const detailClose = document.getElementById("detailClose");
@@ -97,9 +103,12 @@
   let refreshTimer = null;
   let seenSpeci = new Set();
   let speciSeeded = false;
+  let seenTafAmend = new Set();
+  let tafAmendSeeded = false;
   let aviationByOmm = {};
   let aviationByIcao = {};
   let activeSpeciList = [];
+  let activeTafAmendList = [];
   let lastFocusedMarker = null;
 
   const map = L.map("map", {
@@ -270,14 +279,26 @@
     if (colorByWrap) colorByWrap.classList.toggle("hidden", !isMetar);
     const timelineFs = cfgTimelineExact && cfgTimelineExact.closest(".config-fieldset");
     if (timelineFs) timelineFs.classList.toggle("hidden", isMetar);
-    if (!isMetar) setSpeciListOpen(false);
+    if (!isMetar) {
+      setSpeciListOpen(false);
+      setTafAmendListOpen(false);
+    }
     if (btnSpeciList) btnSpeciList.classList.toggle("hidden", !isMetar);
+    if (btnTafAmendList) btnTafAmendList.classList.toggle("hidden", !isMetar);
   }
 
   function setSpeciListOpen(open) {
     if (!speciListPanel) return;
     speciListPanel.classList.toggle("hidden", !open);
     if (btnSpeciList) btnSpeciList.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) setTafAmendListOpen(false);
+  }
+
+  function setTafAmendListOpen(open) {
+    if (!tafAmendListPanel) return;
+    tafAmendListPanel.classList.toggle("hidden", !open);
+    if (btnTafAmendList) btnTafAmendList.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) setSpeciListOpen(false);
   }
 
   function renderSpeciList(items) {
@@ -290,6 +311,18 @@
       btnSpeciList.disabled = false;
     }
     if (speciListBody) speciListBody.innerHTML = MetarPlot.speciListHtml(activeSpeciList);
+  }
+
+  function renderTafAmendList(items) {
+    activeTafAmendList = Array.isArray(items) ? items.slice() : [];
+    const n = activeTafAmendList.length;
+    if (tafAmendListCount) tafAmendListCount.textContent = String(n);
+    if (tafAmendListFabCount) tafAmendListFabCount.textContent = String(n);
+    if (btnTafAmendList) {
+      btnTafAmendList.classList.toggle("has-items", n > 0);
+      btnTafAmendList.disabled = false;
+    }
+    if (tafAmendListBody) tafAmendListBody.innerHTML = MetarPlot.tafAmendListHtml(activeTafAmendList);
   }
 
   function focusStationFromSpeci(item) {
@@ -349,6 +382,52 @@
     setSpeciListOpen(false);
   }
 
+  function focusStationFromTafAmend(item) {
+    if (!item) return;
+    const omm = item.omm != null ? String(item.omm) : null;
+    const icao = item.icao ? String(item.icao).toUpperCase() : null;
+    const obs =
+      (omm && aviationByOmm[omm]) ||
+      (icao && aviationByIcao[icao]) ||
+      null;
+    const lat = obs?.lat ?? item.lat;
+    const lng = obs?.lng ?? item.lng;
+    if (lat != null && lng != null) {
+      const targetZoom = Math.max(map.getZoom(), 8);
+      map.setView([lat, lng], targetZoom, { animate: true });
+    }
+    if (obs) {
+      openDetail(obs);
+      if (lat != null && lng != null) {
+        const pulse = L.circleMarker([lat, lng], {
+          radius: 16,
+          color: "#0d47a1",
+          weight: 3,
+          fill: false,
+          opacity: 0.9,
+          className: "taf-amend-focus-pulse",
+        }).addTo(layerGroup);
+        setTimeout(() => layerGroup.removeLayer(pulse), 1600);
+      }
+    } else {
+      detailBody.innerHTML = MetarPlot.detailHtml({
+        omm: item.omm || item.wmo || item.icao || "—",
+        nombre: item.nombre || item.station_nombre || item.icao,
+        fir: item.fir,
+        lat: item.lat,
+        lng: item.lng,
+        has_taf_amend: true,
+        taf_amend: item,
+        raw_taf: item.taf_raw,
+        cloud_bases: [],
+        visibility_m: null,
+        raw: item.obs_raw || "",
+      });
+      detail.classList.remove("hidden");
+    }
+    setTafAmendListOpen(false);
+  }
+
   function setProduct(product) {
     settings.product = product === "metar" ? "metar" : "synop";
     if (settings.product === "metar") {
@@ -359,6 +438,8 @@
       cfgTimelineLatest.checked = true;
       seenSpeci = new Set();
       speciSeeded = false;
+      seenTafAmend = new Set();
+      tafAmendSeeded = false;
     }
     saveSettings(settings);
     applyProductUi();
@@ -383,6 +464,11 @@
 
   function speciKey(s) {
     return `${s.icao}|${s.obs_iso || s.raw || ""}`;
+  }
+
+  function tafAmendKey(s) {
+    const labels = (s.reason_labels || (s.reasons || []).map((r) => r.label || r.key || "")).join("|");
+    return `${s.icao}|${s.obs_iso || ""}|${labels}`;
   }
 
   function pushToast(html, kind, onClick) {
@@ -436,6 +522,45 @@
         }
       );
       MetarPlot.playSpeciSound();
+    }
+  }
+
+  function notifyTafAmends(amends) {
+    if (!Array.isArray(amends) || !amends.length) return;
+    const fresh = [];
+    for (const s of amends) {
+      const key = tafAmendKey(s);
+      if (seenTafAmend.has(key)) continue;
+      seenTafAmend.add(key);
+      fresh.push(s);
+    }
+    if (!tafAmendSeeded) {
+      tafAmendSeeded = true;
+      return;
+    }
+    for (const s of fresh) {
+      const icao = String(s.icao || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      const nombre = String(s.nombre || s.station_nombre || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;");
+      const reason = String((s.reason_labels || [])[0] || "Diferencia vs TAF")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;");
+      const omm = s.omm != null ? String(s.omm) : null;
+      pushToast(
+        `<div class="toast-title">TAF AMD? · ${icao}</div>
+         <div class="toast-sub">${nombre}</div>
+         <code>${reason}</code>`,
+        "toast-taf-amend",
+        () => {
+          const obs =
+            (omm && aviationByOmm[omm]) ||
+            (s.icao && aviationByIcao[String(s.icao).toUpperCase()]);
+          if (obs) openDetail(obs);
+          else focusStationFromTafAmend(s);
+        }
+      );
+      MetarPlot.playTafAmendSound();
     }
   }
 
@@ -583,6 +708,7 @@
       let shown = 0;
       let staleCount = 0;
       const activeSpecis = [];
+      const activeTafAmends = [];
       const w = Math.round(BASE_W * gap);
       const h = Math.round(BASE_H * gap);
 
@@ -610,7 +736,20 @@
           });
           if (obs.icao) aviationByIcao[String(obs.icao).toUpperCase()] = obs;
         }
+        if (obs.has_taf_amend && obs.taf_amend) {
+          activeTafAmends.push({
+            ...obs.taf_amend,
+            omm: obs.omm,
+            station_nombre: obs.nombre,
+            nombre: obs.nombre,
+            lat: obs.lat,
+            lng: obs.lng,
+            fir: obs.fir,
+          });
+          if (obs.icao) aviationByIcao[String(obs.icao).toUpperCase()] = obs;
+        }
         if (obs.omm) aviationByOmm[String(obs.omm)] = obs;
+        if (obs.icao) aviationByIcao[String(obs.icao).toUpperCase()] = obs;
         if (obs.stale) staleCount += 1;
 
         // Barbas + códigos de nube (BKN013) para METAR/SPECI/SYNOP
@@ -647,6 +786,19 @@
           warn.on("mouseout", hideHover);
           warn.addTo(layerGroup);
         }
+        if (obs.has_taf_amend) {
+          const amd = L.marker([obs.lat, obs.lng], {
+            icon: MetarPlot.tafAmendWarnIcon(),
+            interactive: true,
+            keyboard: false,
+            zIndexOffset: 650,
+          });
+          amd.on("click", () => openDetail(obs));
+          amd.on("mouseover", (e) => showHover(MetarPlot.hoverHtml(obs), e));
+          amd.on("mousemove", (e) => moveHover(e));
+          amd.on("mouseout", hideHover);
+          amd.addTo(layerGroup);
+        }
         shown += 1;
       }
 
@@ -658,6 +810,18 @@
         if (!firAllowed(s)) continue;
         activeSpecis.push(s);
         if (icao) listed.add(icao);
+      }
+
+      const listedAmd = new Set(
+        activeTafAmends.map((s) => String(s.icao || s.omm || "").toUpperCase())
+      );
+      for (const s of data.taf_amends || []) {
+        const key = String(s.icao || s.omm || "").toUpperCase();
+        if (key && listedAmd.has(key)) continue;
+        if (s.lat == null || s.lng == null) continue;
+        if (!firAllowed(s)) continue;
+        activeTafAmends.push(s);
+        if (key) listedAmd.add(key);
       }
 
       const firLabel =
@@ -674,9 +838,9 @@
         : "SMN+contingencia";
       statusEl.textContent =
         `${data.hour_label} · ${shown} est. · ${staleCount} desact. · ${firLabel} · ${colorLabel} · ` +
-        `${activeSpecis.length} SPECI · ${modeLabel} · SMN ${fb.SMN ?? 0} · AW ${
-          fb.AviationWeather ?? 0
-        } · OGIMET ${fb.OGIMET ?? 0}`;
+        `${activeSpecis.length} SPECI · ${activeTafAmends.length} TAF AMD · ${modeLabel} · SMN ${
+          fb.SMN ?? 0
+        } · AW ${fb.AviationWeather ?? 0} · OGIMET ${fb.OGIMET ?? 0}`;
       if (fltLegend) {
         fltLegend.innerHTML =
           MetarPlot.legendHtml(colorBy) +
@@ -684,6 +848,8 @@
       }
       renderSpeciList(activeSpecis);
       notifySpecis(activeSpecis);
+      renderTafAmendList(activeTafAmends);
+      notifyTafAmends(activeTafAmends);
     } catch (err) {
       console.error(err);
       statusEl.textContent = `Error: ${err.message}`;
@@ -881,6 +1047,30 @@
             (omm && String(s.omm || "") === String(omm))
         ) || null;
       focusStationFromSpeci(item);
+    });
+  }
+  if (btnTafAmendList) {
+    btnTafAmendList.addEventListener("click", () => {
+      const open = tafAmendListPanel && tafAmendListPanel.classList.contains("hidden");
+      setTafAmendListOpen(open);
+    });
+  }
+  if (tafAmendListClose) {
+    tafAmendListClose.addEventListener("click", () => setTafAmendListOpen(false));
+  }
+  if (tafAmendListBody) {
+    tafAmendListBody.addEventListener("click", (e) => {
+      const btn = e.target.closest(".taf-amend-list-item");
+      if (!btn) return;
+      const icao = btn.getAttribute("data-icao");
+      const omm = btn.getAttribute("data-omm");
+      const item =
+        activeTafAmendList.find(
+          (s) =>
+            (icao && String(s.icao || "").toUpperCase() === String(icao).toUpperCase()) ||
+            (omm && String(s.omm || "") === String(omm))
+        ) || null;
+      focusStationFromTafAmend(item);
     });
   }
 

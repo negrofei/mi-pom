@@ -7,6 +7,7 @@ Visor web de **SYNOP** (OGIMET) y **METAR/TAF** ([AviationWeather](https://aviat
 - Mapa interactivo (Leaflet) centrado en Argentina
 - **Modo SYNOP**: ploteo de estación con PNGs (`img/barbs`, `img/simbolos`)
 - **Modo METAR**: puntos coloreados por categoría de vuelo (VFR / MVFR / IFR / LIFR) + TAF en el detalle
+- **Enmienda TAF**: alerta cuando METAR/SPECI difiere del TAF vigente por umbrales de enmienda (viento, vis, techo, cobertura, fenómenos)
 - Contornos **FIR** (EZE, CBA, DOZ, SIS, CRV) y filtro por región
 - Serie temporal 24 h por estación SYNOP
 - Selector de hora UTC
@@ -50,6 +51,8 @@ Panel **Configuración** en la barra superior:
 - `GET /api/synops/<omm>?hours=24&hour=YYYYMMDDHH&nil=0` — serie horaria de una estación
 - `GET /api/metars?hour=YYYYMMDDHH&hours=3&timeline=exact|latest&taf=1` — METAR/TAF (AviationWeather)
 - `GET /api/surveillance` — vigilancia METAR (SMN o contingencia)
+- `GET /api/specis` — SPECI vigentes
+- `GET /api/taf-amends` — posibles enmiendas TAF vs METAR/SPECI
 - `GET /api/smn/status` — sondeo SMN
 - `GET /api/stations` — catálogo SYNOP
 - `GET /api/airports` — catálogo aeródromos

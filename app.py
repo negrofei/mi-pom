@@ -122,6 +122,27 @@ def api_specis():
     )
 
 
+@app.get("/api/taf-amends")
+def api_taf_amends():
+    """Alertas de posible enmienda TAF (METAR/SPECI vs umbrales ICAO)."""
+    try:
+        payload = build_surveillance(stations=STATIONS, airports=AIRPORTS)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Error consultando enmiendas TAF")
+        return jsonify({"error": f"No se pudo consultar enmiendas TAF: {exc}"}), 502
+    amends = payload.get("taf_amends") or []
+    return jsonify(
+        {
+            "source": "contingency" if payload.get("contingency_only") else "SMN",
+            "contingency_only": payload.get("contingency_only"),
+            "taf_source": (payload.get("sources") or {}).get("aw_taf"),
+            "count": len(amends),
+            "taf_amends": amends,
+            "filled_by": payload.get("filled_by"),
+        }
+    )
+
+
 @app.get("/api/metars")
 def api_metars():
     """METARs (y TAF) de aeródromos argentinos vía AviationWeather."""
