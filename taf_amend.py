@@ -109,7 +109,11 @@ def _crossed_ceiling(fcst: Optional[int], obs: Optional[int]) -> tuple[list[int]
 
 
 def _cover_bucket(clouds: list[dict], *, nsc: bool = False, cavok: bool = False) -> str:
-    """Por debajo de 1500 ft: 'few' (NSC/FEW/SCT) o 'bkn' (BKN/OVC) o 'none'."""
+    """Por debajo de 1500 ft: 'few' (NSC/FEW/SCT) o 'bkn' (BKN/OVC).
+
+    Solo cuentan capas con base conocida < 1500 ft. BKN/OVC altos (p.ej. BKN100)
+    no disparan el criterio de cantidad bajo 1500 ft.
+    """
     if cavok or nsc:
         return "few"
     low = [
@@ -117,16 +121,11 @@ def _cover_bucket(clouds: list[dict], *, nsc: bool = False, cavok: bool = False)
         for c in (clouds or [])
         if c.get("base") is not None and int(c["base"]) < LOW_CLOUD_FT
     ]
-    if not low:
-        # Capas sin base: usar covers globales
-        low = [str(c.get("cover") or "").upper() for c in (clouds or [])]
     if any(c in ("BKN", "OVC", "VV", "OVX") for c in low):
         return "bkn"
-    if any(c in ("FEW", "SCT") for c in low) or nsc or cavok:
+    if any(c in ("FEW", "SCT") for c in low):
         return "few"
-    if not low:
-        return "few"  # sin nubes bajas ≈ NSC
-    return "few"
+    return "few"  # sin nubes bajas ≈ NSC
 
 
 def _obs_cover_bucket(obs: dict) -> str:

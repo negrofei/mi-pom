@@ -156,6 +156,29 @@ def test_tempo_covers_obs_no_amend():
     )
 
 
+def test_high_bkn_vs_cavok_no_cloud_amount_amend():
+    """BKN100 (10000 ft) no es nubosidad significativa <1500 ft vs CAVOK."""
+    taf = parse_taf_raw(
+        "TAF SAZS 151100Z 1512/1612 15005KT CAVOK "
+        "TX11/1519Z TN00/1611Z BECMG 1514/1516 02015KT 9999 BKN030 "
+        "BECMG 1523/1601 VRB03KT 9999 SCT030=",
+        now=datetime(2026, 9, 15, 13, 0, tzinfo=timezone.utc),
+    )
+    when = datetime(2026, 9, 15, 13, 0, tzinfo=timezone.utc)
+    obs = {
+        "icao": "SAZS",
+        "obs_iso": "2026-09-15T13:00:00Z",
+        "wind_dir": 150,
+        "wind_speed_kt": 10,
+        "visibility_m": 9999,
+        "clouds": [{"cover": "BKN", "base": 10000}],
+        "ceiling_ft": 10000,
+        "raw": "METAR SAZS 151300Z 15010KT 9999 BKN100 06/M01 Q1022=",
+    }
+    alert = evaluate_amendment(obs, taf, when=when)
+    assert alert is None
+
+
 def test_no_false_alarm_match():
     taf = parse_taf_raw(
         "TAF SAZR 121100Z 1212/1312 10005KT 9999 SCT030=",
@@ -182,5 +205,6 @@ if __name__ == "__main__":
     test_ceiling_threshold_amend()
     test_cloud_amount_flip()
     test_tempo_covers_obs_no_amend()
+    test_high_bkn_vs_cavok_no_cloud_amount_amend()
     test_no_false_alarm_match()
     print("ok")
