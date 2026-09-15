@@ -125,11 +125,26 @@
   <main id="map"></main>
   <div id="fltLegend" class="flt-legend-wrap hidden"></div>
 
+  <button type="button" id="btnTafAmendList" class="taf-amend-list-fab hidden" aria-expanded="false" aria-controls="tafAmendListPanel" title="Ver posibles enmiendas TAF">
+    <span class="taf-amend-list-fab-icon" aria-hidden="true">AMD</span>
+    <span class="taf-amend-list-fab-label">TAF</span>
+    <span class="taf-amend-list-fab-count" id="tafAmendListFabCount">0</span>
+  </button>
+
   <button type="button" id="btnSpeciList" class="speci-list-fab hidden" aria-expanded="false" aria-controls="speciListPanel" title="Ver SPECI vigentes">
     <span class="speci-list-fab-icon" aria-hidden="true">⚠</span>
     <span class="speci-list-fab-label">SPECI</span>
     <span class="speci-list-fab-count" id="speciListFabCount">0</span>
   </button>
+
+  <aside id="tafAmendListPanel" class="taf-amend-list-panel hidden" aria-label="Posibles enmiendas TAF">
+    <div class="speci-list-head">
+      <h2>Enmienda TAF <span class="taf-amend-list-count" id="tafAmendListCount">0</span></h2>
+      <button type="button" class="detail-close" id="tafAmendListClose" aria-label="Cerrar">×</button>
+    </div>
+    <p class="speci-list-hint">METAR/SPECI difiere del TAF por umbrales de enmienda · clic para centrar</p>
+    <div class="speci-list-body" id="tafAmendListBody"></div>
+  </aside>
 
   <aside id="speciListPanel" class="speci-list-panel hidden" aria-label="SPECI vigentes">
     <div class="speci-list-head">

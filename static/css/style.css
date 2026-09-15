@@ -273,6 +273,189 @@ html, body {
   50% { box-shadow: 0 0 0 6px rgba(183, 28, 28, 0); }
 }
 
+.taf-amend-list-fab {
+  position: absolute;
+  z-index: 900;
+  right: 0.85rem;
+  bottom: 4.35rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #0d47a1;
+  background: rgba(255, 255, 255, 0.95);
+  color: #1a1a1a;
+  border-radius: 999px;
+  padding: 0.45rem 0.75rem 0.45rem 0.55rem;
+  font-family: var(--sans, "Source Sans 3", sans-serif);
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.taf-amend-list-fab.hidden {
+  display: none;
+}
+
+.taf-amend-list-fab.has-items {
+  animation: taf-amend-fab-pulse 2.4s ease-in-out infinite;
+}
+
+.taf-amend-list-fab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7rem;
+  height: 1.35rem;
+  padding: 0 0.25rem;
+  border-radius: 4px;
+  background: #1565c0;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.taf-amend-list-fab-count {
+  min-width: 1.35rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: #0d47a1;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+@keyframes taf-amend-fab-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(13, 71, 161, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(13, 71, 161, 0); }
+}
+
+.taf-amend-list-panel {
+  position: absolute;
+  z-index: 950;
+  top: 4.6rem;
+  right: 0.75rem;
+  width: min(400px, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 6rem);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.taf-amend-list-panel.hidden {
+  display: none;
+}
+
+.taf-amend-list-count {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #0d47a1;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.taf-amend-warn-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.taf-amend-warn-badge,
+.taf-amend-warn-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7rem;
+  height: 1.2rem;
+  padding: 0 0.28rem;
+  border-radius: 4px;
+  background: #1565c0;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 1px solid #0d47a1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  line-height: 1;
+}
+
+.taf-amend-list-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-left: 4px solid #1565c0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.taf-amend-list-item:hover {
+  background: rgba(21, 101, 192, 0.08);
+}
+
+.taf-amend-reasons {
+  margin: 0.25rem 0 0.35rem;
+  padding-left: 1.1rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.taf-amend-reasons li {
+  margin: 0.15rem 0;
+}
+
+.taf-amend-panel {
+  margin: 0.65rem 0 0.85rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #90caf9;
+  border-left: 4px solid #1565c0;
+  border-radius: 8px;
+  background: rgba(227, 242, 253, 0.65);
+}
+
+.taf-amend-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: #1565c0;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.taf-amend-panel .taf-raw,
+.taf-panel .taf-raw {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.taf-panel {
+  margin: 0.65rem 0 0.85rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
 .speci-list-panel {
   position: absolute;
   z-index: 950;
@@ -709,6 +892,10 @@ html, body {
 
 .toast.toast-speci {
   border-left-color: #ff1744;
+}
+
+.toast.toast-taf-amend {
+  border-left-color: #1565c0;
 }
 
 .toast-title {

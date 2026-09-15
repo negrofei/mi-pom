@@ -170,13 +170,17 @@ def test_cascade_smn_speci_then_metar():
             return []
 
         smn.side_effect = _smn
+        aw_m.return_value = []
         out = build_surveillance(stations=only, airports=AIRPORTS)
 
     by = {p["omm"]: p for p in out["stations"]}
     assert by["87582"]["product"] == "SPECI"
     assert out["contingency_only"] is False
     assert out["missing_after_smn"] == 0
-    aw_m.assert_not_called()
+    # Contingencia METAR no se usa; AW solo para TAF (include_taf=True)
+    assert aw_m.call_count == 1
+    assert aw_m.call_args.kwargs.get("include_taf") is True
+    assert out["sources"]["aw_taf"]["used"] is True
     assert is_speci_active_vs_metar(
         {"obs_iso": "2026-08-12T11:20:00Z"}, {"obs_iso": "2026-08-12T11:00:00Z"}
     )

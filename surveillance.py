@@ -23,6 +23,8 @@ from aviationweather_client import (
 )
 from ogimet_client import fetch_argentina_synops, resolve_synop_hour
 from smn_client import fetch_smn_messages, smn_status
+from taf_amend import evaluate_amendment
+from taf_parser import parse_taf_raw
 
 log = logging.getLogger(__name__)
 
@@ -96,7 +98,7 @@ def _fetch_aw_metars(airports: dict[str, dict]) -> tuple[list[dict], Optional[st
         rows = fetch_argentina_metars(
             airports=airports,
             hours=6,
-            include_taf=False,
+            include_taf=True,
             timeline="latest",
             when=resolve_synop_hour(None),
         )
@@ -104,6 +106,28 @@ def _fetch_aw_metars(airports: dict[str, dict]) -> tuple[list[dict], Optional[st
     except Exception as exc:  # noqa: BLE001
         log.exception("AW METAR falló")
         return [], str(exc)
+
+
+def _fetch_aw_tafs(airports: dict[str, dict]) -> tuple[dict[str, str], Optional[str]]:
+    """Mapa ICAO → raw TAF (vía METAR API con taf=true)."""
+    try:
+        rows = fetch_argentina_metars(
+            airports=airports,
+            hours=6,
+            include_taf=True,
+            timeline="latest",
+            when=resolve_synop_hour(None),
+        )
+        out: dict[str, str] = {}
+        for r in rows or []:
+            icao = str(r.get("icao") or "").upper()
+            raw = r.get("raw_taf")
+            if icao and raw:
+                out[icao] = str(raw)
+        return out, None
+    except Exception as exc:  # noqa: BLE001
+        log.exception("AW TAF falló")
+        return {}, str(exc)
 
 
 def _fetch_aw_specis(airports: dict[str, dict]) -> tuple[list[dict], Optional[str]]:
@@ -326,6 +350,16 @@ def build_surveillance(
     points: list[dict[str, Any]] = []
     active_specis: list[dict] = []
     seen_speci: set[str] = set()
+    taf_amends: list[dict] = []
+
+    # TAF siempre desde AviationWeather (mensajes_new no trae TAF)
+    taf_by_icao, err_taf = _fetch_aw_tafs(airports)
+    # Completar con raw_taf de METARs AW ya traídos
+    for row in aw_metar.values():
+        icao_r = str(row.get("icao") or "").upper()
+        raw_t = row.get("raw_taf")
+        if icao_r and raw_t and icao_r not in taf_by_icao:
+            taf_by_icao[icao_r] = str(raw_t)
 
     for omm, meta in stations.items():
         if meta.get("lat") is None or meta.get("lng") is None:
@@ -355,6 +389,32 @@ def build_surveillance(
             age_hours = round((now.timestamp() - tms) / 3600.0, 2)
 
         icao = _icao_for_omm(key, airports, base)
+
+        # Observación aviación a comparar con TAF (METAR o SPECI activo)
+        av_obs = None
+        if product in ("METAR", "SPECI"):
+            av_obs = base
+        elif speci:
+            av_obs = speci
+        # Si hay SPECI activo overlay sobre METAR, priorizar SPECI para enmienda
+        if product == "METAR" and speci:
+            av_obs = speci
+
+        taf_alert = None
+        raw_taf = None
+        if icao and icao in taf_by_icao:
+            raw_taf = taf_by_icao[icao]
+        if av_obs and raw_taf:
+            try:
+                if icao and not av_obs.get("icao"):
+                    av_obs = {**av_obs, "icao": icao}
+                if not av_obs.get("omm"):
+                    av_obs = {**av_obs, "omm": key, "wmo": key}
+                taf_alert = evaluate_amendment(av_obs, raw_taf, when=now)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("TAF amend eval %s: %s", icao, exc)
+                taf_alert = None
+
         point = {
             **base,
             "omm": key,
@@ -372,6 +432,9 @@ def build_surveillance(
             "has_speci": bool(speci) or product == "SPECI",
             "speci": None if product == "SPECI" else speci,
             "is_speci": product == "SPECI" or bool(base.get("is_speci")),
+            "raw_taf": raw_taf,
+            "has_taf_amend": bool(taf_alert),
+            "taf_amend": taf_alert,
         }
         points.append(point)
 
@@ -388,7 +451,18 @@ def build_surveillance(
                 item["source"] = item.get("source") or source
                 active_specis.append(item)
 
+        if taf_alert:
+            item = dict(taf_alert)
+            item["omm"] = key
+            item["station_nombre"] = meta.get("nombre")
+            item["lat"] = meta.get("lat")
+            item["lng"] = meta.get("lng")
+            item["fir"] = meta.get("fir")
+            item["nombre"] = meta.get("nombre") or item.get("nombre")
+            taf_amends.append(item)
+
     active_specis.sort(key=lambda x: x.get("obs_iso") or "", reverse=True)
+    taf_amends.sort(key=lambda x: x.get("obs_iso") or "", reverse=True)
 
     contingency_only = not bool(status.get("ok"))
     return {
@@ -448,6 +522,12 @@ def build_surveillance(
                 "error": err_ogimet,
                 "used": bool(missing),
             },
+            "aw_taf": {
+                "ok": err_taf is None,
+                "count": len(taf_by_icao),
+                "error": err_taf,
+                "used": True,
+            },
             # Compatibilidad UI previa
             "metar": "SMN"
             if filled_by["SMN"] and not contingency_only
@@ -463,6 +543,8 @@ def build_surveillance(
         "missing_after_smn": len(missing),
         "count": len(points),
         "speci_count": len(active_specis),
+        "taf_amend_count": len(taf_amends),
         "stations": points,
         "specis": active_specis,
+        "taf_amends": taf_amends,
     }
