@@ -346,22 +346,8 @@ def parse_taf_raw(
     )
 
 
-def prevailing_conditions(taf: ParsedTaf, when: datetime) -> Optional[TafPeriod]:
-    """
-    Condiciones prevalecientes en `when`: BASE + FM posteriores + BECMG ya cumplidos
-    (toma el estado al final del BECMG).
-    """
-    if when < taf.valid_from or when >= taf.valid_to:
-        # tolerancia: si está dentro de ±1h de validez, igual evaluar
-        if when < taf.valid_from - timedelta(hours=1) or when > taf.valid_to + timedelta(hours=1):
-            return None
-
-    base = next((p for p in taf.periods if p.kind == "BASE"), None)
-    if not base:
-        return None
-
-    # Copiar estado base
-    state = TafPeriod(
+def _clone_prevailing(base: TafPeriod) -> TafPeriod:
+    return TafPeriod(
         kind="PREVAILING",
         start=base.start,
         end=base.end,
@@ -378,39 +364,99 @@ def prevailing_conditions(taf: ParsedTaf, when: datetime) -> Optional[TafPeriod]
         wx_tokens=list(base.wx_tokens),
     )
 
-    def _apply(src: TafPeriod) -> None:
-        if src.wind_speed_kt is not None or src.wind_dir is not None or src.wind_variable:
-            state.wind_dir = src.wind_dir
-            state.wind_variable = src.wind_variable
-            state.wind_speed_kt = src.wind_speed_kt
-            state.wind_gust_kt = src.wind_gust_kt
-        if src.visibility_m is not None or src.cavok:
-            state.visibility_m = src.visibility_m
-            state.cavok = src.cavok
-        if src.clouds or src.nsc or src.cavok:
-            state.clouds = list(src.clouds)
-            state.ceiling_ft = src.ceiling_ft
-            state.nsc = src.nsc or src.cavok
-            if src.cavok:
-                state.clouds = []
-                state.ceiling_ft = None
-        if src.wx_tokens or "NSW" in src.raw.upper():
-            if "NSW" in src.raw.upper():
-                state.wx_tokens = []
-            else:
-                state.wx_tokens = list(src.wx_tokens)
+
+def _apply_period(state: TafPeriod, src: TafPeriod) -> None:
+    if src.wind_speed_kt is not None or src.wind_dir is not None or src.wind_variable:
+        state.wind_dir = src.wind_dir
+        state.wind_variable = src.wind_variable
+        state.wind_speed_kt = src.wind_speed_kt
+        state.wind_gust_kt = src.wind_gust_kt
+    if src.visibility_m is not None or src.cavok:
+        state.visibility_m = src.visibility_m
+        state.cavok = src.cavok
+    if src.clouds or src.nsc or src.cavok:
+        state.clouds = list(src.clouds)
+        state.ceiling_ft = src.ceiling_ft
+        state.nsc = src.nsc or src.cavok
+        if src.cavok:
+            state.clouds = []
+            state.ceiling_ft = None
+    if src.wx_tokens or "NSW" in src.raw.upper():
+        if "NSW" in src.raw.upper():
+            state.wx_tokens = []
+        else:
+            state.wx_tokens = list(src.wx_tokens)
+
+
+def _within_taf_window(taf: ParsedTaf, when: datetime) -> bool:
+    if when < taf.valid_from or when >= taf.valid_to:
+        if when < taf.valid_from - timedelta(hours=1) or when > taf.valid_to + timedelta(hours=1):
+            return False
+    return True
+
+
+def prevailing_conditions(
+    taf: ParsedTaf,
+    when: datetime,
+    *,
+    apply_active_becmg: bool = False,
+) -> Optional[TafPeriod]:
+    """
+    Condiciones prevalecientes en `when`: BASE + FM posteriores + BECMG ya cumplidos
+    (toma el estado al final del BECMG).
+
+    Por defecto, un BECMG en curso NO se aplica: durante su ventana el cambio aún
+    puede no haberse producido. Usar apply_active_becmg=True para el estado destino.
+    """
+    if not _within_taf_window(taf, when):
+        return None
+
+    base = next((p for p in taf.periods if p.kind == "BASE"), None)
+    if not base:
+        return None
+
+    state = _clone_prevailing(base)
 
     for p in taf.periods:
         if p.kind == "FM" and p.start <= when:
-            _apply(p)
+            _apply_period(state, p)
         elif p.kind == "BECMG" and p.end <= when:
-            # BECMG completo: condiciones finales
-            _apply(p)
-        elif p.kind == "BECMG" and p.start <= when < p.end:
-            # Durante BECMG: aplicar ya las condiciones nuevas (conservador para enmienda)
-            _apply(p)
+            _apply_period(state, p)
+        elif (
+            apply_active_becmg
+            and p.kind == "BECMG"
+            and p.start <= when < p.end
+        ):
+            _apply_period(state, p)
 
     return state
+
+
+def active_becmg_periods(taf: ParsedTaf, when: datetime) -> list[TafPeriod]:
+    return [
+        p
+        for p in taf.periods
+        if p.kind == "BECMG" and p.start <= when < p.end
+    ]
+
+
+def prevailing_candidates(taf: ParsedTaf, when: datetime) -> list[TafPeriod]:
+    """
+    Estados TAF aceptables en `when` para vigilancia de enmienda.
+
+    Fuera de BECMG: solo el prevaleciente.
+    Durante BECMG: el estado previo y el destino del BECMG (ambos válidos
+    mientras dura la ventana de cambio).
+    """
+    before = prevailing_conditions(taf, when, apply_active_becmg=False)
+    if not before:
+        return []
+    if not active_becmg_periods(taf, when):
+        return [before]
+    after = prevailing_conditions(taf, when, apply_active_becmg=True)
+    if after is None:
+        return [before]
+    return [before, after]
 
 
 def tempo_conditions(taf: ParsedTaf, when: datetime) -> list[TafPeriod]:

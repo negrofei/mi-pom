@@ -15,6 +15,7 @@ from taf_parser import (
     ParsedTaf,
     TafPeriod,
     parse_taf_raw,
+    prevailing_candidates,
     prevailing_conditions,
     tempo_conditions,
 )
@@ -424,11 +425,28 @@ def evaluate_amendment(
         except ValueError:
             pass
 
-    prev = prevailing_conditions(parsed, when)
-    if not prev:
+    candidates = prevailing_candidates(parsed, when)
+    if not candidates:
         return None
 
-    reasons = evaluate_obs_vs_period(obs, prev)
+    # Durante BECMG: solo alertar motivos que fallan contra TODOS los estados
+    # aceptables (previo y destino). Si la obs encaja con alguno, no enmendar.
+    reason_maps: list[dict[str, dict[str, Any]]] = []
+    for cand in candidates:
+        rs = evaluate_obs_vs_period(obs, cand)
+        reason_maps.append({r["key"]: r for r in rs})
+    if any(not m for m in reason_maps):
+        return None
+    common_keys = set(reason_maps[0])
+    for m in reason_maps[1:]:
+        common_keys &= set(m)
+    if not common_keys:
+        return None
+
+    # Preferir etiquetas del estado "previo" (sin BECMG activo aplicado)
+    prev = candidates[0]
+    reasons = [reason_maps[0][k] for k in reason_maps[0] if k in common_keys]
+    # Mantener orden estable según primer candidato
     if not reasons:
         return None
 
@@ -454,6 +472,7 @@ def evaluate_amendment(
         "taf_valid_from_iso": parsed.valid_from.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "taf_valid_to_iso": parsed.valid_to.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "fcst_period": prev.to_dict(),
+        "becmg_window": len(candidates) > 1,
         "reasons": filtered,
         "reason_labels": [r["label"] for r in filtered],
         "needs_amend": True,

@@ -156,6 +156,74 @@ def test_tempo_covers_obs_no_amend():
     )
 
 
+def test_becmg_window_keeps_old_wind_no_amend():
+    """Durante BECMG 13/15 aún vale VRB03; no exigir 30015KT a las 13Z."""
+    when = datetime(2026, 9, 18, 13, 0, tzinfo=timezone.utc)
+    taf = parse_taf_raw(
+        "TAF SAZS 181100Z 1812/1912 VRB03KT CAVOK "
+        "TX16/1819Z TN01/1812Z BECMG 1813/1815 30015KT "
+        "BECMG 1823/1901 VRB03KT=",
+        now=when,
+    )
+    obs = {
+        "icao": "SAZS",
+        "obs_iso": "2026-09-18T13:00:00Z",
+        "wind_dir": None,
+        "wind_variable": True,
+        "wind_speed_kt": 3,
+        "visibility_m": 9999,
+        "clouds": [],
+        "ceiling_ft": None,
+        "raw": "METAR SAZS 181300Z VRB03KT CAVOK 10/01 Q1017=",
+    }
+    assert evaluate_amendment(obs, taf, when=when) is None
+
+
+def test_becmg_window_accepts_new_wind_no_amend():
+    """Durante BECMG, si ya sopla el viento destino tampoco hay AMD."""
+    when = datetime(2026, 9, 18, 14, 0, tzinfo=timezone.utc)
+    taf = parse_taf_raw(
+        "TAF SAZS 181100Z 1812/1912 VRB03KT CAVOK "
+        "BECMG 1813/1815 30015KT=",
+        now=when,
+    )
+    obs = {
+        "icao": "SAZS",
+        "obs_iso": "2026-09-18T14:00:00Z",
+        "wind_dir": 300,
+        "wind_speed_kt": 15,
+        "visibility_m": 9999,
+        "clouds": [],
+        "ceiling_ft": None,
+        "raw": "METAR SAZS 181400Z 30015KT CAVOK 10/01 Q1017=",
+    }
+    assert evaluate_amendment(obs, taf, when=when) is None
+
+
+def test_after_becmg_old_wind_needs_amend():
+    """Pasada la ventana BECMG, seguir con el viento viejo sí pide AMD."""
+    when = datetime(2026, 9, 18, 15, 30, tzinfo=timezone.utc)
+    taf = parse_taf_raw(
+        "TAF SAZS 181100Z 1812/1912 VRB03KT CAVOK "
+        "BECMG 1813/1815 30015KT=",
+        now=when,
+    )
+    obs = {
+        "icao": "SAZS",
+        "obs_iso": "2026-09-18T15:30:00Z",
+        "wind_dir": None,
+        "wind_variable": True,
+        "wind_speed_kt": 3,
+        "visibility_m": 9999,
+        "clouds": [],
+        "ceiling_ft": None,
+        "raw": "METAR SAZS 181530Z VRB03KT CAVOK 10/01 Q1017=",
+    }
+    alert = evaluate_amendment(obs, taf, when=when)
+    assert alert is not None
+    assert any(r["key"] == "wind_speed" for r in alert["reasons"])
+
+
 def test_high_bkn_vs_cavok_no_cloud_amount_amend():
     """BKN100 (10000 ft) no es nubosidad significativa <1500 ft vs CAVOK."""
     taf = parse_taf_raw(
@@ -205,6 +273,9 @@ if __name__ == "__main__":
     test_ceiling_threshold_amend()
     test_cloud_amount_flip()
     test_tempo_covers_obs_no_amend()
+    test_becmg_window_keeps_old_wind_no_amend()
+    test_becmg_window_accepts_new_wind_no_amend()
+    test_after_becmg_old_wind_needs_amend()
     test_high_bkn_vs_cavok_no_cloud_amount_amend()
     test_no_false_alarm_match()
     print("ok")
