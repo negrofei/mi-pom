@@ -4,7 +4,7 @@ Visor web de **SYNOP** (OGIMET) y **METAR/TAF** ([AviationWeather](https://aviat
 
 ## Qué incluye
 
-- Mapa interactivo (Leaflet) centrado en Argentina
+- Mapa interactivo (Leaflet) centrado en Argentina, base **Argenmap IGN** (toponimia oficial, p.ej. Malvinas Argentinas)
 - **Modo SYNOP**: ploteo de estación con PNGs (`img/barbs`, `img/simbolos`)
 - **Modo METAR**: puntos coloreados por categoría de vuelo (VFR / MVFR / IFR / LIFR) + TAF en el detalle
 - **Enmienda TAF**: alerta cuando METAR/SPECI difiere del TAF vigente por umbrales de enmienda (viento, vis, techo, cobertura, fenómenos)

@@ -117,10 +117,16 @@
     zoomControl: true,
   });
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 12,
-    attribution: "&copy; OpenStreetMap",
-  }).addTo(map);
+  // Argenmap (IGN): toponimia oficial argentina (p.ej. Malvinas Argentinas)
+  L.tileLayer(
+    "https://wms.ign.gob.ar/geoserver/gwc/service/tms/1.0.0/capabaseargenmap@EPSG%3A3857@png/{z}/{x}/{-y}.png",
+    {
+      minZoom: 3,
+      maxZoom: 12,
+      attribution:
+        '&copy; <a href="https://www.ign.gob.ar/" target="_blank" rel="noopener">IGN</a> Argenmap',
+    }
+  ).addTo(map);
 
   let layerGroup = L.layerGroup().addTo(map);
   let firLayer = L.geoJSON(null, {
