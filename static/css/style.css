@@ -408,14 +408,44 @@ html, body {
 }
 
 .taf-amend-reasons {
-  margin: 0.25rem 0 0.35rem;
-  padding-left: 1.1rem;
+  margin: 0.35rem 0 0.55rem;
+  padding-left: 0;
+  list-style: none;
   font-size: 0.78rem;
   line-height: 1.35;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
 .taf-amend-reasons li {
-  margin: 0.15rem 0;
+  margin: 0;
+}
+
+.taf-amend-reason {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.3rem 0.45rem 0.3rem 0.4rem;
+  border-left: 3px solid var(--amend-hl, #1565c0);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--amend-hl, #1565c0) 10%, transparent);
+}
+
+.taf-amend-reason-swatch {
+  flex: 0 0 auto;
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-top: 0.2rem;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.taf-amend-raw mark.taf-amend-hl {
+  color: inherit;
+  padding: 0 0.12em;
+  border-radius: 2px;
+  font-weight: 700;
 }
 
 .taf-amend-panel {

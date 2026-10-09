@@ -224,6 +224,29 @@ def test_after_becmg_old_wind_needs_amend():
     assert any(r["key"] == "wind_speed" for r in alert["reasons"])
 
 
+
+def test_highlight_snippets_cloud_amount():
+    when = datetime(2026, 10, 9, 14, 0, tzinfo=timezone.utc)
+    taf = parse_taf_raw(
+        "TAF SAZS 091100Z 0912/1012 15005KT 9999 SCT010=",
+        now=when,
+    )
+    obs = {
+        "icao": "SAZS",
+        "obs_iso": "2026-10-09T14:00:00Z",
+        "wind_dir": 150,
+        "wind_speed_kt": 5,
+        "visibility_m": 9999,
+        "clouds": [{"cover": "OVC", "base": 1000}],
+        "ceiling_ft": 1000,
+        "raw": "METAR SAZS 091400Z 15005KT 9999 OVC010 10/01 Q1017=",
+    }
+    alert = evaluate_amendment(obs, taf, when=when)
+    assert alert is not None
+    ca = next(r for r in alert["reasons"] if r["key"] == "cloud_amount")
+    assert "OVC010" in ca["highlight_obs"]
+    assert "SCT010" in ca["highlight_taf"]
+
 def test_high_bkn_vs_cavok_no_cloud_amount_amend():
     """BKN100 (10000 ft) no es nubosidad significativa <1500 ft vs CAVOK."""
     taf = parse_taf_raw(
@@ -276,6 +299,7 @@ if __name__ == "__main__":
     test_becmg_window_keeps_old_wind_no_amend()
     test_becmg_window_accepts_new_wind_no_amend()
     test_after_becmg_old_wind_needs_amend()
+    test_highlight_snippets_cloud_amount()
     test_high_bkn_vs_cavok_no_cloud_amount_amend()
     test_no_false_alarm_match()
     print("ok")
