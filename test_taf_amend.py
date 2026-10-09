@@ -125,6 +125,34 @@ def test_cloud_amount_flip():
     assert any(r["key"] == "cloud_amount" for r in alert["reasons"])
 
 
+
+def test_tempo_vis_envelope_covers_between_prev_and_tempo():
+    """TEMPO 1500 m cubre obs 2000 m entre prevaleciente 9999 y TEMPO."""
+    when = datetime(2026, 10, 9, 18, 22, tzinfo=timezone.utc)
+    taf = parse_taf_raw(
+        "TAF SAZR 091700Z 0918/1018 11010KT 9999 BKN005 OVC015 "
+        "TEMPO 0918/0922 1500 DZ BKN003 OVC015 "
+        "BECMG 1001/1003 14005KT 3000 DZRA BR BKN003 OVC015=",
+        now=when,
+    )
+    obs = {
+        "icao": "SAZR",
+        "obs_iso": "2026-10-09T18:22:00Z",
+        "is_speci": True,
+        "wind_dir": 120,
+        "wind_speed_kt": 8,
+        "visibility_m": 2000,
+        "clouds": [{"cover": "SCT", "base": 500}, {"cover": "OVC", "base": 3000}],
+        "ceiling_ft": 3000,
+        "wx_string": "DZ",
+        "raw": "SPECI SAZR 091822Z 12008KT 2000 DZ SCT005 OVC030 11/10 Q1023=",
+    }
+    alert = evaluate_amendment(obs, taf, when=when)
+    keys = {r["key"] for r in (alert["reasons"] if alert else [])}
+    assert not any(k.startswith("vis") for k in keys)
+    assert "wx" not in keys
+
+
 def test_tempo_covers_obs_no_amend():
     """TEMPO explica la tormenta → no enmienda por wx."""
     taf = parse_taf_raw(TAF_SAMPLE, now=NOW)
@@ -295,6 +323,7 @@ if __name__ == "__main__":
     test_vis_threshold_amend()
     test_ceiling_threshold_amend()
     test_cloud_amount_flip()
+    test_tempo_vis_envelope_covers_between_prev_and_tempo()
     test_tempo_covers_obs_no_amend()
     test_becmg_window_keeps_old_wind_no_amend()
     test_becmg_window_accepts_new_wind_no_amend()
