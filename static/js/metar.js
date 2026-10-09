@@ -852,11 +852,23 @@
       ${
         rawTaf && !tafAmend
           ? `<section class="taf-panel"><div class="meta"><b>TAF</b></div><pre class="raw taf-raw">${esc(
-              rawTaf
+              formatTafDisplay(rawTaf)
             )}</pre></section>`
           : ""
       }
     `;
+  }
+
+
+  /** Salto de línea antes de BECMG / TEMPO / PROBxx (PROB30 TEMPO queda junto). */
+  function formatTafDisplay(raw) {
+    if (!raw) return "";
+    return String(raw)
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\s+(?=BECMG\b)/gi, "\n")
+      .replace(/\s+(?=PROB\d{2}\b)/gi, "\n")
+      .replace(/(?<!PROB\d{2})\s+(?=TEMPO\b)/gi, "\n");
   }
 
   function tafAmendPanelHtml(alert, rawTafFallback) {
@@ -879,7 +891,7 @@
         </div>
         ${reasonsHtml}
         ${obsRaw ? `<div><b>Obs</b></div><pre class="raw">${esc(obsRaw)}</pre>` : ""}
-        ${raw ? `<div><b>TAF</b></div><pre class="raw taf-raw">${esc(raw)}</pre>` : ""}
+        ${raw ? `<div><b>TAF</b></div><pre class="raw taf-raw">${esc(formatTafDisplay(raw))}</pre>` : ""}
       </section>`;
   }
 
@@ -1117,6 +1129,7 @@
     tafAmendWarnIcon,
     speciListHtml,
     tafAmendListHtml,
+    formatTafDisplay,
     historyHtml,
     loadHistory,
     significantWx,
