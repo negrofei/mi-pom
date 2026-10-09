@@ -240,37 +240,130 @@ def _period_as_obs_like(p: TafPeriod) -> dict[str, Any]:
     }
 
 
-def _matches_tempo(obs: dict, tempo: TafPeriod, reason_key: str) -> bool:
-    """Si el TEMPO 'explica' la observación para ese criterio, no enmendar."""
+def _vis_m(period_or_obs_vis: Optional[int], *, cavok: bool = False) -> Optional[int]:
+    if cavok:
+        return 10000
+    return period_or_obs_vis
+
+
+def _ceiling_m(ft: Optional[int]) -> int:
+    """None = sin techo BKN/OVC (muy alto) para envelope TEMPO."""
+    return int(ft) if ft is not None else 99999
+
+
+def _in_inclusive_range(value: Optional[int], a: Optional[int], b: Optional[int]) -> bool:
+    if value is None or a is None or b is None:
+        return False
+    lo, hi = (a, b) if a <= b else (b, a)
+    return lo <= value <= hi
+
+
+def _matches_tempo(
+    obs: dict,
+    tempo: TafPeriod,
+    reason_key: str,
+    *,
+    prevailing: Optional[TafPeriod] = None,
+) -> bool:
+    """
+    Si el TEMPO explica la observación para ese criterio, no enmendar.
+
+    TEMPO es un cambio temporal/intermitente: las condiciones pueden oscilar
+    entre el prevaleciente y el TEMPO. Si la obs cae en ese envelope, está cubierta.
+    """
     t = _period_as_obs_like(tempo)
+    prev = prevailing
+
     if reason_key.startswith("wind_dir"):
-        if obs.get("wind_dir") is None or t.get("wind_dir") is None:
+        od = obs.get("wind_dir")
+        if od is None:
             return False
-        return (_dir_diff(obs.get("wind_dir"), t.get("wind_dir")) or 999) < 60
+        # Cubre si está cerca del TEMPO o del prevaleciente
+        if t.get("wind_dir") is not None and (_dir_diff(od, t.get("wind_dir")) or 999) < 60:
+            return True
+        if prev and prev.wind_dir is not None and (_dir_diff(od, prev.wind_dir) or 999) < 60:
+            return True
+        return False
+
     if reason_key.startswith("wind_speed"):
-        if obs.get("wind_speed_kt") is None or t.get("wind_speed_kt") is None:
+        os_ = obs.get("wind_speed_kt")
+        ts = t.get("wind_speed_kt")
+        if os_ is None:
             return False
-        return abs(int(obs["wind_speed_kt"]) - int(t["wind_speed_kt"])) < 10
+        if ts is not None and abs(int(os_) - int(ts)) < 10:
+            return True
+        if prev and prev.wind_speed_kt is not None:
+            if _in_inclusive_range(int(os_), int(prev.wind_speed_kt), int(ts) if ts is not None else int(prev.wind_speed_kt)):
+                return True
+            if abs(int(os_) - int(prev.wind_speed_kt)) < 10:
+                return True
+        return ts is not None and abs(int(os_) - int(ts)) < 10
+
     if reason_key.startswith("wind_gust"):
         og = obs.get("wind_gust_kt")
         tg = t.get("wind_gust_kt")
+        pg = prev.wind_gust_kt if prev else None
         if og is None and tg is None:
             return True
-        if og is None or tg is None:
-            return False
-        return abs(int(og) - int(tg)) < 10
+        if og is not None and tg is not None and abs(int(og) - int(tg)) < 10:
+            return True
+        if og is not None and pg is not None and tg is not None:
+            return _in_inclusive_range(int(og), int(pg), int(tg))
+        if og is not None and tg is not None:
+            return abs(int(og) - int(tg)) < 10
+        return False
+
     if reason_key.startswith("vis"):
-        if obs.get("visibility_m") is None or t.get("visibility_m") is None:
+        vo = _vis_m(obs.get("visibility_m"), cavok="CAVOK" in str(obs.get("raw") or "").upper())
+        vt = _vis_m(t.get("visibility_m"), cavok=bool(t.get("cavok")))
+        if vo is None or vt is None:
             return False
-        crossed, _ = _crossed_vis(t.get("visibility_m"), obs.get("visibility_m"))
+        if prev is not None:
+            vp = _vis_m(prev.visibility_m, cavok=prev.cavok)
+            if vp is not None and _in_inclusive_range(int(vo), int(vp), int(vt)):
+                return True
+        # Misma o mejor que el TEMPO de deterioro (u obs igual al TEMPO)
+        crossed, _ = _crossed_vis(vt, vo)
         return not crossed
+
     if reason_key.startswith("ceiling"):
-        crossed, _ = _crossed_ceiling(t.get("ceiling_ft"), obs.get("ceiling_ft"))
+        fo = _ceiling_m(obs.get("ceiling_ft"))
+        ft = _ceiling_m(t.get("ceiling_ft"))
+        if prev is not None:
+            fp = _ceiling_m(prev.ceiling_ft)
+            if _in_inclusive_range(fo, fp, ft):
+                return True
+        crossed, _ = _crossed_ceiling(
+            None if ft >= 99999 else ft,
+            None if fo >= 99999 else fo,
+        )
         return not crossed
+
     if reason_key.startswith("cloud_amount"):
-        return _cover_bucket(t.get("clouds") or [], nsc=bool(t.get("nsc")), cavok=bool(t.get("cavok"))) == _obs_cover_bucket(obs)
+        obs_b = _obs_cover_bucket(obs)
+        tempo_b = _cover_bucket(
+            t.get("clouds") or [], nsc=bool(t.get("nsc")), cavok=bool(t.get("cavok"))
+        )
+        if obs_b == tempo_b:
+            return True
+        if prev is not None:
+            prev_b = _cover_bucket(prev.clouds, nsc=prev.nsc, cavok=prev.cavok)
+            # Envelope de cantidad: si prevaleciente y TEMPO difieren, cualquiera de los dos cubre
+            if obs_b in {prev_b, tempo_b}:
+                return True
+        return False
+
     if reason_key.startswith("wx"):
-        return _obs_wx_set(obs) == _fcst_wx_set(tempo) or _obs_wx_set(obs).issubset(_fcst_wx_set(tempo))
+        obs_wx = _obs_wx_set(obs)
+        tempo_wx = _fcst_wx_set(tempo)
+        if obs_wx == tempo_wx or obs_wx.issubset(tempo_wx):
+            return True
+        if prev is not None:
+            union = tempo_wx | _fcst_wx_set(prev)
+            if obs_wx.issubset(union):
+                return True
+        return False
+
     return False
 
 
@@ -708,7 +801,7 @@ def evaluate_amendment(
     tempos = tempo_conditions(parsed, when)
     filtered: list[dict[str, Any]] = []
     for r in reasons:
-        if any(_matches_tempo(obs, t, r["key"]) for t in tempos):
+        if any(_matches_tempo(obs, t, r["key"], prevailing=prev) for t in tempos):
             continue
         filtered.append(r)
     if not filtered:
