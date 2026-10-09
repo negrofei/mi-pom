@@ -860,6 +860,85 @@
   }
 
 
+
+  const AMEND_REASON_COLORS = {
+    wind_dir: "#c62828",
+    wind_speed: "#ef6c00",
+    wind_gust: "#f9a825",
+    vis: "#1565c0",
+    ceiling: "#6a1b9a",
+    cloud_amount: "#00838f",
+    wx: "#ad1457",
+  };
+
+  function amendReasonColor(key) {
+    const k = String(key || "");
+    if (k.startsWith("vis_")) return AMEND_REASON_COLORS.vis;
+    if (k.startsWith("ceiling_")) return AMEND_REASON_COLORS.ceiling;
+    return AMEND_REASON_COLORS[k] || "#455a64";
+  }
+
+  function highlightRawHtml(raw, reasons, side) {
+    const text = side === "taf" ? formatTafDisplay(raw) : String(raw || "");
+    if (!text) return esc("—");
+    const reasonList = Array.isArray(reasons) ? reasons : [];
+    // Collect token -> color (first reason wins for overlaps)
+    const tokenColor = new Map();
+    for (const r of reasonList) {
+      const color = amendReasonColor(r.key);
+      const toks = side === "taf" ? r.highlight_taf || [] : r.highlight_obs || [];
+      for (const tok of toks) {
+        const t = String(tok || "").toUpperCase();
+        if (!t || tokenColor.has(t)) continue;
+        tokenColor.set(t, { color, key: r.key });
+      }
+    }
+    if (!tokenColor.size) return esc(text);
+
+    // Longer tokens first to avoid partial overlaps
+    const tokens = [...tokenColor.keys()].sort((a, b) => b.length - a.length);
+    const upper = text.toUpperCase();
+    const ranges = [];
+    for (const tok of tokens) {
+      let from = 0;
+      while (from < upper.length) {
+        const idx = upper.indexOf(tok, from);
+        if (idx < 0) break;
+        // word-ish boundary: avoid matching inside longer alnum token
+        const before = idx === 0 ? "" : upper[idx - 1];
+        const after = idx + tok.length >= upper.length ? "" : upper[idx + tok.length];
+        const okBefore = !before || /[^A-Z0-9+]/.test(before);
+        const okAfter = !after || /[^A-Z0-9+]/.test(after);
+        if (okBefore && okAfter) {
+          const overlaps = ranges.some(
+            (rg) => idx < rg.end && idx + tok.length > rg.start
+          );
+          if (!overlaps) {
+            ranges.push({
+              start: idx,
+              end: idx + tok.length,
+              color: tokenColor.get(tok).color,
+              key: tokenColor.get(tok).key,
+            });
+          }
+        }
+        from = idx + tok.length;
+      }
+    }
+    ranges.sort((a, b) => a.start - b.start);
+    let html = "";
+    let cursor = 0;
+    for (const rg of ranges) {
+      if (cursor < rg.start) html += esc(text.slice(cursor, rg.start));
+      html += `<mark class="taf-amend-hl" data-amend-key="${esc(rg.key)}" style="--amend-hl:${rg.color};background:${rg.color}33;box-shadow:inset 0 -2px 0 ${rg.color}">${esc(
+        text.slice(rg.start, rg.end)
+      )}</mark>`;
+      cursor = rg.end;
+    }
+    if (cursor < text.length) html += esc(text.slice(cursor));
+    return html;
+  }
+
   /** Salto de línea antes de BECMG / TEMPO / PROBxx (PROB30 TEMPO queda junto). */
   function formatTafDisplay(raw) {
     if (!raw) return "";
@@ -874,12 +953,23 @@
   function tafAmendPanelHtml(alert, rawTafFallback) {
     if (!alert && !rawTafFallback) return "";
     if (!alert) return "";
-    const reasons = alert.reason_labels || (alert.reasons || []).map((r) => r.label || r);
-    const reasonsHtml = reasons.length
-      ? `<ul class="taf-amend-reasons">${reasons
-          .map((r) => `<li>${esc(String(r))}</li>`)
+    const reasonObjs = Array.isArray(alert.reasons) ? alert.reasons : [];
+    const reasonsHtml = reasonObjs.length
+      ? `<ul class="taf-amend-reasons">${reasonObjs
+          .map((r) => {
+            const color = amendReasonColor(r.key);
+            const label = r.label || r;
+            return `<li class="taf-amend-reason" data-amend-key="${esc(r.key)}" style="--amend-hl:${color};border-left-color:${color}">
+              <span class="taf-amend-reason-swatch" style="background:${color}" aria-hidden="true"></span>
+              <span>${esc(String(label))}</span>
+            </li>`;
+          })
           .join("")}</ul>`
-      : "";
+      : alert.reason_labels && alert.reason_labels.length
+        ? `<ul class="taf-amend-reasons">${alert.reason_labels
+            .map((r) => `<li>${esc(String(r))}</li>`)
+            .join("")}</ul>`
+        : "";
     const raw = alert.taf_raw || rawTafFallback || "";
     const obsRaw = alert.obs_raw || "";
     return `
@@ -890,8 +980,24 @@
           ${alert.obs_iso ? `· ${esc(alert.obs_iso)}` : ""}
         </div>
         ${reasonsHtml}
-        ${obsRaw ? `<div><b>Obs</b></div><pre class="raw">${esc(obsRaw)}</pre>` : ""}
-        ${raw ? `<div><b>TAF</b></div><pre class="raw taf-raw">${esc(formatTafDisplay(raw))}</pre>` : ""}
+        ${
+          obsRaw
+            ? `<div><b>Obs</b></div><pre class="raw taf-amend-raw">${highlightRawHtml(
+                obsRaw,
+                reasonObjs,
+                "obs"
+              )}</pre>`
+            : ""
+        }
+        ${
+          raw
+            ? `<div><b>TAF</b></div><pre class="raw taf-raw taf-amend-raw">${highlightRawHtml(
+                raw,
+                reasonObjs,
+                "taf"
+              )}</pre>`
+            : ""
+        }
       </section>`;
   }
 
@@ -1029,12 +1135,22 @@
         const icao = esc(s.icao || "—");
         const omm = s.omm ? esc(String(s.omm)) : "";
         const when = esc(s.obs_iso || "—");
-        const reasons = s.reason_labels || (s.reasons || []).map((r) => r.label || r);
-        const reasonsHtml = reasons.length
-          ? `<ul class="taf-amend-reasons">${reasons
-              .map((r) => `<li>${esc(String(r))}</li>`)
+        const reasonObjs = Array.isArray(s.reasons) ? s.reasons : [];
+        const reasonsHtml = reasonObjs.length
+          ? `<ul class="taf-amend-reasons">${reasonObjs
+              .map((r) => {
+                const color = amendReasonColor(r.key);
+                return `<li class="taf-amend-reason" style="--amend-hl:${color};border-left-color:${color}">
+                  <span class="taf-amend-reason-swatch" style="background:${color}" aria-hidden="true"></span>
+                  <span>${esc(String(r.label || r))}</span>
+                </li>`;
+              })
               .join("")}</ul>`
-          : "";
+          : (s.reason_labels || []).length
+            ? `<ul class="taf-amend-reasons">${(s.reason_labels || [])
+                .map((r) => `<li>${esc(String(r))}</li>`)
+                .join("")}</ul>`
+            : "";
         const key = esc(String(s.icao || s.omm || idx));
         return `
           <button type="button" class="taf-amend-list-item" data-taf-key="${key}" data-omm="${omm}" data-icao="${icao}">
@@ -1130,6 +1246,8 @@
     speciListHtml,
     tafAmendListHtml,
     formatTafDisplay,
+    highlightRawHtml,
+    amendReasonColor,
     historyHtml,
     loadHistory,
     significantWx,

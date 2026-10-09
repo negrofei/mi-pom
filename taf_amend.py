@@ -8,6 +8,8 @@ de enmienda, se genera una alerta de monitoreo.
 
 from __future__ import annotations
 
+import re
+
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -272,6 +274,157 @@ def _matches_tempo(obs: dict, tempo: TafPeriod, reason_key: str) -> bool:
     return False
 
 
+
+_RE_WIND_TOK = re.compile(r"\b(?:VRB|\d{3})\d{2,3}(?:G\d{2,3})?KT\b", re.I)
+_RE_VIS_TOK = re.compile(r"\bCAVOK\b|(?<![\d/])\b\d{4}\b(?!/)", re.I)
+_RE_CLOUD_TOK = re.compile(
+    r"\b(?:FEW|SCT|BKN|OVC|VV)\d{3}(?:CB|TCU)?\b|\b(?:NSC|NCD|SKC|CLR)\b|\bCAVOK\b",
+    re.I,
+)
+_RE_WX_TOK = re.compile(
+    r"(?<![A-Z0-9])(?:\+|-|VC)?"
+    r"(?:MI|PR|BC|DR|BL|SH|TS|FZ)?"
+    r"(?:DZ|RA|SN|SG|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)+"
+    r"(?![A-Z0-9])",
+    re.I,
+)
+
+
+def _wind_token(
+    wind_dir: Optional[int],
+    wind_speed_kt: Optional[int],
+    wind_gust_kt: Optional[int] = None,
+    *,
+    wind_variable: bool = False,
+) -> Optional[str]:
+    if wind_speed_kt is None:
+        return None
+    if wind_variable:
+        d = "VRB"
+    elif wind_dir is None:
+        d = "VRB"
+    else:
+        d = f"{int(wind_dir):03d}"
+    body = f"{d}{int(wind_speed_kt):02d}"
+    if wind_gust_kt is not None:
+        body += f"G{int(wind_gust_kt):02d}"
+    return body + "KT"
+
+
+def _wind_token_from_raw(raw: Optional[str]) -> Optional[str]:
+    m = _RE_WIND_TOK.search(raw or "")
+    return m.group(0).upper() if m else None
+
+
+def _vis_token_from_period(period: TafPeriod) -> Optional[str]:
+    if period.cavok:
+        return "CAVOK"
+    if period.visibility_m is None:
+        return None
+    v = int(period.visibility_m)
+    if v >= 10000:
+        return "9999"
+    return f"{v:04d}"
+
+
+def _vis_token_from_raw(raw: Optional[str]) -> Optional[str]:
+    text = raw or ""
+    if re.search(r"\bCAVOK\b", text, re.I):
+        return "CAVOK"
+    # Prefer vis after wind group
+    wm = _RE_WIND_TOK.search(text)
+    search = text[wm.end() :] if wm else text
+    m = re.search(r"\bCAVOK\b|(?<![\d/])\b(\d{4})\b(?!/)", search, re.I)
+    if not m:
+        return None
+    return "CAVOK" if m.group(0).upper() == "CAVOK" else m.group(1)
+
+
+def _cloud_token(cover: str, base: Optional[int], conv: Optional[str] = None) -> str:
+    tok = str(cover).upper()
+    if base is not None:
+        tok += f"{int(base) // 100:03d}"
+    if conv:
+        tok += str(conv).upper()
+    return tok
+
+
+def _low_cloud_tokens(clouds: list[dict] | None, *, nsc: bool = False, cavok: bool = False) -> list[str]:
+    if cavok:
+        return ["CAVOK"]
+    if nsc:
+        return ["NSC"]
+    out: list[str] = []
+    for c in clouds or []:
+        base = c.get("base")
+        cover = str(c.get("cover") or "").upper()
+        if base is None or int(base) >= LOW_CLOUD_FT:
+            continue
+        if not cover:
+            continue
+        out.append(_cloud_token(cover, int(base), c.get("type") or c.get("convective")))
+    return out
+
+
+def _low_cloud_tokens_from_raw(raw: Optional[str]) -> list[str]:
+    out: list[str] = []
+    for m in _RE_CLOUD_TOK.finditer(raw or ""):
+        tok = m.group(0).upper()
+        if tok in ("NSC", "NCD", "SKC", "CLR"):
+            out.append("NSC" if tok == "NCD" else tok)
+            continue
+        if tok == "CAVOK":
+            out.append("CAVOK")
+            continue
+        mm = re.match(r"(FEW|SCT|BKN|OVC|VV)(\d{3})", tok)
+        if mm and int(mm.group(2)) * 100 < LOW_CLOUD_FT:
+            out.append(tok)
+    return out
+
+
+def _ceiling_tokens(clouds: list[dict] | None, ceiling_ft: Optional[int]) -> list[str]:
+    out: list[str] = []
+    for c in clouds or []:
+        cover = str(c.get("cover") or "").upper()
+        base = c.get("base")
+        if cover not in ("BKN", "OVC", "VV", "OVX") or base is None:
+            continue
+        if ceiling_ft is not None and int(base) != int(ceiling_ft):
+            continue
+        out.append(_cloud_token(cover, int(base), c.get("type") or c.get("convective")))
+    if not out and ceiling_ft is not None:
+        out.append(_cloud_token("BKN", int(ceiling_ft)))
+    return out
+
+
+def _ceiling_tokens_from_raw(raw: Optional[str], ceiling_ft: Optional[int]) -> list[str]:
+    text = raw or ""
+    found = [m.group(0).upper() for m in _RE_CLOUD_TOK.finditer(text)]
+    if ceiling_ft is None:
+        return [t for t in found if t.startswith(("BKN", "OVC", "VV"))]
+    code = f"{int(ceiling_ft) // 100:03d}"
+    match = [t for t in found if t.startswith(("BKN", "OVC", "VV")) and code in t]
+    return match or [t for t in found if t.startswith(("BKN", "OVC", "VV"))]
+
+
+def _wx_tokens_from_raw(raw: Optional[str]) -> list[str]:
+    return [m.group(0).upper() for m in _RE_WX_TOK.finditer(raw or "")]
+
+
+def _uniq(tokens: list[Optional[str]] | None) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for t in tokens or []:
+        if not t:
+            continue
+        u = str(t).upper()
+        if u in seen:
+            continue
+        seen.add(u)
+        out.append(u)
+    return out
+
+
 def evaluate_obs_vs_period(obs: dict, fcst: TafPeriod) -> list[dict[str, Any]]:
     """Compara observación vs un período de pronóstico; lista de motivos de enmienda."""
     reasons: list[dict[str, Any]] = []
@@ -294,6 +447,28 @@ def evaluate_obs_vs_period(obs: dict, fcst: TafPeriod) -> list[dict[str, Any]]:
                 "label": f"Dirección viento Δ{dd}° (≥60°) con media ≥10 kt",
                 "obs": obs.get("wind_dir"),
                 "fcst": fcst.wind_dir,
+                "highlight_obs": _uniq(
+                    [
+                        _wind_token_from_raw(obs.get("raw")),
+                        _wind_token(
+                            obs.get("wind_dir"),
+                            obs.get("wind_speed_kt"),
+                            obs.get("wind_gust_kt"),
+                            wind_variable=bool(obs.get("wind_variable")),
+                        ),
+                    ]
+                ),
+                "highlight_taf": _uniq(
+                    [
+                        _wind_token(
+                            fcst.wind_dir,
+                            fcst.wind_speed_kt,
+                            fcst.wind_gust_kt,
+                            wind_variable=fcst.wind_variable,
+                        ),
+                        _wind_token_from_raw(fcst.raw),
+                    ]
+                ),
             }
         )
 
@@ -305,6 +480,28 @@ def evaluate_obs_vs_period(obs: dict, fcst: TafPeriod) -> list[dict[str, Any]]:
                 "label": f"Velocidad media Δ{abs(int(obs_spd) - int(fcst_spd))} kt (≥10 kt)",
                 "obs": obs_spd,
                 "fcst": fcst_spd,
+                "highlight_obs": _uniq(
+                    [
+                        _wind_token_from_raw(obs.get("raw")),
+                        _wind_token(
+                            obs.get("wind_dir"),
+                            obs_spd,
+                            obs.get("wind_gust_kt"),
+                            wind_variable=bool(obs.get("wind_variable")),
+                        ),
+                    ]
+                ),
+                "highlight_taf": _uniq(
+                    [
+                        _wind_token(
+                            fcst.wind_dir,
+                            fcst_spd,
+                            fcst.wind_gust_kt,
+                            wind_variable=fcst.wind_variable,
+                        ),
+                        _wind_token_from_raw(fcst.raw),
+                    ]
+                ),
             }
         )
 
@@ -334,6 +531,28 @@ def evaluate_obs_vs_period(obs: dict, fcst: TafPeriod) -> list[dict[str, Any]]:
                     "label": f"Ráfagas Δ≥10 kt con media ≥15 kt (obs={obs_gust}, taf={fcst_gust})",
                     "obs": obs_gust,
                     "fcst": fcst_gust,
+                    "highlight_obs": _uniq(
+                        [
+                            _wind_token_from_raw(obs.get("raw")),
+                            _wind_token(
+                                obs.get("wind_dir"),
+                                obs_spd,
+                                obs_gust,
+                                wind_variable=bool(obs.get("wind_variable")),
+                            ),
+                        ]
+                    ),
+                    "highlight_taf": _uniq(
+                        [
+                            _wind_token(
+                                fcst.wind_dir,
+                                fcst_spd,
+                                fcst_gust,
+                                wind_variable=fcst.wind_variable,
+                            ),
+                            _wind_token_from_raw(fcst.raw),
+                        ]
+                    ),
                 }
             )
 
@@ -347,6 +566,10 @@ def evaluate_obs_vs_period(obs: dict, fcst: TafPeriod) -> list[dict[str, Any]]:
                 "obs": obs.get("visibility_m"),
                 "fcst": fcst.visibility_m,
                 "thresholds": crossed,
+                "highlight_obs": _uniq([_vis_token_from_raw(obs.get("raw"))]),
+                "highlight_taf": _uniq(
+                    [_vis_token_from_period(fcst), _vis_token_from_raw(fcst.raw)]
+                ),
             }
         )
 
@@ -367,6 +590,8 @@ def evaluate_obs_vs_period(obs: dict, fcst: TafPeriod) -> list[dict[str, Any]]:
                 "label": "Fenómeno significativo: " + "; ".join(bits),
                 "obs": sorted(obs_wx),
                 "fcst": sorted(fcst_wx),
+                "highlight_obs": _uniq(_wx_tokens_from_raw(obs.get("raw")) + list(obs.get("wx_tokens") or [])),
+                "highlight_taf": _uniq(list(fcst.wx_tokens) + _wx_tokens_from_raw(fcst.raw)),
             }
         )
 
@@ -380,6 +605,28 @@ def evaluate_obs_vs_period(obs: dict, fcst: TafPeriod) -> list[dict[str, Any]]:
                 "obs": obs.get("ceiling_ft"),
                 "fcst": fcst.ceiling_ft,
                 "thresholds": crossed_c,
+                "highlight_obs": _uniq(
+                    _ceiling_tokens_from_raw(obs.get("raw"), obs.get("ceiling_ft"))
+                    + _ceiling_tokens(obs.get("clouds"), obs.get("ceiling_ft"))
+                ),
+                "highlight_taf": _uniq(
+                    _ceiling_tokens(fcst.clouds, fcst.ceiling_ft)
+                    + _ceiling_tokens_from_raw(fcst.raw, fcst.ceiling_ft)
+                    + (
+                        ["CAVOK"]
+                        if fcst.cavok
+                        else (
+                            ["NSC"]
+                            if fcst.nsc and not fcst.clouds
+                            else []
+                        )
+                    )
+                    + (
+                        _low_cloud_tokens(fcst.clouds, nsc=fcst.nsc, cavok=fcst.cavok)
+                        if fcst.ceiling_ft is None
+                        else []
+                    )
+                ),
             }
         )
 
@@ -393,6 +640,14 @@ def evaluate_obs_vs_period(obs: dict, fcst: TafPeriod) -> list[dict[str, Any]]:
                 "label": f"Cobertura <1500 ft: TAF={fcst_bucket.upper()} → OBS={obs_bucket.upper()}",
                 "obs": obs_bucket,
                 "fcst": fcst_bucket,
+                "highlight_obs": _uniq(
+                    _low_cloud_tokens(obs.get("clouds"))
+                    + _low_cloud_tokens_from_raw(obs.get("raw"))
+                ),
+                "highlight_taf": _uniq(
+                    _low_cloud_tokens(fcst.clouds, nsc=fcst.nsc, cavok=fcst.cavok)
+                    + _low_cloud_tokens_from_raw(fcst.raw)
+                ),
             }
         )
 
