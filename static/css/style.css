@@ -1581,3 +1581,255 @@ html, body {
   .ts-modal { padding: 0.4rem; align-items: stretch; }
   .ts-modal-card { max-height: calc(100vh - 0.8rem); }
 }
+
+/* —— Consulta AW (ICAO) —— */
+.lookup-panel {
+  position: absolute;
+  z-index: 850;
+  inset: 3.6rem 0 0 0;
+  overflow: auto;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(21, 101, 192, 0.12), transparent 55%),
+    linear-gradient(180deg, #eef3f7 0%, #e7edf2 100%);
+  padding: 1rem 1rem 2rem;
+}
+
+.lookup-panel.hidden {
+  display: none;
+}
+
+.lookup-card {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.lookup-head h1 {
+  margin: 0 0 0.15rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.lookup-sub {
+  margin: 0 0 0.85rem;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.lookup-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  margin-bottom: 0.75rem;
+}
+
+.lookup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  min-width: 7rem;
+}
+
+.lookup-field.lookup-ids {
+  flex: 1 1 220px;
+  min-width: min(100%, 220px);
+}
+
+.lookup-field span {
+  font-weight: 600;
+}
+
+.lookup-field small {
+  opacity: 0.65;
+  font-size: 0.72rem;
+}
+
+.lookup-field input[type="text"],
+.lookup-field select {
+  font: inherit;
+  font-family: var(--mono);
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.lookup-field.lookup-taf {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  padding-bottom: 0.45rem;
+}
+
+.lookup-status {
+  min-height: 1.2rem;
+  margin: 0.35rem 0 0.75rem;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.lookup-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.lookup-station {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.lookup-station-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(21, 101, 192, 0.06);
+}
+
+.lookup-station-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.lookup-station-meta {
+  font-size: 0.78rem;
+  opacity: 0.75;
+  font-family: var(--mono);
+}
+
+.lookup-taf,
+.lookup-msg-list {
+  padding: 0.65rem 0.9rem 0.85rem;
+}
+
+.lookup-taf {
+  border-bottom: 1px dashed var(--line);
+}
+
+.lookup-taf-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: center;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.lookup-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: #455a64;
+}
+
+.lookup-badge.taf {
+  background: #1565c0;
+}
+
+.lookup-msg {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.lookup-msg:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.lookup-msg.is-speci {
+  background: rgba(183, 28, 28, 0.04);
+  margin: 0 -0.9rem;
+  padding-left: 0.9rem;
+  padding-right: 0.9rem;
+}
+
+.lookup-msg header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  align-items: center;
+  margin-bottom: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.lookup-msg-kind {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  background: #37474f;
+  color: #fff;
+}
+
+.lookup-msg.is-speci .lookup-msg-kind {
+  background: #b71c1c;
+}
+
+.lookup-msg time {
+  font-family: var(--mono);
+  opacity: 0.75;
+}
+
+.lookup-empty {
+  padding: 0.75rem 0.25rem;
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+.lookup-station .raw,
+.lookup-station .taf-raw {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+body.mode-lookup #map,
+body.mode-lookup .flt-legend-wrap,
+body.mode-lookup .speci-list-fab,
+body.mode-lookup .taf-amend-list-fab,
+body.mode-lookup .speci-list-panel,
+body.mode-lookup .taf-amend-list-panel {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+body.mode-lookup .field:has(#hourInput),
+body.mode-lookup #nilWrap {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .lookup-panel {
+    inset: 4.8rem 0 0 0;
+    padding: 0.75rem;
+  }
+  .lookup-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lookup-field.lookup-taf {
+    padding-bottom: 0;
+  }
+}

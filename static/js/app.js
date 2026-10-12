@@ -34,6 +34,15 @@
   const cfgColorVis = document.getElementById("cfgColorVis");
   const btnProductSynop = document.getElementById("btnProductSynop");
   const btnProductMetar = document.getElementById("btnProductMetar");
+  const btnProductLookup = document.getElementById("btnProductLookup");
+  const lookupPanel = document.getElementById("lookupPanel");
+  const lookupForm = document.getElementById("lookupForm");
+  const lookupIds = document.getElementById("lookupIds");
+  const lookupHours = document.getElementById("lookupHours");
+  const lookupTaf = document.getElementById("lookupTaf");
+  const lookupStatus = document.getElementById("lookupStatus");
+  const lookupResults = document.getElementById("lookupResults");
+  const lookupSubmit = document.getElementById("lookupSubmit");
   const fltLegend = document.getElementById("fltLegend");
   const btnSpeciList = document.getElementById("btnSpeciList");
   const speciListPanel = document.getElementById("speciListPanel");
@@ -65,6 +74,9 @@
     includeNil: false,
     colorBy: "flight",
     firs: [...ALL_FIRS],
+    lookupIds: "SAZR, SABE",
+    lookupHours: 6,
+    lookupTaf: true,
   };
 
   function loadSettings() {
@@ -83,7 +95,7 @@
       if (!Array.isArray(parsed.firs) || !parsed.firs.length) {
         parsed.firs = [...ALL_FIRS];
       }
-      if (parsed.product !== "metar" && parsed.product !== "synop") {
+      if (!["metar", "synop", "lookup"].includes(parsed.product)) {
         parsed.product = "synop";
       }
       if (!COLOR_BY.includes(parsed.colorBy)) {
@@ -254,6 +266,9 @@
     cfgGapLabel.textContent = Number(settings.plotGap).toFixed(2);
     applyFirChecks(settings.firs);
     applyColorByUi(settings.colorBy);
+    if (lookupIds) lookupIds.value = settings.lookupIds || defaults.lookupIds;
+    if (lookupHours) lookupHours.value = String(settings.lookupHours || defaults.lookupHours);
+    if (lookupTaf) lookupTaf.checked = settings.lookupTaf !== false;
     applyProductUi();
   }
 
@@ -266,6 +281,9 @@
       includeNil: chkNil.checked,
       colorBy: colorByFromUi(),
       firs: selectedFirsFromUi(),
+      lookupIds: lookupIds ? lookupIds.value : settings.lookupIds,
+      lookupHours: lookupHours ? Number(lookupHours.value) : settings.lookupHours,
+      lookupTaf: lookupTaf ? !!lookupTaf.checked : settings.lookupTaf,
     };
     cfgGapLabel.textContent = settings.plotGap.toFixed(2);
     saveSettings(settings);
@@ -275,22 +293,32 @@
 
   function applyProductUi() {
     const isMetar = settings.product === "metar";
-    btnProductSynop.classList.toggle("active", !isMetar);
+    const isLookup = settings.product === "lookup";
+    const isSynop = !isMetar && !isLookup;
+    btnProductSynop.classList.toggle("active", isSynop);
     btnProductMetar.classList.toggle("active", isMetar);
-    nilWrap.classList.toggle("hidden", isMetar);
+    if (btnProductLookup) btnProductLookup.classList.toggle("active", isLookup);
+    document.body.classList.toggle("mode-lookup", isLookup);
+    if (lookupPanel) lookupPanel.classList.toggle("hidden", !isLookup);
+    nilWrap.classList.toggle("hidden", isMetar || isLookup);
     fltLegend.classList.toggle("hidden", !isMetar);
     if (isMetar) fltLegend.innerHTML = MetarPlot.legendHtml(settings.colorBy);
     const gapRow = cfgPlotGap && cfgPlotGap.closest(".config-row");
-    if (gapRow) gapRow.classList.toggle("hidden", isMetar);
+    if (gapRow) gapRow.classList.toggle("hidden", isMetar || isLookup);
     if (colorByWrap) colorByWrap.classList.toggle("hidden", !isMetar);
     const timelineFs = cfgTimelineExact && cfgTimelineExact.closest(".config-fieldset");
-    if (timelineFs) timelineFs.classList.toggle("hidden", isMetar);
+    if (timelineFs) timelineFs.classList.toggle("hidden", isMetar || isLookup);
     if (!isMetar) {
       setSpeciListOpen(false);
       setTafAmendListOpen(false);
     }
     if (btnSpeciList) btnSpeciList.classList.toggle("hidden", !isMetar);
     if (btnTafAmendList) btnTafAmendList.classList.toggle("hidden", !isMetar);
+    if (btnLoad) btnLoad.classList.toggle("hidden", isLookup);
+    if (hourInput) {
+      const hourField = hourInput.closest(".field");
+      if (hourField) hourField.classList.toggle("hidden", isLookup);
+    }
   }
 
   function setSpeciListOpen(open) {
@@ -435,7 +463,9 @@
   }
 
   function setProduct(product) {
-    settings.product = product === "metar" ? "metar" : "synop";
+    if (product === "metar") settings.product = "metar";
+    else if (product === "lookup") settings.product = "lookup";
+    else settings.product = "synop";
     if (settings.product === "metar") {
       // En METAR se consultan SPECI cada 2 min; el mapa usa SYNOP
       settings.autorefresh = true;
@@ -446,6 +476,10 @@
       speciSeeded = false;
       seenTafAmend = new Set();
       tafAmendSeeded = false;
+    }
+    if (settings.product === "lookup") {
+      settings.autorefresh = false;
+      cfgAutorefresh.checked = false;
     }
     saveSettings(settings);
     applyProductUi();
@@ -459,7 +493,9 @@
       refreshTimer = null;
     }
     // METAR siempre refresca cada 2 min; SYNOP respeta el checkbox
-    const enabled = settings.product === "metar" || settings.autorefresh;
+    const enabled =
+      settings.product !== "lookup" &&
+      (settings.product === "metar" || settings.autorefresh);
     if (enabled) {
       refreshTimer = setInterval(() => {
         setDefaultHour();
@@ -611,7 +647,50 @@
 
   function loadCurrent() {
     if (settings.product === "metar") return loadMetars();
+    if (settings.product === "lookup") return loadLookup();
     return loadSynops();
+  }
+
+  async function loadLookup() {
+    if (!window.AwLookup) {
+      statusEl.textContent = "Módulo de consulta no disponible";
+      return;
+    }
+    const ids = AwLookup.parseIdsInput(lookupIds ? lookupIds.value : settings.lookupIds);
+    const hours = Number(lookupHours && lookupHours.value) || settings.lookupHours || 6;
+    const includeTaf = lookupTaf ? !!lookupTaf.checked : settings.lookupTaf !== false;
+    settings.lookupIds = lookupIds ? lookupIds.value : settings.lookupIds;
+    settings.lookupHours = hours;
+    settings.lookupTaf = includeTaf;
+    saveSettings(settings);
+
+    if (!ids.length) {
+      if (lookupStatus) lookupStatus.textContent = "Indicá uno o más ICAO (ej. SAZR, SABE)";
+      if (lookupResults) lookupResults.innerHTML = "";
+      statusEl.textContent = "Consulta · sin estaciones";
+      return;
+    }
+
+    statusEl.textContent = "Consultando AviationWeather…";
+    if (lookupStatus) lookupStatus.textContent = `Consultando ${ids.join(", ")} · ${hours} h…`;
+    if (lookupSubmit) lookupSubmit.disabled = true;
+    try {
+      const data = await AwLookup.runLookup({ ids, hours, includeTaf });
+      if (lookupResults) lookupResults.innerHTML = AwLookup.resultsHtml(data);
+      const msg = `${data.count} est. · ${data.message_count} METAR/SPECI · ${data.taf_count} TAF · ${hours} h`;
+      if (lookupStatus) lookupStatus.textContent = msg;
+      statusEl.textContent = `Consulta AW · ${msg}`;
+    } catch (err) {
+      console.error(err);
+      const m = err.message || String(err);
+      if (lookupStatus) lookupStatus.textContent = `Error: ${m}`;
+      if (lookupResults) lookupResults.innerHTML = `<div class="lookup-empty">Error: ${m
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")}</div>`;
+      statusEl.textContent = `Error consulta: ${m}`;
+    } finally {
+      if (lookupSubmit) lookupSubmit.disabled = false;
+    }
   }
 
   async function openTimeSeries(omm, nombre) {
@@ -1031,6 +1110,15 @@
   });
   btnProductSynop.addEventListener("click", () => setProduct("synop"));
   btnProductMetar.addEventListener("click", () => setProduct("metar"));
+  if (btnProductLookup) {
+    btnProductLookup.addEventListener("click", () => setProduct("lookup"));
+  }
+  if (lookupForm) {
+    lookupForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      loadLookup();
+    });
+  }
   if (btnSpeciList) {
     btnSpeciList.addEventListener("click", () => {
       const open = speciListPanel && speciListPanel.classList.contains("hidden");

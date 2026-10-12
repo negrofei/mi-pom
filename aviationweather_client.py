@@ -13,6 +13,7 @@ from synop_parser import barb_key
 log = logging.getLogger(__name__)
 
 AW_METAR_URL = "https://aviationweather.gov/api/data/metar"
+AW_TAF_URL = "https://aviationweather.gov/api/data/taf"
 DEFAULT_TIMEOUT = 45
 USER_AGENT = "mi-pom/1.0 (argentina-metar-viewer; https://github.com/negrofei/mi-pom)"
 
@@ -323,3 +324,172 @@ def fetch_argentina_specis(
         if prev is None or (n.get("obs_iso") or "") >= (prev.get("obs_iso") or ""):
             by_icao[n["icao"]] = n
     return sorted(by_icao.values(), key=lambda x: x.get("obs_iso") or "", reverse=True)
+
+
+def parse_icao_ids(raw: str | list[str] | None, *, limit: int = 40) -> list[str]:
+    """Parsea ICAOs separados por coma/espacio; máx `limit` únicos."""
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        tokens = raw
+    else:
+        tokens = str(raw).replace(";", ",").replace("\n", ",").split(",")
+    out: list[str] = []
+    seen: set[str] = set()
+    for tok in tokens:
+        for part in str(tok).strip().upper().split():
+            icao = "".join(ch for ch in part if ch.isalnum())
+            if len(icao) != 4 or not icao.isalpha():
+                continue
+            if icao in seen:
+                continue
+            seen.add(icao)
+            out.append(icao)
+            if len(out) >= limit:
+                return out
+    return out
+
+
+def _fetch_taf_rows(ids: list[str]) -> list[dict]:
+    if not ids:
+        return []
+    rows: list[dict] = []
+    chunk_size = 80
+    for i in range(0, len(ids), chunk_size):
+        chunk = ids[i : i + chunk_size]
+        params = {"ids": ",".join(chunk), "format": "json"}
+        log.info("AviationWeather TAF chunk %s-%s", i, i + len(chunk))
+        resp = requests.get(
+            AW_TAF_URL,
+            params=params,
+            timeout=DEFAULT_TIMEOUT,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+        )
+        if resp.status_code == 204:
+            continue
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list):
+            rows.extend(data)
+    return rows
+
+
+def _normalize_taf(row: dict, airports: dict[str, dict]) -> dict[str, Any]:
+    icao = str(row.get("icaoId") or "").upper()
+    meta = airports.get(icao) or {}
+    raw = row.get("rawTAF") or row.get("rawTaf") or ""
+    issue_iso = None
+    valid_from_iso = None
+    valid_to_iso = None
+    for key, dest in (
+        ("issueTime", "issue"),
+        ("validTimeFrom", "from"),
+        ("validTimeTo", "to"),
+    ):
+        val = row.get(key)
+        if val is None:
+            continue
+        try:
+            if isinstance(val, (int, float)):
+                dt = datetime.fromtimestamp(float(val), tz=timezone.utc)
+            else:
+                dt = datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+            iso = dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            if dest == "issue":
+                issue_iso = iso
+            elif dest == "from":
+                valid_from_iso = iso
+            else:
+                valid_to_iso = iso
+        except (TypeError, ValueError, OSError):
+            continue
+    return {
+        "icao": icao,
+        "nombre": meta.get("nombre") or row.get("name") or icao,
+        "raw": raw,
+        "issue_iso": issue_iso,
+        "valid_from_iso": valid_from_iso,
+        "valid_to_iso": valid_to_iso,
+        "lat": meta.get("lat", row.get("lat")),
+        "lng": meta.get("lng", row.get("lon")),
+        "fir": meta.get("fir"),
+        "source": "AviationWeather",
+    }
+
+
+def fetch_stations_bulletin(
+    ids: list[str],
+    *,
+    hours: int = 6,
+    include_taf: bool = True,
+    airports: dict[str, dict] | None = None,
+) -> dict[str, Any]:
+    """
+    Consulta tipo AviationWeather: ICAOs + ventana horaria → TAF + METAR/SPECI.
+    No exige que el ICAO esté en el catálogo local.
+    """
+    airports = airports or {}
+    ids = parse_icao_ids(ids)
+    hours = max(1, min(int(hours), 48))
+    if not ids:
+        return {"hours": hours, "count": 0, "stations": []}
+
+    metar_rows = _fetch_metar_rows(ids, hours, include_taf=False)
+    messages = [_normalize_metar(r, airports) for r in metar_rows if r.get("icaoId")]
+    messages = [m for m in messages if m.get("icao") in set(ids)]
+    messages.sort(key=lambda m: m.get("obs_iso") or "", reverse=True)
+
+    taf_by: dict[str, dict] = {}
+    if include_taf:
+        for row in _fetch_taf_rows(ids):
+            if not row.get("icaoId"):
+                continue
+            t = _normalize_taf(row, airports)
+            if t["icao"] not in set(ids) or not t.get("raw"):
+                continue
+            prev = taf_by.get(t["icao"])
+            if prev is None or (t.get("issue_iso") or "") >= (prev.get("issue_iso") or ""):
+                taf_by[t["icao"]] = t
+
+    by_msgs: dict[str, list[dict]] = {i: [] for i in ids}
+    for m in messages:
+        by_msgs.setdefault(m["icao"], []).append(m)
+
+    stations = []
+    for icao in ids:
+        meta = airports.get(icao) or {}
+        msgs = by_msgs.get(icao) or []
+        taf = taf_by.get(icao)
+        # Completar raw_taf en mensajes si falta
+        if taf and taf.get("raw"):
+            for m in msgs:
+                if not m.get("raw_taf"):
+                    m["raw_taf"] = taf["raw"]
+        stations.append(
+            {
+                "icao": icao,
+                "nombre": meta.get("nombre")
+                or (taf or {}).get("nombre")
+                or (msgs[0].get("nombre") if msgs else icao),
+                "fir": meta.get("fir") or (msgs[0].get("fir") if msgs else None),
+                "lat": meta.get("lat")
+                or (taf or {}).get("lat")
+                or (msgs[0].get("lat") if msgs else None),
+                "lng": meta.get("lng")
+                or (taf or {}).get("lng")
+                or (msgs[0].get("lng") if msgs else None),
+                "taf": taf,
+                "message_count": len(msgs),
+                "messages": msgs,
+            }
+        )
+
+    return {
+        "hours": hours,
+        "source": "AviationWeather",
+        "ids": ids,
+        "count": len(stations),
+        "message_count": len(messages),
+        "taf_count": sum(1 for s in stations if s.get("taf")),
+        "stations": stations,
+    }
