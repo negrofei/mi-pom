@@ -79,6 +79,22 @@
     lookupTaf: true,
   };
 
+  function productFromPage() {
+    if (window.__INITIAL_PRODUCT__ && ["synop", "metar", "lookup"].includes(window.__INITIAL_PRODUCT__)) {
+      return window.__INITIAL_PRODUCT__;
+    }
+    const seg = (location.pathname || "/").replace(/\/+$/, "").split("/").pop();
+    if (seg === "metar") return "metar";
+    if (seg === "consulta") return "lookup";
+    return "synop";
+  }
+
+  function pathForProduct(product) {
+    if (product === "metar") return "/metar";
+    if (product === "lookup") return "/consulta";
+    return "/synop";
+  }
+
   function loadSettings() {
     try {
       const raw =
@@ -112,6 +128,8 @@
   }
 
   let settings = loadSettings();
+  // URL manda: cada endpoint fija el panel (permite 3 pestañas del navegador)
+  settings.product = productFromPage();
   let refreshTimer = null;
   let seenSpeci = new Set();
   let speciSeeded = false;
@@ -463,11 +481,19 @@
   }
 
   function setProduct(product) {
-    if (product === "metar") settings.product = "metar";
-    else if (product === "lookup") settings.product = "lookup";
-    else settings.product = "synop";
+    let next = "synop";
+    if (product === "metar") next = "metar";
+    else if (product === "lookup") next = "lookup";
+    const target = pathForProduct(next);
+    // Navegar al endpoint del panel (permite abrir cada uno en otra pestaña)
+    if (pathForProduct(settings.product) !== target) {
+      settings.product = next;
+      saveSettings(settings);
+      location.assign(target);
+      return;
+    }
+    settings.product = next;
     if (settings.product === "metar") {
-      // En METAR se consultan SPECI cada 2 min; el mapa usa SYNOP
       settings.autorefresh = true;
       cfgAutorefresh.checked = true;
       settings.timeline = "latest";
@@ -677,7 +703,8 @@
     try {
       const data = await AwLookup.runLookup({ ids, hours, includeTaf });
       if (lookupResults) lookupResults.innerHTML = AwLookup.resultsHtml(data);
-      const msg = `${data.count} est. · ${data.message_count} METAR/SPECI · ${data.taf_count} TAF · ${hours} h`;
+      const amd = data.taf_amend_count != null ? data.taf_amend_count : 0;
+      const msg = `${data.count} est. · ${data.message_count} METAR/SPECI · ${data.taf_count} TAF · ${amd} AMD · ${hours} h`;
       if (lookupStatus) lookupStatus.textContent = msg;
       statusEl.textContent = `Consulta AW · ${msg}`;
     } catch (err) {
@@ -1108,11 +1135,18 @@
     syncFirAllCheckbox();
     onConfigChange(true);
   });
-  btnProductSynop.addEventListener("click", () => setProduct("synop"));
-  btnProductMetar.addEventListener("click", () => setProduct("metar"));
-  if (btnProductLookup) {
-    btnProductLookup.addEventListener("click", () => setProduct("lookup"));
+  function bindProductNav(el, product) {
+    if (!el) return;
+    el.addEventListener("click", (e) => {
+      // Nueva pestaña / middle click: dejar que el <a href> navegue solo
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return;
+      e.preventDefault();
+      setProduct(product);
+    });
   }
+  bindProductNav(btnProductSynop, "synop");
+  bindProductNav(btnProductMetar, "metar");
+  bindProductNav(btnProductLookup, "lookup");
   if (lookupForm) {
     lookupForm.addEventListener("submit", (e) => {
       e.preventDefault();

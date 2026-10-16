@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SYNOP / Aviación Argentina</title>
+  <title>{{ page_title|default("SYNOP / Aviación Argentina") }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -17,10 +17,10 @@
       <span class="brand-sub">Argentina · SYNOP / Aviación</span>
     </div>
     <div class="controls">
-      <div class="product-toggle" role="group" aria-label="Producto">
-        <button type="button" class="btn product-btn active" data-product="synop" id="btnProductSynop">SYNOP</button>
-        <button type="button" class="btn product-btn" data-product="metar" id="btnProductMetar" title="Vigilancia METAR: SMN en intranet, AW/OGIMET en Render">METAR</button>
-        <button type="button" class="btn product-btn" data-product="lookup" id="btnProductLookup" title="Consulta METAR/SPECI/TAF por ICAO (AviationWeather)">Consulta</button>
+            <div class="product-toggle" role="group" aria-label="Producto">
+        <a href="/synop" class="btn product-btn" data-product="synop" id="btnProductSynop">SYNOP</a>
+        <a href="/metar" class="btn product-btn" data-product="metar" id="btnProductMetar" title="Vigilancia METAR: SMN en intranet, AW/OGIMET en Render">METAR</a>
+        <a href="/consulta" class="btn product-btn" data-product="lookup" id="btnProductLookup" title="Consulta METAR/SPECI/TAF por ICAO (AviationWeather)">Consulta</a>
       </div>
       <label class="field">
         <span>Hora UTC</span>
@@ -129,7 +129,7 @@
       <header class="lookup-head">
         <div>
           <h1>Consulta METAR / SPECI / TAF</h1>
-          <p class="lookup-sub">Estilo AviationWeather · datos vía AviationWeather Center</p>
+          <p class="lookup-sub">Estilo AviationWeather · METAR/SPECI a la izquierda, TAF + enmienda a la derecha</p>
         </div>
       </header>
       <form id="lookupForm" class="lookup-form" action="#" method="get">
@@ -215,6 +215,7 @@
   <div id="hoverTip" class="hover-tip hidden"></div>
   <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 
+  <script>window.__INITIAL_PRODUCT__ = {{ initial_product|default("synop")|tojson }};</script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/static/js/symbols.js"></script>
   <script src="/static/js/ww.js"></script>

@@ -1,5 +1,5 @@
 /**
- * Pestaña Consulta: METAR/SPECI/TAF por ICAO (estilo AviationWeather).
+ * Pestaña Consulta (/consulta): METAR/SPECI | TAF + enmienda.
  */
 (function (global) {
   function esc(s) {
@@ -42,29 +42,84 @@
     return `<span class="flt-pill" style="background:${meta.color}">${esc(meta.label || cat)}</span>`;
   }
 
+  function highlight(raw, reasons, side) {
+    if (global.MetarPlot && typeof global.MetarPlot.highlightRawHtml === "function") {
+      return global.MetarPlot.highlightRawHtml(raw, reasons || [], side);
+    }
+    const text = side === "taf" ? formatTaf(raw) : String(raw || "");
+    return esc(text || "—");
+  }
+
+  function amendBlock(alert, tafRaw) {
+    if (!alert) {
+      return `<div class="lookup-amend-ok">Sin diferencia por umbrales de enmienda vs la obs. más reciente.</div>`;
+    }
+    if (global.MetarPlot && typeof global.MetarPlot.tafAmendPanelHtml === "function") {
+      // Panel completo ya incluye Obs+TAF; en layout partido solo queremos motivos
+      const reasons = Array.isArray(alert.reasons) ? alert.reasons : [];
+      if (!reasons.length && alert.reason_labels) {
+        return `<ul class="taf-amend-reasons">${alert.reason_labels
+          .map((r) => `<li>${esc(String(r))}</li>`)
+          .join("")}</ul>`;
+      }
+      const colorFn = global.MetarPlot.amendReasonColor || (() => "#1565c0");
+      return `
+        <div class="lookup-amend-head">
+          <span class="taf-amend-badge">Posible enmienda TAF</span>
+          ${alert.obs_product ? `· ${esc(alert.obs_product)}` : ""}
+          ${alert.obs_iso ? `· ${esc(alert.obs_iso)}` : ""}
+        </div>
+        <ul class="taf-amend-reasons">${reasons
+          .map((r) => {
+            const color = colorFn(r.key);
+            return `<li class="taf-amend-reason" style="--amend-hl:${color};border-left-color:${color}">
+              <span class="taf-amend-reason-swatch" style="background:${color}" aria-hidden="true"></span>
+              <span>${esc(String(r.label || r))}</span>
+            </li>`;
+          })
+          .join("")}</ul>`;
+    }
+    const labels = alert.reason_labels || [];
+    return `<ul class="taf-amend-reasons">${labels
+      .map((r) => `<li>${esc(String(r))}</li>`)
+      .join("")}</ul>`;
+  }
+
   function stationHtml(st) {
     const taf = st.taf;
     const msgs = st.messages || [];
+    const alert = st.taf_amend || null;
+    const reasons = (alert && alert.reasons) || [];
+    const latestIso = msgs[0] && msgs[0].obs_iso;
+
     const msgsHtml = msgs.length
       ? msgs
-          .map((m) => {
+          .map((m, idx) => {
             const kind = m.is_speci || m.metar_type === "SPECI" ? "SPECI" : "METAR";
+            const isLatest = idx === 0;
+            const rawHtml =
+              isLatest && reasons.length
+                ? highlight(m.raw || "", reasons, "obs")
+                : esc(m.raw || "—");
             return `
-            <article class="lookup-msg${kind === "SPECI" ? " is-speci" : ""}">
+            <article class="lookup-msg${kind === "SPECI" ? " is-speci" : ""}${
+              isLatest ? " is-latest" : ""
+            }">
               <header>
                 <span class="lookup-msg-kind">${esc(kind)}</span>
                 <time>${esc(m.obs_iso || "—")}</time>
                 ${catPill(m.flt_cat)}
+                ${isLatest ? `<span class="lookup-latest-tag">vs TAF</span>` : ""}
               </header>
-              <pre class="raw">${esc(m.raw || "—")}</pre>
+              <pre class="raw taf-amend-raw">${rawHtml}</pre>
             </article>`;
           })
           .join("")
       : `<div class="lookup-empty">Sin METAR/SPECI en la ventana pedida.</div>`;
 
-    const tafHtml = taf && taf.raw
-      ? `<div class="lookup-taf">
-          <div class="lookup-taf-meta">
+    const tafBody =
+      taf && taf.raw
+        ? `<div class="lookup-taf-meta">
             <span class="lookup-badge taf">TAF</span>
             ${taf.issue_iso ? `<span>emisión ${esc(taf.issue_iso)}</span>` : ""}
             ${
@@ -75,22 +130,40 @@
                 : ""
             }
           </div>
-          <pre class="raw taf-raw">${esc(formatTaf(taf.raw))}</pre>
-        </div>`
-      : `<div class="lookup-empty">Sin TAF disponible.</div>`;
+          <pre class="raw taf-raw taf-amend-raw">${highlight(taf.raw, reasons, "taf")}</pre>`
+        : `<div class="lookup-empty">Sin TAF disponible.</div>`;
+
+    const amendHtml =
+      taf && taf.raw
+        ? `<div class="lookup-amend">${amendBlock(alert, taf.raw)}</div>`
+        : "";
 
     return `
-      <section class="lookup-station" data-icao="${esc(st.icao)}">
+      <section class="lookup-station${st.has_taf_amend ? " has-amend" : ""}" data-icao="${esc(
+        st.icao
+      )}">
         <header class="lookup-station-head">
-          <h2><strong>${esc(st.icao)}</strong> ${esc(st.nombre || "")}</h2>
+          <h2><strong>${esc(st.icao)}</strong> ${esc(st.nombre || "")}
+            ${st.has_taf_amend ? `<span class="taf-amend-badge">TAF AMD?</span>` : ""}
+          </h2>
           <div class="lookup-station-meta">
             ${st.fir ? `FIR ${esc(st.fir)} · ` : ""}
             ${msgs.length} obs
             ${taf && taf.raw ? " · TAF" : ""}
+            ${latestIso ? ` · ref ${esc(latestIso)}` : ""}
           </div>
         </header>
-        ${tafHtml}
-        <div class="lookup-msg-list">${msgsHtml}</div>
+        <div class="lookup-split">
+          <div class="lookup-col lookup-col-obs">
+            <div class="lookup-col-title">METAR / SPECI</div>
+            <div class="lookup-msg-list">${msgsHtml}</div>
+          </div>
+          <div class="lookup-col lookup-col-taf">
+            <div class="lookup-col-title">TAF</div>
+            <div class="lookup-taf">${tafBody}</div>
+            ${amendHtml}
+          </div>
+        </div>
       </section>`;
   }
 
@@ -111,6 +184,7 @@
       ids: list.join(","),
       hours: String(hours || 6),
       taf: includeTaf ? "1" : "0",
+      amend: "1",
     });
     const res = await fetch(`/api/lookup?${q}`);
     const data = await res.json();
