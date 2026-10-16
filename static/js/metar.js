@@ -1248,6 +1248,7 @@
     formatTafDisplay,
     highlightRawHtml,
     amendReasonColor,
+    tafAmendPanelHtml,
     historyHtml,
     loadHistory,
     significantWx,

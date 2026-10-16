@@ -1599,7 +1599,7 @@ html, body {
 }
 
 .lookup-card {
-  max-width: 920px;
+  max-width: min(1280px, 100%);
   margin: 0 auto;
 }
 
@@ -1710,13 +1710,95 @@ html, body {
   font-family: var(--mono);
 }
 
-.lookup-taf,
-.lookup-msg-list {
+.lookup-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  min-height: 12rem;
+}
+
+.lookup-col {
+  min-width: 0;
   padding: 0.65rem 0.9rem 0.85rem;
 }
 
+.lookup-col-obs {
+  border-right: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.lookup-col-taf {
+  background: rgba(227, 242, 253, 0.35);
+}
+
+.lookup-col-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-bottom: 0.45rem;
+}
+
+.lookup-taf,
+.lookup-msg-list {
+  padding: 0;
+}
+
 .lookup-taf {
-  border-bottom: 1px dashed var(--line);
+  border-bottom: none;
+}
+
+.lookup-station.has-amend {
+  border-color: #90caf9;
+  box-shadow: 0 0 0 1px rgba(21, 101, 192, 0.15), var(--shadow);
+}
+
+.lookup-latest-tag {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  background: #1565c0;
+  color: #fff;
+}
+
+.lookup-msg.is-latest {
+  background: rgba(21, 101, 192, 0.06);
+  margin: 0 -0.9rem;
+  padding-left: 0.9rem;
+  padding-right: 0.9rem;
+  border-radius: 4px;
+}
+
+.lookup-amend {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed var(--line);
+}
+
+.lookup-amend-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.lookup-amend-ok {
+  margin-top: 0.75rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  background: rgba(46, 125, 50, 0.08);
+  color: #1b5e20;
+  font-size: 0.8rem;
+}
+
+.product-toggle a.btn {
+  text-decoration: none;
+  color: inherit;
 }
 
 .lookup-taf-meta {
@@ -1818,6 +1900,16 @@ body.mode-lookup .taf-amend-list-panel {
 body.mode-lookup .field:has(#hourInput),
 body.mode-lookup #nilWrap {
   display: none;
+}
+
+@media (max-width: 900px) {
+  .lookup-split {
+    grid-template-columns: 1fr;
+  }
+  .lookup-col-obs {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
 }
 
 @media (max-width: 720px) {

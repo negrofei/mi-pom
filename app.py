@@ -7,7 +7,7 @@ import logging
 import os
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory
 
 from aviationweather_client import (
     fetch_argentina_metars,
@@ -45,9 +45,32 @@ STATIONS = load_stations()
 AIRPORTS = load_airports()
 
 
+_UI_PRODUCT = {"synop": "synop", "metar": "metar", "consulta": "lookup"}
+
+
 @app.get("/")
-def index():
-    return render_template("index.html")
+def index_root():
+    return redirect("/synop", code=302)
+
+
+@app.get("/synop")
+@app.get("/metar")
+@app.get("/consulta")
+def index_product():
+    """Una URL por panel para poder abrirlos en pestañas distintas del navegador."""
+    page = (request.path or "/synop").strip("/") or "synop"
+    ui_product = _UI_PRODUCT.get(page, "synop")
+    titles = {
+        "synop": "SYNOP Argentina",
+        "metar": "METAR / vigilancia Argentina",
+        "consulta": "Consulta METAR · SPECI · TAF",
+    }
+    return render_template(
+        "index.html",
+        initial_product=ui_product,
+        page_path=page,
+        page_title=titles.get(page, "WX Argentina"),
+    )
 
 
 @app.get("/img/<path:filename>")
@@ -252,8 +275,13 @@ def api_lookup():
     if not ids:
         return jsonify({"error": "Indicá uno o más ICAO (OACI) separados por coma"}), 400
     try:
+        include_amend = request.args.get("amend", "1") == "1"
         payload = fetch_stations_bulletin(
-            ids, hours=hours, include_taf=include_taf, airports=AIRPORTS
+            ids,
+            hours=hours,
+            include_taf=include_taf,
+            include_amend=include_amend,
+            airports=AIRPORTS,
         )
     except Exception as exc:  # noqa: BLE001
         log.exception("Error en consulta AW lookup")

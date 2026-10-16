@@ -9,6 +9,7 @@ from typing import Any, Optional
 import requests
 
 from synop_parser import barb_key
+from taf_amend import evaluate_amendment
 
 log = logging.getLogger(__name__)
 
@@ -422,10 +423,12 @@ def fetch_stations_bulletin(
     *,
     hours: int = 6,
     include_taf: bool = True,
+    include_amend: bool = True,
     airports: dict[str, dict] | None = None,
 ) -> dict[str, Any]:
     """
     Consulta tipo AviationWeather: ICAOs + ventana horaria → TAF + METAR/SPECI.
+    Opcionalmente evalúa posible enmienda TAF vs la observación más reciente.
     No exige que el ICAO esté en el catálogo local.
     """
     airports = airports or {}
@@ -465,6 +468,14 @@ def fetch_stations_bulletin(
             for m in msgs:
                 if not m.get("raw_taf"):
                     m["raw_taf"] = taf["raw"]
+        taf_alert = None
+        if include_amend and include_taf and taf and taf.get("raw") and msgs:
+            try:
+                taf_alert = evaluate_amendment(msgs[0], taf["raw"])
+            except Exception as exc:  # noqa: BLE001
+                log.warning("TAF amend lookup %s: %s", icao, exc)
+                taf_alert = None
+
         stations.append(
             {
                 "icao": icao,
@@ -481,6 +492,8 @@ def fetch_stations_bulletin(
                 "taf": taf,
                 "message_count": len(msgs),
                 "messages": msgs,
+                "has_taf_amend": bool(taf_alert),
+                "taf_amend": taf_alert,
             }
         )
 
@@ -491,5 +504,6 @@ def fetch_stations_bulletin(
         "count": len(stations),
         "message_count": len(messages),
         "taf_count": sum(1 for s in stations if s.get("taf")),
+        "taf_amend_count": sum(1 for s in stations if s.get("has_taf_amend")),
         "stations": stations,
     }
