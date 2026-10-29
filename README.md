@@ -22,6 +22,13 @@ docker compose up --build
 
 Abrí http://localhost:8080 → redirige a `/synop`.
 
+La imagen incluye el cliente `mysql` (no hace falta instalarlo en el host). Ejemplo:
+
+```bash
+docker compose exec synop mysql -h "$DMA_MYSQL_HOST" -u "$DMA_MYSQL_USER" -p"$DMA_MYSQL_PASSWORD" "$DMA_MYSQL_DATABASE" \
+  -e "SHOW TABLES LIKE '%_obs'; DESCRIBE synop_obs;"
+```
+
 ## Variables DMA
 
 | Variable | Default | Descripción |
