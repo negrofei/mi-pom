@@ -115,10 +115,12 @@ def test_contingency_skips_dma_when_unavailable():
         "surveillance.dma_status",
         return_value={"ok": False, "reason": "Network unreachable"},
     ), patch("surveillance.fetch_dma_messages") as dma, patch(
-        "surveillance.fetch_argentina_metars"
-    ) as aw_m, patch("surveillance.fetch_argentina_specis") as aw_s, patch(
-        "surveillance.fetch_argentina_synops"
-    ) as og, patch("surveillance.resolve_synop_hour", return_value=None):
+        "surveillance.fetch_dma_tafs", return_value={}
+    ), patch("surveillance.fetch_argentina_metars") as aw_m, patch(
+        "surveillance.fetch_argentina_specis"
+    ) as aw_s, patch("surveillance.fetch_argentina_synops") as og, patch(
+        "surveillance.resolve_synop_hour", return_value=None
+    ):
         aw_m.return_value = [
             _metar("SABE", "87582", "2026-08-12T11:00:00Z", source="AviationWeather")
         ]
@@ -145,9 +147,9 @@ def test_nil_synop_hidden():
 
     with patch(
         "surveillance.dma_status", return_value={"ok": False, "reason": "off"}
-    ), patch("surveillance.fetch_argentina_metars", return_value=[]), patch(
-        "surveillance.fetch_argentina_specis", return_value=[]
-    ), patch(
+    ), patch("surveillance.fetch_dma_tafs", return_value={}), patch(
+        "surveillance.fetch_argentina_metars", return_value=[]
+    ), patch("surveillance.fetch_argentina_specis", return_value=[]), patch(
         "surveillance.fetch_argentina_synops",
         return_value=[Fake("87582", "2026-08-12T11:00:00Z", nil=True)],
     ), patch("surveillance.resolve_synop_hour", return_value=None):
@@ -162,10 +164,17 @@ def test_cascade_dma_speci_then_metar():
     with patch(
         "surveillance.dma_status", return_value={"ok": True, "reason": "connected"}
     ), patch("surveillance.fetch_dma_messages") as dma, patch(
-        "surveillance.fetch_argentina_metars"
-    ) as aw_m, patch("surveillance.fetch_argentina_specis"), patch(
-        "surveillance.fetch_argentina_synops"
-    ):
+        "surveillance.fetch_dma_tafs",
+        return_value={
+            "SABE": {
+                "icao": "SABE",
+                "raw": "TAF SABE 121100Z 1212/1312 10005KT CAVOK=",
+                "source": "DMA",
+            }
+        },
+    ) as dma_taf, patch("surveillance.fetch_argentina_metars") as aw_m, patch(
+        "surveillance.fetch_argentina_specis"
+    ), patch("surveillance.fetch_argentina_synops"):
 
         def _dma(kind, *_a, **_k):
             if kind == "speci":
@@ -181,12 +190,13 @@ def test_cascade_dma_speci_then_metar():
     by = {p["omm"]: p for p in out["stations"]}
     assert by["87582"]["product"] == "SPECI"
     assert by["87582"]["source"] == "DMA"
+    assert by["87582"]["taf_source"] == "DMA"
     assert out["contingency_only"] is False
     assert out["missing_after_dma"] == 0
-    # Contingencia METAR no se usa; AW solo para TAF (include_taf=True)
-    assert aw_m.call_count == 1
-    assert aw_m.call_args.kwargs.get("include_taf") is True
-    assert out["sources"]["aw_taf"]["used"] is True
+    # TAF vino de DMA; AW no hace falta para TAF de SABE (sí puede llamarse por otros ICAO)
+    dma_taf.assert_called()
+    assert out["sources"]["dma_taf"]["count"] >= 1
+    assert out["sources"]["taf"] == "DMA"
     assert is_speci_active_vs_metar(
         {"obs_iso": "2026-08-12T11:20:00Z"}, {"obs_iso": "2026-08-12T11:00:00Z"}
     )

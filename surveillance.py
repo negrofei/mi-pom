@@ -21,7 +21,7 @@ from aviationweather_client import (
     fetch_argentina_metars,
     fetch_argentina_specis,
 )
-from dma_client import dma_status, fetch_dma_messages
+from dma_client import dma_status, fetch_dma_messages, fetch_dma_tafs
 from ogimet_client import fetch_argentina_synops, resolve_synop_hour
 from taf_amend import evaluate_amendment
 
@@ -105,6 +105,23 @@ def _fetch_aw_metars(airports: dict[str, dict]) -> tuple[list[dict], Optional[st
     except Exception as exc:  # noqa: BLE001
         log.exception("AW METAR falló")
         return [], str(exc)
+
+
+def _fetch_dma_tafs() -> tuple[dict[str, str], dict[str, str], Optional[str]]:
+    """Returns (icao→raw, icao→source, error)."""
+    try:
+        rows = fetch_dma_tafs(lookback_hours=30)
+        raws: dict[str, str] = {}
+        sources: dict[str, str] = {}
+        for icao, item in rows.items():
+            raw = item.get("raw")
+            if raw:
+                raws[icao] = str(raw)
+                sources[icao] = "DMA"
+        return raws, sources, None
+    except Exception as exc:  # noqa: BLE001
+        log.warning("DMA TAF falló: %s", exc)
+        return {}, {}, str(exc)
 
 
 def _fetch_aw_tafs(airports: dict[str, dict]) -> tuple[dict[str, str], Optional[str]]:
@@ -346,12 +363,27 @@ def build_surveillance(
     seen_speci: set[str] = set()
     taf_amends: list[dict] = []
 
-    taf_by_icao, err_taf = _fetch_aw_tafs(airports)
-    for row in aw_metar.values():
-        icao_r = str(row.get("icao") or "").upper()
-        raw_t = row.get("raw_taf")
-        if icao_r and raw_t and icao_r not in taf_by_icao:
-            taf_by_icao[icao_r] = str(raw_t)
+    # TAF: DMA taf_obs primero; AW completa faltantes
+    taf_by_icao, taf_source_by_icao, err_dma_taf = _fetch_dma_tafs()
+    err_taf = err_dma_taf
+    missing_taf = [
+        str(a.get("icao") or "").upper()
+        for a in airports.values()
+        if a.get("icao") and str(a["icao"]).upper() not in taf_by_icao
+    ]
+    if missing_taf or not taf_by_icao:
+        aw_tafs, err_aw_taf = _fetch_aw_tafs(airports)
+        err_taf = err_taf or err_aw_taf
+        for icao_r, raw_t in aw_tafs.items():
+            if icao_r not in taf_by_icao:
+                taf_by_icao[icao_r] = raw_t
+                taf_source_by_icao[icao_r] = "AviationWeather"
+        for row in aw_metar.values():
+            icao_r = str(row.get("icao") or "").upper()
+            raw_t = row.get("raw_taf")
+            if icao_r and raw_t and icao_r not in taf_by_icao:
+                taf_by_icao[icao_r] = str(raw_t)
+                taf_source_by_icao[icao_r] = "AviationWeather"
 
     for omm, meta in stations.items():
         if meta.get("lat") is None or meta.get("lng") is None:
@@ -392,8 +424,10 @@ def build_surveillance(
 
         taf_alert = None
         raw_taf = None
+        taf_source = None
         if icao and icao in taf_by_icao:
             raw_taf = taf_by_icao[icao]
+            taf_source = taf_source_by_icao.get(icao) or "DMA"
         if av_obs and raw_taf:
             try:
                 if icao and not av_obs.get("icao"):
@@ -424,6 +458,7 @@ def build_surveillance(
             "speci": None if product == "SPECI" else speci,
             "is_speci": product == "SPECI" or bool(base.get("is_speci")),
             "raw_taf": raw_taf,
+            "taf_source": taf_source,
             "has_taf_amend": bool(taf_alert),
             "taf_amend": taf_alert,
         }
@@ -513,10 +548,17 @@ def build_surveillance(
                 "error": err_ogimet,
                 "used": bool(missing),
             },
+            "dma_taf": {
+                "ok": err_dma_taf is None,
+                "count": sum(1 for s in taf_source_by_icao.values() if s == "DMA"),
+                "error": err_dma_taf,
+            },
             "aw_taf": {
-                "ok": err_taf is None,
-                "count": len(taf_by_icao),
-                "error": err_taf,
+                "ok": err_taf is None if err_dma_taf else True,
+                "count": sum(
+                    1 for s in taf_source_by_icao.values() if s == "AviationWeather"
+                ),
+                "error": None if err_dma_taf is None else err_taf,
                 "used": True,
             },
             "metar": "DMA"
@@ -528,6 +570,13 @@ def build_surveillance(
             "speci": "DMA"
             if filled_by["DMA"] and not contingency_only
             else ("AviationWeather" if filled_by["AviationWeather"] else "—"),
+            "taf": "DMA"
+            if any(s == "DMA" for s in taf_source_by_icao.values())
+            else (
+                "AviationWeather"
+                if any(s == "AviationWeather" for s in taf_source_by_icao.values())
+                else "—"
+            ),
         },
         "filled_by": filled_by,
         "missing_after_dma": len(missing),

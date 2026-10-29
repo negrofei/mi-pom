@@ -799,6 +799,13 @@
                 : a.source
               : "—"
           )}</b>
+          ${
+            a.taf_source
+              ? ` · TAF: ${esc(
+                  a.taf_source !== "DMA" ? `${a.taf_source} (fallback)` : a.taf_source
+                )}`
+              : ""
+          }
           ${a.obs_iso ? `· ${esc(a.obs_iso)}` : a.utc ? `· ${esc(a.utc)}` : ""}
         </div>
         ${
@@ -1178,7 +1185,7 @@
       .join("");
   }
 
-  // Historial METAR AW (solo si se pide explícitamente para un ICAO)
+  // Historial METAR/SPECI (DMA → AW)
   function historyHtml(payload) {
     const points = payload.points || [];
     if (!points.length) {

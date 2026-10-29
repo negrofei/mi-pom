@@ -647,7 +647,14 @@
     tsModal.classList.remove("hidden");
     try {
       const data = await TimeSeries.loadAndRender(tsBody, omm, hourParamFromInput());
-      tsSubtitle.textContent = `${omm} · ${data.count} obs · hasta ${data.until_label}`;
+      const src = data.source
+        ? data.fallback || data.source !== "DMA"
+          ? `${data.source} (fallback)`
+          : data.source
+        : "";
+      tsSubtitle.textContent = `${omm} · ${data.count} obs · hasta ${data.until_label}${
+        src ? ` · ${src}` : ""
+      }`;
     } catch (err) {
       console.error(err);
       const msg = String(err.message || err)
@@ -687,7 +694,14 @@
     tsModal.classList.remove("hidden");
     try {
       const data = await MetarPlot.loadHistory(tsBody, icao);
-      tsSubtitle.textContent = `${icao} · ${data.count} reportes · últimas ${data.hours} h`;
+      const src = data.source
+        ? data.fallback || data.source !== "DMA"
+          ? `${data.source} (fallback)`
+          : data.source
+        : "";
+      tsSubtitle.textContent = `${icao} · ${data.count} reportes · últimas ${data.hours} h${
+        src ? ` · ${src}` : ""
+      }`;
 
       // Si el historial trae un SPECI más nuevo (y aún vigente vs METAR), actualizar el detalle
       const key = String(icao || "").toUpperCase();

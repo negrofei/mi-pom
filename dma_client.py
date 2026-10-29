@@ -1,5 +1,5 @@
 """
-Cliente MySQL DMA (10.10.100.121) — tablas metar_obs / speci_obs / synop_obs.
+Cliente MySQL DMA (10.10.100.121) — metar_obs / speci_obs / synop_obs / taf_obs.
 
 Fuente primaria de vigilancia-dma. Credenciales por entorno:
 
@@ -26,7 +26,7 @@ from synop_parser import parse_synop
 
 log = logging.getLogger(__name__)
 
-ObsKind = Literal["metar", "speci", "synop"]
+ObsKind = Literal["metar", "speci", "synop", "taf"]
 
 DEFAULT_HOST = os.environ.get("DMA_MYSQL_HOST", "10.10.100.121")
 DEFAULT_PORT = int(os.environ.get("DMA_MYSQL_PORT", "3306"))
@@ -46,6 +46,7 @@ TABLE_BY_KIND: dict[ObsKind, str] = {
     "metar": os.environ.get("DMA_TABLE_METAR", "metar_obs"),
     "speci": os.environ.get("DMA_TABLE_SPECI", "speci_obs"),
     "synop": os.environ.get("DMA_TABLE_SYNOP", "synop_obs"),
+    "taf": os.environ.get("DMA_TABLE_TAF", "taf_obs"),
 }
 
 # Candidatos de columnas (minúsculas) → rol lógico
@@ -291,6 +292,7 @@ def _fetch_rows(
     when: Optional[datetime] = None,
     timeline: str = "latest",
     lookback_hours: int = 24,
+    station_id: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     table = TABLE_BY_KIND[kind]
     conn = connect()
@@ -322,15 +324,20 @@ def _fetch_rows(
             end = when + timedelta(hours=1)
             start = end - timedelta(hours=max(1, lookback_hours))
 
+        where = [f"`{time_c}` >= %s", f"`{time_c}` < %s"]
+        params: list[Any] = [start.replace(tzinfo=None), end.replace(tzinfo=None)]
+        if station_id:
+            where.append(f"`{station_c}` = %s")
+            params.append(str(station_id))
+
         sql = (
             f"SELECT {', '.join(select_cols)} FROM `{table}` "
-            f"WHERE `{time_c}` >= %s AND `{time_c}` < %s "
+            f"WHERE {' AND '.join(where)} "
             f"ORDER BY `{time_c}` DESC"
         )
         with conn.cursor() as cur:
-            cur.execute(sql, (start.replace(tzinfo=None), end.replace(tzinfo=None)))
+            cur.execute(sql, params)
             rows = list(cur.fetchall() or [])
-        # Si el driver devolvió datetime aware/str raro, normalizar
         return rows
     finally:
         conn.close()
@@ -499,6 +506,167 @@ def fetch_dma_synops(
     return out
 
 
+def fetch_dma_tafs(
+    *,
+    when: Optional[datetime] = None,
+    lookback_hours: int = 30,
+) -> dict[str, dict[str, Any]]:
+    """
+    Último TAF por ICAO desde taf_obs.
+
+    Returns: { "SABE": {"raw": "...", "obs_iso": "...", "source": "DMA"}, ... }
+    """
+    rows = _fetch_rows(
+        "taf", when=when, timeline="latest", lookback_hours=lookback_hours
+    )
+    out: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        icao = _station_key(row.get("station"))
+        if not icao or not re.fullmatch(r"[A-Z]{4}", icao):
+            continue
+        if icao in out:
+            continue
+        raw = row.get("message")
+        if not raw:
+            continue
+        dt = _as_dt(row.get("obs_time"))
+        out[icao] = {
+            "icao": icao,
+            "raw": " ".join(str(raw).split()),
+            "obs_iso": dt.strftime("%Y-%m-%dT%H:%M:%SZ") if dt else None,
+            "hour_key": dt.strftime("%Y%m%d%H") if dt else None,
+            "source": "DMA",
+        }
+    return out
+
+
+def fetch_dma_station_metar_series(
+    icao: str,
+    *,
+    airports: dict[str, dict],
+    hours: int = 24,
+    when: Optional[datetime] = None,
+) -> list[dict[str, Any]]:
+    """Historial METAR+SPECI de un OACI (más reciente primero)."""
+    key = str(icao).upper().strip()
+    when = when or datetime.now(timezone.utc)
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+
+    points: list[dict[str, Any]] = []
+    for kind in ("metar", "speci"):
+        try:
+            rows = _fetch_rows(
+                kind,  # type: ignore[arg-type]
+                when=when,
+                timeline="latest",
+                lookback_hours=hours,
+                station_id=key,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("DMA serie %s %s: %s", kind, key, exc)
+            continue
+        for row in rows:
+            raw = row.get("message")
+            if not raw:
+                continue
+            wmo = _wmo_from_row(row, airports=airports, stations={})
+            parsed = parse_metar_raw(
+                str(raw),
+                airports=airports,
+                wmo=wmo,
+                now=when,
+                source="DMA",
+            )
+            if not parsed:
+                continue
+            dt = _as_dt(row.get("obs_time"))
+            if dt:
+                parsed["obs_iso"] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                parsed["hour_key"] = dt.strftime("%Y%m%d%H")
+            parsed["source"] = "DMA"
+            parsed["fallback"] = False
+            parsed["is_speci"] = kind == "speci" or bool(parsed.get("is_speci"))
+            if kind == "speci":
+                parsed["metar_type"] = "SPECI"
+            points.append(parsed)
+
+    points.sort(key=lambda p: p.get("obs_iso") or "", reverse=True)
+    return points
+
+
+def fetch_dma_station_synop_series(
+    omm: str,
+    *,
+    stations: dict[str, dict],
+    hours: int = 24,
+    when: Optional[datetime] = None,
+    prefer_aeromet: bool = True,
+) -> list[dict[str, Any]]:
+    """Serie temporal SYNOP de una estación WMO (más reciente primero)."""
+    key = str(omm).strip()
+    when = when or datetime.now(timezone.utc)
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    meta = stations.get(key) or {"omm": key}
+
+    rows = _fetch_rows(
+        "synop",
+        when=when,
+        timeline="latest",
+        lookback_hours=hours,
+        station_id=key,
+    )
+    points: list[dict[str, Any]] = []
+    for row in rows:
+        dt = _as_dt(row.get("obs_time"))
+        obs_iso = dt.strftime("%Y-%m-%dT%H:%M:%SZ") if dt else None
+        hour_key = dt.strftime("%Y%m%d%H") if dt else None
+        raw_msg = row.get("message")
+        aeromet = row.get("aeromet")
+        item: Optional[dict[str, Any]] = None
+        if prefer_aeromet and aeromet:
+            item = parse_aeromet(
+                str(aeromet),
+                omm=key,
+                raw_synop=str(raw_msg) if raw_msg else None,
+                obs_iso=obs_iso,
+                hour_key=hour_key,
+                now=when,
+                meta=meta,
+            )
+        if item is None and raw_msg:
+            decoded = parse_synop(
+                str(raw_msg),
+                key,
+                year=dt.year if dt else when.year,
+                month=dt.month if dt else when.month,
+                day=dt.day if dt else None,
+                hour=dt.hour if dt else None,
+                minute=dt.minute if dt else 0,
+            )
+            item = decoded.to_dict()
+            if obs_iso:
+                item["obs_iso"] = obs_iso
+                item["hour_key"] = hour_key
+            if aeromet:
+                item["raw_aeromet"] = " ".join(str(aeromet).split())
+        if item is None:
+            continue
+        item["omm"] = key
+        item["wmo"] = key
+        item["nombre"] = meta.get("nombre") or item.get("nombre")
+        item["lat"] = meta.get("lat")
+        item["lng"] = meta.get("lng")
+        item["fir"] = meta.get("fir")
+        item["source"] = "DMA"
+        item["fallback"] = False
+        points.append(item)
+
+    points.sort(key=lambda p: p.get("obs_iso") or "", reverse=True)
+    return points
+
+
 def fetch_dma_messages(
     kind: ObsKind,
     *,
@@ -517,6 +685,8 @@ def fetch_dma_messages(
             timeline=timeline,
             lookback_hours=min(lookback_hours, 12),
         )
+    if kind == "taf":
+        return list(fetch_dma_tafs(when=when, lookback_hours=lookback_hours).values())
     return fetch_dma_synops(
         stations=stations,
         when=when,

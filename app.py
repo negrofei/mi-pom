@@ -13,7 +13,12 @@ from aviationweather_client import (
     fetch_argentina_metars,
     fetch_station_metars,
 )
-from dma_client import dma_status, fetch_dma_synops
+from dma_client import (
+    dma_status,
+    fetch_dma_station_metar_series,
+    fetch_dma_station_synop_series,
+    fetch_dma_synops,
+)
 from ogimet_client import fetch_argentina_synops, fetch_station_series, resolve_synop_hour
 from surveillance import build_surveillance
 
@@ -223,7 +228,7 @@ def api_metars():
 
 @app.get("/api/metars/<icao>")
 def api_metar_station(icao: str):
-    """Historial METAR de un aeródromo (por defecto 24 h)."""
+    """Historial METAR/SPECI: DMA primero, fallback AviationWeather."""
     try:
         hours = int(request.args.get("hours", "24"))
     except ValueError:
@@ -234,13 +239,36 @@ def api_metar_station(icao: str):
     if key not in AIRPORTS:
         return jsonify({"error": f"Aeródromo {key} no encontrado"}), 404
 
+    source = "DMA"
+    dma_err: str | None = None
+    points: list = []
     try:
-        points = fetch_station_metars(
-            key, airports=AIRPORTS, hours=hours, include_taf=include_taf
+        points = fetch_dma_station_metar_series(
+            key, airports=AIRPORTS, hours=hours
         )
     except Exception as exc:  # noqa: BLE001
-        log.exception("Error consultando historial METAR")
-        return jsonify({"error": f"No se pudo consultar AviationWeather: {exc}"}), 502
+        dma_err = str(exc)
+        log.warning("DMA historial METAR %s falló: %s", key, exc)
+        points = []
+
+    if not points:
+        try:
+            points = fetch_station_metars(
+                key, airports=AIRPORTS, hours=hours, include_taf=include_taf
+            )
+            source = "AviationWeather"
+            for p in points:
+                p["source"] = p.get("source") or "AviationWeather"
+                p["fallback"] = True
+        except Exception as exc:  # noqa: BLE001
+            log.exception("Error consultando historial METAR")
+            return jsonify(
+                {
+                    "error": (
+                        f"No se pudo consultar historial (DMA: {dma_err}; AW: {exc})"
+                    )
+                }
+            ), 502
 
     meta = AIRPORTS[key]
     return jsonify(
@@ -249,6 +277,9 @@ def api_metar_station(icao: str):
             "nombre": meta.get("nombre"),
             "fir": meta.get("fir"),
             "hours": hours,
+            "source": source,
+            "fallback": source != "DMA",
+            "dma_error": dma_err,
             "count": len(points),
             "points": points,
         }
@@ -333,7 +364,7 @@ def api_synops():
 
 @app.get("/api/synops/<omm>")
 def api_station_series(omm: str):
-    """Serie temporal de una estación (por defecto últimas 24 h)."""
+    """Serie temporal SYNOP: DMA primero, fallback OGIMET."""
     hour = request.args.get("hour")
     try:
         hours = int(request.args.get("hours", "24"))
@@ -349,23 +380,46 @@ def api_station_series(omm: str):
     if str(omm) not in STATIONS:
         return jsonify({"error": f"Estación {omm} no encontrada"}), 404
 
-    try:
-        series = fetch_station_series(
-            str(omm), when, stations=STATIONS, hours=hours
-        )
-    except Exception as exc:  # noqa: BLE001
-        log.exception("Error consultando serie OGIMET")
-        return jsonify({"error": f"No se pudo consultar OGIMET: {exc}"}), 502
-
     include_nil = request.args.get("nil", "0") == "1"
-    points = []
-    for obs_dt, decoded in series:
-        if decoded.nil and not include_nil:
-            continue
-        item = decoded.to_dict()
-        item["obs_iso"] = obs_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-        item["hour_key"] = obs_dt.strftime("%Y%m%d%H")
-        points.append(item)
+    source = "DMA"
+    dma_err: str | None = None
+    points: list = []
+
+    try:
+        points = fetch_dma_station_synop_series(
+            str(omm), stations=STATIONS, hours=hours, when=when, prefer_aeromet=True
+        )
+        if not include_nil:
+            points = [p for p in points if not p.get("nil")]
+    except Exception as exc:  # noqa: BLE001
+        dma_err = str(exc)
+        log.warning("DMA serie SYNOP %s falló: %s", omm, exc)
+        points = []
+
+    if not points:
+        try:
+            series = fetch_station_series(
+                str(omm), when, stations=STATIONS, hours=hours
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.exception("Error consultando serie OGIMET")
+            return jsonify(
+                {
+                    "error": (
+                        f"No se pudo consultar serie (DMA: {dma_err}; OGIMET: {exc})"
+                    )
+                }
+            ), 502
+        source = "OGIMET"
+        for obs_dt, decoded in series:
+            if decoded.nil and not include_nil:
+                continue
+            item = decoded.to_dict()
+            item["obs_iso"] = obs_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            item["hour_key"] = obs_dt.strftime("%Y%m%d%H")
+            item["source"] = "OGIMET"
+            item["fallback"] = True
+            points.append(item)
 
     meta = STATIONS[str(omm)]
     return jsonify(
@@ -375,6 +429,9 @@ def api_station_series(omm: str):
             "hours": hours,
             "until": when.strftime("%Y%m%d%H"),
             "until_label": when.strftime("%d/%m/%Y %H:00 UTC"),
+            "source": source,
+            "fallback": source != "DMA",
+            "dma_error": dma_err,
             "count": len(points),
             "points": points,
         }

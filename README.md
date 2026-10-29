@@ -53,6 +53,7 @@ docker compose exec synop sh -c 'mysql -h "$DMA_MYSQL_HOST" -u "$DMA_MYSQL_USER"
 | `DMA_TABLE_METAR` | `metar_obs` | METARs |
 | `DMA_TABLE_SPECI` | `speci_obs` | SPECIs |
 | `DMA_TABLE_SYNOP` | `synop_obs` | SYNOPs (+ `AEROMET`) |
+| `DMA_TABLE_TAF` | `taf_obs` | TAFs |
 
 El cliente detecta columnas de estación/fecha/mensaje/`AEROMET` por nombre (p.ej. `CodEstacion`, `FechaHora`, `Mensaje`).
 
@@ -74,7 +75,10 @@ El cliente detecta columnas de estación/fecha/mensaje/`AEROMET` por nombre (p.e
 4. AviationWeather SPECI/METAR
 5. OGIMET SYNOP
 
-Si DMA no responde → solo pasos 4–5 (`contingency_only`).
+TAF para enmiendas: DMA `taf_obs` → AviationWeather.
+Series temporales (`/api/metars/<icao>`, `/api/synops/<omm>`): DMA → AW / OGIMET.
+
+Si DMA no responde → contingencia AW/OGIMET (`contingency_only`).
 
 ## Notas
 
