@@ -17,19 +17,26 @@ Fuente primaria: MySQL DMA (`10.10.100.121`); fallback AviationWeather / OGIMET.
 
 ```bash
 cp .env.example .env   # completar DMA_MYSQL_USER / PASSWORD
+# Conectá la VPN primero, después:
 docker compose up --build
 ```
 
 Abrí http://localhost:8080 → redirige a `/synop`.
 
+El compose usa `network_mode: host` para que el contenedor use las **mismas rutas que la VPN** del host. Sin eso, DBeaver (host) puede llegar a `10.10.100.121` y el contenedor no (`No route to host`), sobre todo después de apagar/prender la VPN. Si reconectás la VPN, reiniciá el contenedor:
+
+```bash
+docker compose restart
+```
+
 La imagen incluye el cliente `mysql` (no hace falta instalarlo en el host).
 El servidor DMA **no soporta TLS**: hay que desactivar SSL en el cliente.
 
 ```bash
-# MariaDB client (default-mysql-client en la imagen):
+# En el host (o DBeaver):
 mysql -h 10.10.100.121 -u consulta -p --ssl=0 mensajes
 
-# Desde el contenedor:
+# Desde el contenedor (con network_mode: host):
 docker compose exec synop sh -c 'mysql -h "$DMA_MYSQL_HOST" -u "$DMA_MYSQL_USER" -p"$DMA_MYSQL_PASSWORD" --ssl=0 "$DMA_MYSQL_DATABASE" \
   -e "SHOW TABLES LIKE \"%_obs\"; DESCRIBE synop_obs;"'
 ```
