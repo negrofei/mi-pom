@@ -22,11 +22,16 @@ docker compose up --build
 
 Abrí http://localhost:8080 → redirige a `/synop`.
 
-La imagen incluye el cliente `mysql` (no hace falta instalarlo en el host). Ejemplo:
+La imagen incluye el cliente `mysql` (no hace falta instalarlo en el host).
+El servidor DMA **no soporta TLS**: hay que desactivar SSL en el cliente.
 
 ```bash
-docker compose exec synop mysql -h "$DMA_MYSQL_HOST" -u "$DMA_MYSQL_USER" -p"$DMA_MYSQL_PASSWORD" "$DMA_MYSQL_DATABASE" \
-  -e "SHOW TABLES LIKE '%_obs'; DESCRIBE synop_obs;"
+# MariaDB client (default-mysql-client en la imagen):
+mysql -h 10.10.100.121 -u consulta -p --ssl=0 mensajes
+
+# Desde el contenedor:
+docker compose exec synop sh -c 'mysql -h "$DMA_MYSQL_HOST" -u "$DMA_MYSQL_USER" -p"$DMA_MYSQL_PASSWORD" --ssl=0 "$DMA_MYSQL_DATABASE" \
+  -e "SHOW TABLES LIKE \"%_obs\"; DESCRIBE synop_obs;"'
 ```
 
 ## Variables DMA

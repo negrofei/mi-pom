@@ -9,6 +9,7 @@ Fuente primaria de vigilancia-dma. Credenciales por entorno:
   DMA_MYSQL_PASSWORD=...
   DMA_MYSQL_DATABASE=mensajes
   DMA_MYSQL_CONNECT_TIMEOUT=5
+  DMA_MYSQL_SSL=0          # el servidor DMA no ofrece TLS
 """
 
 from __future__ import annotations
@@ -37,6 +38,9 @@ DEFAULT_DATABASE = os.environ.get(
     "DMA_MYSQL_DATABASE", os.environ.get("MYSQL_DATABASE", "mensajes")
 )
 CONNECT_TIMEOUT = float(os.environ.get("DMA_MYSQL_CONNECT_TIMEOUT", "5"))
+# El MySQL DMA no soporta TLS; clientes nuevos fallan si exigen SSL.
+_SSL_ENV = (os.environ.get("DMA_MYSQL_SSL") or "0").strip().lower()
+SSL_ENABLED = _SSL_ENV in ("1", "true", "yes", "on")
 
 TABLE_BY_KIND: dict[ObsKind, str] = {
     "metar": os.environ.get("DMA_TABLE_METAR", "metar_obs"),
@@ -103,6 +107,7 @@ def dma_config() -> dict[str, Any]:
         "user": DEFAULT_USER,
         "database": DEFAULT_DATABASE,
         "password_set": bool(DEFAULT_PASSWORD),
+        "ssl": SSL_ENABLED,
         "tables": dict(TABLE_BY_KIND),
     }
 
@@ -113,18 +118,23 @@ def connect():
             "DMA_MYSQL_USER no configurado (base 10.10.100.121 / mensajes)"
         )
     pymysql, DictCursor = _import_pymysql()
-    return pymysql.connect(
-        host=DEFAULT_HOST,
-        port=DEFAULT_PORT,
-        user=DEFAULT_USER,
-        password=DEFAULT_PASSWORD,
-        database=DEFAULT_DATABASE,
-        connect_timeout=CONNECT_TIMEOUT,
-        read_timeout=30,
-        charset="utf8mb4",
-        cursorclass=DictCursor,
-        autocommit=True,
-    )
+    kwargs: dict[str, Any] = {
+        "host": DEFAULT_HOST,
+        "port": DEFAULT_PORT,
+        "user": DEFAULT_USER,
+        "password": DEFAULT_PASSWORD,
+        "database": DEFAULT_DATABASE,
+        "connect_timeout": CONNECT_TIMEOUT,
+        "read_timeout": 30,
+        "charset": "utf8mb4",
+        "cursorclass": DictCursor,
+        "autocommit": True,
+    }
+    # PyMySQL ≥1.1: ssl_disabled evita "SSL is required, but the server does not support it"
+    if not SSL_ENABLED:
+        kwargs["ssl"] = None
+        kwargs["ssl_disabled"] = True
+    return pymysql.connect(**kwargs)
 
 
 def dma_status(*, force_refresh: bool = False) -> dict[str, Any]:

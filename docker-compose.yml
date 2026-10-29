@@ -9,4 +9,5 @@ services:
       DMA_MYSQL_USER: ${DMA_MYSQL_USER:-}
       DMA_MYSQL_PASSWORD: ${DMA_MYSQL_PASSWORD:-}
       DMA_MYSQL_DATABASE: ${DMA_MYSQL_DATABASE:-mensajes}
+      DMA_MYSQL_SSL: ${DMA_MYSQL_SSL:-0}
     restart: unless-stopped
