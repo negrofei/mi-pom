@@ -19,8 +19,7 @@
     <div class="controls">
             <div class="product-toggle" role="group" aria-label="Producto">
         <a href="/synop" class="btn product-btn" data-product="synop" id="btnProductSynop">SYNOP</a>
-        <a href="/metar" class="btn product-btn" data-product="metar" id="btnProductMetar" title="Vigilancia METAR: SMN en intranet, AW/OGIMET en Render">METAR</a>
-        <a href="/consulta" class="btn product-btn" data-product="lookup" id="btnProductLookup" title="Consulta METAR/SPECI/TAF por ICAO (AviationWeather)">Consulta</a>
+        <a href="/metar" class="btn product-btn" data-product="metar" id="btnProductMetar" title="Vigilancia METAR: DMA (10.10.100.121) → AW/OGIMET">METAR</a>
       </div>
       <label class="field">
         <span>Hora UTC</span>
@@ -44,16 +43,17 @@
 
     <label class="config-row check">
       <input type="checkbox" id="cfgAutorefresh" />
-      <span>Autorefresh cada 2 minutos <small>(METAR: SMN si hay intranet; si no, solo AW/OGIMET)</small></span>
+      <span>Autorefresh cada 2 minutos <small>(METAR: DMA si hay red; si no, AW/OGIMET)</small></span>
     </label>
 
     <fieldset class="config-fieldset">
-      <legend>Fuente METAR</legend>
+      <legend>Fuente METAR / SYNOP</legend>
       <p class="config-hint">
-        En <strong>Render</strong> u otras redes externas el SMN no es alcanzable:
-        la app usa automáticamente <strong>modo contingencia</strong>
-        (AviationWeather + OGIMET). En la intranet SMN se prioriza mensajes_new.
-        Podés forzar con la variable de entorno <code>SMN_MODE=off|auto|on</code>.
+        Prioridad <strong>DMA</strong> (<code>10.10.100.121</code>:
+        <code>metar_obs</code> / <code>speci_obs</code> / <code>synop_obs</code>).
+        Si la base no responde, se usa <strong>AviationWeather</strong> y
+        <strong>OGIMET</strong>. En SYNOP los campos de plot/hover salen de
+        la columna <code>AEROMET</code> cuando está presente.
       </p>
     </fieldset>
 
@@ -124,43 +124,6 @@
   </aside>
 
 
-  <section id="lookupPanel" class="lookup-panel hidden" aria-label="Consulta AviationWeather">
-    <div class="lookup-card">
-      <header class="lookup-head">
-        <div>
-          <h1>Consulta METAR / SPECI / TAF</h1>
-          <p class="lookup-sub">Estilo AviationWeather · METAR/SPECI a la izquierda, TAF + enmienda a la derecha</p>
-        </div>
-      </header>
-      <form id="lookupForm" class="lookup-form" action="#" method="get">
-        <label class="lookup-field lookup-ids">
-          <span>Estaciones (OACI)</span>
-          <input type="text" id="lookupIds" name="ids" placeholder="SAZR, SABE, SAZN" autocomplete="off" spellcheck="false" />
-          <small>Códigos de 4 letras separados por coma</small>
-        </label>
-        <label class="lookup-field">
-          <span>Horas hacia atrás</span>
-          <select id="lookupHours" name="hours">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="6" selected>6</option>
-            <option value="12">12</option>
-            <option value="24">24</option>
-            <option value="48">48</option>
-          </select>
-        </label>
-        <label class="lookup-field check lookup-taf">
-          <input type="checkbox" id="lookupTaf" checked />
-          <span>Incluir TAF</span>
-        </label>
-        <button type="submit" id="lookupSubmit" class="btn primary">Consultar</button>
-      </form>
-      <div class="lookup-status" id="lookupStatus" aria-live="polite"></div>
-      <div class="lookup-results" id="lookupResults"></div>
-    </div>
-  </section>
-
   <main id="map"></main>
   <div id="fltLegend" class="flt-legend-wrap hidden"></div>
 
@@ -222,7 +185,6 @@
   <script src="/static/js/station-plot.js"></script>
   <script src="/static/js/timeseries.js"></script>
   <script src="/static/js/metar.js"></script>
-  <script src="/static/js/lookup.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

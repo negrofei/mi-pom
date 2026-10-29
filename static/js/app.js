@@ -34,15 +34,6 @@
   const cfgColorVis = document.getElementById("cfgColorVis");
   const btnProductSynop = document.getElementById("btnProductSynop");
   const btnProductMetar = document.getElementById("btnProductMetar");
-  const btnProductLookup = document.getElementById("btnProductLookup");
-  const lookupPanel = document.getElementById("lookupPanel");
-  const lookupForm = document.getElementById("lookupForm");
-  const lookupIds = document.getElementById("lookupIds");
-  const lookupHours = document.getElementById("lookupHours");
-  const lookupTaf = document.getElementById("lookupTaf");
-  const lookupStatus = document.getElementById("lookupStatus");
-  const lookupResults = document.getElementById("lookupResults");
-  const lookupSubmit = document.getElementById("lookupSubmit");
   const fltLegend = document.getElementById("fltLegend");
   const btnSpeciList = document.getElementById("btnSpeciList");
   const speciListPanel = document.getElementById("speciListPanel");
@@ -74,24 +65,19 @@
     includeNil: false,
     colorBy: "flight",
     firs: [...ALL_FIRS],
-    lookupIds: "SAZR, SABE",
-    lookupHours: 6,
-    lookupTaf: true,
   };
 
   function productFromPage() {
-    if (window.__INITIAL_PRODUCT__ && ["synop", "metar", "lookup"].includes(window.__INITIAL_PRODUCT__)) {
+    if (window.__INITIAL_PRODUCT__ && ["synop", "metar"].includes(window.__INITIAL_PRODUCT__)) {
       return window.__INITIAL_PRODUCT__;
     }
     const seg = (location.pathname || "/").replace(/\/+$/, "").split("/").pop();
     if (seg === "metar") return "metar";
-    if (seg === "consulta") return "lookup";
     return "synop";
   }
 
   function pathForProduct(product) {
     if (product === "metar") return "/metar";
-    if (product === "lookup") return "/consulta";
     return "/synop";
   }
 
@@ -111,7 +97,7 @@
       if (!Array.isArray(parsed.firs) || !parsed.firs.length) {
         parsed.firs = [...ALL_FIRS];
       }
-      if (!["metar", "synop", "lookup"].includes(parsed.product)) {
+      if (!["metar", "synop"].includes(parsed.product)) {
         parsed.product = "synop";
       }
       if (!COLOR_BY.includes(parsed.colorBy)) {
@@ -128,7 +114,7 @@
   }
 
   let settings = loadSettings();
-  // URL manda: cada endpoint fija el panel (permite 3 pestañas del navegador)
+  // URL manda: cada endpoint fija el panel (permite pestañas del navegador)
   settings.product = productFromPage();
   let refreshTimer = null;
   let seenSpeci = new Set();
@@ -284,9 +270,6 @@
     cfgGapLabel.textContent = Number(settings.plotGap).toFixed(2);
     applyFirChecks(settings.firs);
     applyColorByUi(settings.colorBy);
-    if (lookupIds) lookupIds.value = settings.lookupIds || defaults.lookupIds;
-    if (lookupHours) lookupHours.value = String(settings.lookupHours || defaults.lookupHours);
-    if (lookupTaf) lookupTaf.checked = settings.lookupTaf !== false;
     applyProductUi();
   }
 
@@ -299,9 +282,6 @@
       includeNil: chkNil.checked,
       colorBy: colorByFromUi(),
       firs: selectedFirsFromUi(),
-      lookupIds: lookupIds ? lookupIds.value : settings.lookupIds,
-      lookupHours: lookupHours ? Number(lookupHours.value) : settings.lookupHours,
-      lookupTaf: lookupTaf ? !!lookupTaf.checked : settings.lookupTaf,
     };
     cfgGapLabel.textContent = settings.plotGap.toFixed(2);
     saveSettings(settings);
@@ -311,32 +291,24 @@
 
   function applyProductUi() {
     const isMetar = settings.product === "metar";
-    const isLookup = settings.product === "lookup";
-    const isSynop = !isMetar && !isLookup;
+    const isSynop = !isMetar;
     btnProductSynop.classList.toggle("active", isSynop);
     btnProductMetar.classList.toggle("active", isMetar);
-    if (btnProductLookup) btnProductLookup.classList.toggle("active", isLookup);
-    document.body.classList.toggle("mode-lookup", isLookup);
-    if (lookupPanel) lookupPanel.classList.toggle("hidden", !isLookup);
-    nilWrap.classList.toggle("hidden", isMetar || isLookup);
+    document.body.classList.remove("mode-lookup");
+    nilWrap.classList.toggle("hidden", isMetar);
     fltLegend.classList.toggle("hidden", !isMetar);
     if (isMetar) fltLegend.innerHTML = MetarPlot.legendHtml(settings.colorBy);
     const gapRow = cfgPlotGap && cfgPlotGap.closest(".config-row");
-    if (gapRow) gapRow.classList.toggle("hidden", isMetar || isLookup);
+    if (gapRow) gapRow.classList.toggle("hidden", isMetar);
     if (colorByWrap) colorByWrap.classList.toggle("hidden", !isMetar);
     const timelineFs = cfgTimelineExact && cfgTimelineExact.closest(".config-fieldset");
-    if (timelineFs) timelineFs.classList.toggle("hidden", isMetar || isLookup);
+    if (timelineFs) timelineFs.classList.toggle("hidden", isMetar);
     if (!isMetar) {
       setSpeciListOpen(false);
       setTafAmendListOpen(false);
     }
     if (btnSpeciList) btnSpeciList.classList.toggle("hidden", !isMetar);
     if (btnTafAmendList) btnTafAmendList.classList.toggle("hidden", !isMetar);
-    if (btnLoad) btnLoad.classList.toggle("hidden", isLookup);
-    if (hourInput) {
-      const hourField = hourInput.closest(".field");
-      if (hourField) hourField.classList.toggle("hidden", isLookup);
-    }
   }
 
   function setSpeciListOpen(open) {
@@ -483,7 +455,6 @@
   function setProduct(product) {
     let next = "synop";
     if (product === "metar") next = "metar";
-    else if (product === "lookup") next = "lookup";
     const target = pathForProduct(next);
     // Navegar al endpoint del panel (permite abrir cada uno en otra pestaña)
     if (pathForProduct(settings.product) !== target) {
@@ -503,10 +474,6 @@
       seenTafAmend = new Set();
       tafAmendSeeded = false;
     }
-    if (settings.product === "lookup") {
-      settings.autorefresh = false;
-      cfgAutorefresh.checked = false;
-    }
     saveSettings(settings);
     applyProductUi();
     syncAutorefresh();
@@ -519,9 +486,7 @@
       refreshTimer = null;
     }
     // METAR siempre refresca cada 2 min; SYNOP respeta el checkbox
-    const enabled =
-      settings.product !== "lookup" &&
-      (settings.product === "metar" || settings.autorefresh);
+    const enabled = settings.product === "metar" || settings.autorefresh;
     if (enabled) {
       refreshTimer = setInterval(() => {
         setDefaultHour();
@@ -673,51 +638,7 @@
 
   function loadCurrent() {
     if (settings.product === "metar") return loadMetars();
-    if (settings.product === "lookup") return loadLookup();
     return loadSynops();
-  }
-
-  async function loadLookup() {
-    if (!window.AwLookup) {
-      statusEl.textContent = "Módulo de consulta no disponible";
-      return;
-    }
-    const ids = AwLookup.parseIdsInput(lookupIds ? lookupIds.value : settings.lookupIds);
-    const hours = Number(lookupHours && lookupHours.value) || settings.lookupHours || 6;
-    const includeTaf = lookupTaf ? !!lookupTaf.checked : settings.lookupTaf !== false;
-    settings.lookupIds = lookupIds ? lookupIds.value : settings.lookupIds;
-    settings.lookupHours = hours;
-    settings.lookupTaf = includeTaf;
-    saveSettings(settings);
-
-    if (!ids.length) {
-      if (lookupStatus) lookupStatus.textContent = "Indicá uno o más ICAO (ej. SAZR, SABE)";
-      if (lookupResults) lookupResults.innerHTML = "";
-      statusEl.textContent = "Consulta · sin estaciones";
-      return;
-    }
-
-    statusEl.textContent = "Consultando AviationWeather…";
-    if (lookupStatus) lookupStatus.textContent = `Consultando ${ids.join(", ")} · ${hours} h…`;
-    if (lookupSubmit) lookupSubmit.disabled = true;
-    try {
-      const data = await AwLookup.runLookup({ ids, hours, includeTaf });
-      if (lookupResults) lookupResults.innerHTML = AwLookup.resultsHtml(data);
-      const amd = data.taf_amend_count != null ? data.taf_amend_count : 0;
-      const msg = `${data.count} est. · ${data.message_count} METAR/SPECI · ${data.taf_count} TAF · ${amd} AMD · ${hours} h`;
-      if (lookupStatus) lookupStatus.textContent = msg;
-      statusEl.textContent = `Consulta AW · ${msg}`;
-    } catch (err) {
-      console.error(err);
-      const m = err.message || String(err);
-      if (lookupStatus) lookupStatus.textContent = `Error: ${m}`;
-      if (lookupResults) lookupResults.innerHTML = `<div class="lookup-empty">Error: ${m
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")}</div>`;
-      statusEl.textContent = `Error consulta: ${m}`;
-    } finally {
-      if (lookupSubmit) lookupSubmit.disabled = false;
-    }
   }
 
   async function openTimeSeries(omm, nombre) {
@@ -802,7 +723,7 @@
   });
 
   async function loadMetars() {
-    // Vigilancia: SMN (intranet) o contingencia AW/OGIMET
+    // Vigilancia: DMA (10.10.100.121) o contingencia AW/OGIMET
     const colorBy = settings.colorBy || "flight";
     const gap = settings.plotGap || 0.75;
     statusEl.textContent = "Consultando vigilancia…";
@@ -947,11 +868,11 @@
       const fb = data.filled_by || {};
       const modeLabel = data.contingency_only
         ? "contingencia AW/OGIMET"
-        : "SMN+contingencia";
+        : "DMA+contingencia";
       statusEl.textContent =
         `${data.hour_label} · ${shown} est. · ${staleCount} desact. · ${firLabel} · ${colorLabel} · ` +
-        `${activeSpecis.length} SPECI · ${activeTafAmends.length} TAF AMD · ${modeLabel} · SMN ${
-          fb.SMN ?? 0
+        `${activeSpecis.length} SPECI · ${activeTafAmends.length} TAF AMD · ${modeLabel} · DMA ${
+          fb.DMA ?? 0
         } · AW ${fb.AviationWeather ?? 0} · OGIMET ${fb.OGIMET ?? 0}`;
       if (fltLegend) {
         fltLegend.innerHTML =
@@ -1146,13 +1067,6 @@
   }
   bindProductNav(btnProductSynop, "synop");
   bindProductNav(btnProductMetar, "metar");
-  bindProductNav(btnProductLookup, "lookup");
-  if (lookupForm) {
-    lookupForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      loadLookup();
-    });
-  }
   if (btnSpeciList) {
     btnSpeciList.addEventListener("click", () => {
       const open = speciListPanel && speciListPanel.classList.contains("hidden");

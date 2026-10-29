@@ -1,4 +1,4 @@
-"""Tests: contingencia SMN, cascade, NIL oculto, barbas METAR."""
+"""Tests: contingencia DMA, cascade, NIL oculto, barbas METAR."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ AIRPORTS = {
 }
 
 
-def _metar(icao, wmo, obs_iso, *, speci=False, source="SMN", raw=None, clouds=None):
+def _metar(icao, wmo, obs_iso, *, speci=False, source="DMA", raw=None, clouds=None):
     return {
         "icao": icao,
         "wmo": wmo,
@@ -80,7 +80,7 @@ def _metar(icao, wmo, obs_iso, *, speci=False, source="SMN", raw=None, clouds=No
     }
 
 
-def _synop(omm, obs_iso, *, source="SMN", nil=False):
+def _synop(omm, obs_iso, *, source="DMA", nil=False):
     return {
         "omm": omm,
         "obs_iso": obs_iso,
@@ -101,21 +101,24 @@ def test_barb_key_and_metar_parser_wind_barb():
     m = parse_metar_raw(
         "METAR SAZR 121100Z 10005KT 9999 SCT008 BKN013 03/02 Q1023=",
         airports=AIRPORTS,
-        now=__import__("datetime").datetime(2026, 8, 12, 12, 0, tzinfo=__import__("datetime").timezone.utc),
+        now=__import__("datetime").datetime(
+            2026, 8, 12, 12, 0, tzinfo=__import__("datetime").timezone.utc
+        ),
     )
     assert m["wind_barb"] == "5"
     assert m["wind_dir"] == 100
     assert [c["cover"] for c in m["clouds"]] == ["SCT", "BKN"]
 
 
-def test_contingency_skips_smn_when_unavailable():
-    with patch("surveillance.smn_status", return_value={"ok": False, "mode": "auto", "reason": "Cloudflare"}), patch(
-        "surveillance.fetch_smn_messages"
-    ) as smn, patch("surveillance.fetch_argentina_metars") as aw_m, patch(
-        "surveillance.fetch_argentina_specis"
-    ) as aw_s, patch("surveillance.fetch_argentina_synops") as og, patch(
-        "surveillance.resolve_synop_hour", return_value=None
-    ):
+def test_contingency_skips_dma_when_unavailable():
+    with patch(
+        "surveillance.dma_status",
+        return_value={"ok": False, "reason": "Network unreachable"},
+    ), patch("surveillance.fetch_dma_messages") as dma, patch(
+        "surveillance.fetch_argentina_metars"
+    ) as aw_m, patch("surveillance.fetch_argentina_specis") as aw_s, patch(
+        "surveillance.fetch_argentina_synops"
+    ) as og, patch("surveillance.resolve_synop_hour", return_value=None):
         aw_m.return_value = [
             _metar("SABE", "87582", "2026-08-12T11:00:00Z", source="AviationWeather")
         ]
@@ -123,10 +126,10 @@ def test_contingency_skips_smn_when_unavailable():
         og.return_value = []
         out = build_surveillance(stations={"87582": STATIONS["87582"]}, airports=AIRPORTS)
 
-    smn.assert_not_called()
+    dma.assert_not_called()
     assert out["contingency_only"] is True
     assert out["filled_by"]["AviationWeather"] == 1
-    assert out["filled_by"]["SMN"] == 0
+    assert out["filled_by"]["DMA"] == 0
 
 
 def test_nil_synop_hidden():
@@ -140,9 +143,11 @@ def test_nil_synop_hidden():
         def to_dict(self):
             return _synop(self.omm, self.obs_iso, source="OGIMET", nil=self.nil)
 
-    with patch("surveillance.smn_status", return_value={"ok": False, "mode": "off", "reason": "off"}), patch(
-        "surveillance.fetch_argentina_metars", return_value=[]
-    ), patch("surveillance.fetch_argentina_specis", return_value=[]), patch(
+    with patch(
+        "surveillance.dma_status", return_value={"ok": False, "reason": "off"}
+    ), patch("surveillance.fetch_argentina_metars", return_value=[]), patch(
+        "surveillance.fetch_argentina_specis", return_value=[]
+    ), patch(
         "surveillance.fetch_argentina_synops",
         return_value=[Fake("87582", "2026-08-12T11:00:00Z", nil=True)],
     ), patch("surveillance.resolve_synop_hour", return_value=None):
@@ -152,31 +157,32 @@ def test_nil_synop_hidden():
     assert out["stations"] == []
 
 
-def test_cascade_smn_speci_then_metar():
+def test_cascade_dma_speci_then_metar():
     only = {"87582": STATIONS["87582"]}
     with patch(
-        "surveillance.smn_status", return_value={"ok": True, "mode": "on", "reason": "forced"}
-    ), patch("surveillance.fetch_smn_messages") as smn, patch(
+        "surveillance.dma_status", return_value={"ok": True, "reason": "connected"}
+    ), patch("surveillance.fetch_dma_messages") as dma, patch(
         "surveillance.fetch_argentina_metars"
     ) as aw_m, patch("surveillance.fetch_argentina_specis"), patch(
         "surveillance.fetch_argentina_synops"
     ):
 
-        def _smn(kind, *_a, **_k):
+        def _dma(kind, *_a, **_k):
             if kind == "speci":
                 return [_metar("SABE", "87582", "2026-08-12T11:20:00Z", speci=True)]
             if kind == "metar":
                 return [_metar("SABE", "87582", "2026-08-12T11:00:00Z")]
             return []
 
-        smn.side_effect = _smn
+        dma.side_effect = _dma
         aw_m.return_value = []
         out = build_surveillance(stations=only, airports=AIRPORTS)
 
     by = {p["omm"]: p for p in out["stations"]}
     assert by["87582"]["product"] == "SPECI"
+    assert by["87582"]["source"] == "DMA"
     assert out["contingency_only"] is False
-    assert out["missing_after_smn"] == 0
+    assert out["missing_after_dma"] == 0
     # Contingencia METAR no se usa; AW solo para TAF (include_taf=True)
     assert aw_m.call_count == 1
     assert aw_m.call_args.kwargs.get("include_taf") is True
@@ -188,7 +194,7 @@ def test_cascade_smn_speci_then_metar():
 
 if __name__ == "__main__":
     test_barb_key_and_metar_parser_wind_barb()
-    test_contingency_skips_smn_when_unavailable()
+    test_contingency_skips_dma_when_unavailable()
     test_nil_synop_hidden()
-    test_cascade_smn_speci_then_metar()
+    test_cascade_dma_speci_then_metar()
     print("ok")

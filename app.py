@@ -1,4 +1,4 @@
-"""Visor SYNOP / METAR Argentina — SMN + OGIMET + AviationWeather."""
+"""Visor SYNOP / METAR Argentina — DMA + OGIMET + AviationWeather."""
 
 from __future__ import annotations
 
@@ -12,11 +12,9 @@ from flask import Flask, jsonify, redirect, render_template, request, send_from_
 from aviationweather_client import (
     fetch_argentina_metars,
     fetch_station_metars,
-    fetch_stations_bulletin,
-    parse_icao_ids,
 )
+from dma_client import dma_status, fetch_dma_synops
 from ogimet_client import fetch_argentina_synops, fetch_station_series, resolve_synop_hour
-from smn_client import smn_status
 from surveillance import build_surveillance
 
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +43,7 @@ STATIONS = load_stations()
 AIRPORTS = load_airports()
 
 
-_UI_PRODUCT = {"synop": "synop", "metar": "metar", "consulta": "lookup"}
+_UI_PRODUCT = {"synop": "synop", "metar": "metar"}
 
 
 @app.get("/")
@@ -55,7 +53,6 @@ def index_root():
 
 @app.get("/synop")
 @app.get("/metar")
-@app.get("/consulta")
 def index_product():
     """Una URL por panel para poder abrirlos en pestañas distintas del navegador."""
     page = (request.path or "/synop").strip("/") or "synop"
@@ -63,7 +60,6 @@ def index_product():
     titles = {
         "synop": "SYNOP Argentina",
         "metar": "METAR / vigilancia Argentina",
-        "consulta": "Consulta METAR · SPECI · TAF",
     }
     return render_template(
         "index.html",
@@ -104,7 +100,7 @@ def api_airports():
 @app.get("/api/surveillance")
 def api_surveillance():
     """
-    Vigilancia METAR: cascade SMN (si intranet) o solo contingencia AW/OGIMET.
+    Vigilancia METAR: cascade DMA → AviationWeather / OGIMET.
     """
     try:
         payload = build_surveillance(stations=STATIONS, airports=AIRPORTS)
@@ -114,11 +110,11 @@ def api_surveillance():
     return jsonify(payload)
 
 
-@app.get("/api/smn/status")
-def api_smn_status():
-    """Estado del sondeo SMN (intranet vs contingencia)."""
+@app.get("/api/dma/status")
+def api_dma_status():
+    """Estado del sondeo MySQL DMA (10.10.100.121)."""
     force = (request.args.get("refresh") or "0") in ("1", "true", "yes")
-    return jsonify(smn_status(force_refresh=force))
+    return jsonify(dma_status(force_refresh=force))
 
 
 @app.get("/api/specis")
@@ -138,7 +134,7 @@ def api_specis():
     return jsonify(
         {
             "hours": hours,
-            "source": "contingency" if payload.get("contingency_only") else "SMN",
+            "source": "contingency" if payload.get("contingency_only") else "DMA",
             "contingency_only": payload.get("contingency_only"),
             "count": len(specis),
             "specis": specis,
@@ -158,7 +154,7 @@ def api_taf_amends():
     amends = payload.get("taf_amends") or []
     return jsonify(
         {
-            "source": "contingency" if payload.get("contingency_only") else "SMN",
+            "source": "contingency" if payload.get("contingency_only") else "DMA",
             "contingency_only": payload.get("contingency_only"),
             "taf_source": (payload.get("sources") or {}).get("aw_taf"),
             "count": len(amends),
@@ -259,38 +255,10 @@ def api_metar_station(icao: str):
     )
 
 
-
-
-@app.get("/api/lookup")
-def api_lookup():
-    """Consulta tipo AviationWeather: ICAOs + horas → TAF y METAR/SPECI."""
-    ids_raw = request.args.get("ids") or request.args.get("icao") or ""
-    try:
-        hours = int(request.args.get("hours", "6"))
-    except ValueError:
-        return jsonify({"error": "hours inválido"}), 400
-    hours = max(1, min(hours, 48))
-    include_taf = request.args.get("taf", "1") == "1"
-    ids = parse_icao_ids(ids_raw)
-    if not ids:
-        return jsonify({"error": "Indicá uno o más ICAO (OACI) separados por coma"}), 400
-    try:
-        include_amend = request.args.get("amend", "1") == "1"
-        payload = fetch_stations_bulletin(
-            ids,
-            hours=hours,
-            include_taf=include_taf,
-            include_amend=include_amend,
-            airports=AIRPORTS,
-        )
-    except Exception as exc:  # noqa: BLE001
-        log.exception("Error en consulta AW lookup")
-        return jsonify({"error": f"No se pudo consultar AviationWeather: {exc}"}), 502
-    return jsonify(payload)
-
 @app.get("/api/synops")
 def api_synops():
-    hour = request.args.get("hour")  # YYYYMMDDHH UTC opcional
+    """SYNOPs: DMA (AEROMET) primero; si falla o vacío, OGIMET."""
+    hour = request.args.get("hour")
     timeline = (request.args.get("timeline") or "exact").lower()
     if timeline not in ("exact", "latest"):
         return jsonify({"error": "timeline debe ser 'exact' o 'latest'"}), 400
@@ -306,29 +274,52 @@ def api_synops():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    include_nil = request.args.get("nil", "0") == "1"
+    source = "DMA"
+    synops: list[dict] = []
+    dma_err: str | None = None
+
     try:
-        synops = fetch_argentina_synops(
-            when,
+        synops = fetch_dma_synops(
             stations=STATIONS,
-            timeline=timeline,  # type: ignore[arg-type]
+            when=when,
+            timeline=timeline,
             lookback_hours=lookback,
+            prefer_aeromet=True,
         )
     except Exception as exc:  # noqa: BLE001
-        log.exception("Error consultando OGIMET")
-        return jsonify({"error": f"No se pudo consultar OGIMET: {exc}"}), 502
+        dma_err = str(exc)
+        log.warning("DMA SYNOP falló, fallback OGIMET: %s", exc)
+        synops = []
 
-    include_nil = request.args.get("nil", "0") == "1"
-    if not include_nil:
-        synops = [s for s in synops if not s.nil]
+    if not synops:
+        try:
+            decoded = fetch_argentina_synops(
+                when,
+                stations=STATIONS,
+                timeline=timeline,  # type: ignore[arg-type]
+                lookback_hours=lookback,
+            )
+            if not include_nil:
+                decoded = [s for s in decoded if not s.nil]
+            synops = [s.to_dict() for s in decoded]
+            source = "OGIMET"
+        except Exception as exc:  # noqa: BLE001
+            log.exception("Error consultando OGIMET")
+            msg = f"No se pudo consultar SYNOP (DMA: {dma_err}; OGIMET: {exc})"
+            return jsonify({"error": msg}), 502
+    elif not include_nil:
+        synops = [s for s in synops if not s.get("nil")]
 
     payload = {
         "hour": when.strftime("%Y%m%d%H"),
         "hour_label": when.strftime("%d/%m/%Y %H:00 UTC"),
         "timeline": timeline,
         "lookback_hours": lookback if timeline == "latest" else 0,
-        "source": "OGIMET",
+        "source": source,
+        "dma_error": dma_err,
         "count": len(synops),
-        "synops": [s.to_dict() for s in synops],
+        "synops": synops,
     }
     return jsonify(payload)
 
@@ -385,13 +376,13 @@ def api_station_series(omm: str):
 
 @app.get("/health")
 def health():
-    status = smn_status()
+    status = dma_status()
     return jsonify(
         {
             "ok": True,
             "stations": len(STATIONS),
             "airports": len(AIRPORTS),
-            "smn": status,
+            "dma": status,
             "contingency_only": not bool(status.get("ok")),
         }
     )

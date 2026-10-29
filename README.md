@@ -1,79 +1,64 @@
-# SYNOP / METAR Argentina
+# SYNOP / METAR Argentina — vigilancia-dma
 
-Visor web de **SYNOP** (OGIMET) y **METAR/TAF** ([AviationWeather](https://aviationweather.gov/)) sobre un mapa de Argentina.
+Visor web de **SYNOP** y **METAR** sobre un mapa de Argentina.
+Fuente primaria: MySQL DMA (`10.10.100.121`); fallback AviationWeather / OGIMET.
 
 ## Qué incluye
 
-- Mapa interactivo (Leaflet) centrado en Argentina, base **Argenmap IGN** (toponimia oficial, p.ej. Malvinas Argentinas)
-- **Modo SYNOP**: ploteo de estación con PNGs (`img/barbs`, `img/simbolos`)
-- **Modo METAR**: puntos coloreados por categoría de vuelo (VFR / MVFR / IFR / LIFR) + TAF en el detalle
-- **Consulta**: pestaña tipo AviationWeather — ICAOs separados por coma, horas hacia atrás, lista de TAF + METAR/SPECI
-- **Enmienda TAF**: alerta cuando METAR/SPECI difiere del TAF vigente por umbrales de enmienda (viento, vis, techo, cobertura, fenómenos)
-- Contornos **FIR** (EZE, CBA, DOZ, SIS, CRV) y filtro por región
-- Serie temporal 24 h por estación SYNOP
+- Mapa interactivo (Leaflet) centrado en Argentina, base **Argenmap IGN**
+- **Modo SYNOP**: ploteo de estación; hover/plot desde columna **AEROMET** de `synop_obs` (si falta, se decodifica el SYNOP)
+- **Modo METAR**: vigilancia con cascade DMA SPECI → METAR → SYNOP → AW → OGIMET
+- Contornos **FIR** y filtro por región
+- Serie temporal 24 h por estación SYNOP (OGIMET)
 - Selector de hora UTC
-- Catálogo SMN (SYNOP) + aeródromos SA* (METAR)
+- Alertas SPECI y posibles enmiendas TAF
 
 ## Correr en local (con Docker)
 
-No hace falta instalar Python ni nada más:
-
 ```bash
+cp .env.example .env   # completar DMA_MYSQL_USER / PASSWORD
 docker compose up --build
 ```
 
-Abrí http://localhost:8080
+Abrí http://localhost:8080 → redirige a `/synop`.
 
-## Desplegar online (lo más fácil: Render)
+## Variables DMA
 
-1. Subí este repo a GitHub.
-2. Entrá a [https://render.com](https://render.com) → **New** → **Web Service**.
-3. Conectá el repo.
-4. Render detecta el `Dockerfile`. Dejá:
-   - **Runtime:** Docker
-   - **Instance:** Free (o el plan que quieras)
-5. **Create Web Service** y esperá la URL pública.
+| Variable | Default | Descripción |
+|---|---|---|
+| `DMA_MYSQL_HOST` | `10.10.100.121` | Host MySQL |
+| `DMA_MYSQL_PORT` | `3306` | Puerto |
+| `DMA_MYSQL_USER` | _(vacío)_ | Usuario (obligatorio) |
+| `DMA_MYSQL_PASSWORD` | _(vacío)_ | Password |
+| `DMA_MYSQL_DATABASE` | `mensajes` | Base |
+| `DMA_TABLE_METAR` | `metar_obs` | METARs |
+| `DMA_TABLE_SPECI` | `speci_obs` | SPECIs |
+| `DMA_TABLE_SYNOP` | `synop_obs` | SYNOPs (+ `AEROMET`) |
 
-Alternativas iguales de simples: [Railway](https://railway.app) o [Fly.io](https://fly.io) apuntando al mismo `Dockerfile`.
-
-## Configuración (UI)
-
-Panel **Configuración** en la barra superior:
-
-- **Autorefresh**: actualiza cada 2 minutos
-- **Timeline**
-  - *Solo hora seleccionada*: solo estaciones con dato en esa hora UTC
-  - *Último dato disponible*: último reporte de cada estación (ventana 24 h)
-- **Separación de símbolos**: acerca/aleja los símbolos del punto de estación sin cambiar su tamaño
+El cliente detecta columnas de estación/fecha/mensaje/`AEROMET` por nombre (p.ej. `CodEstacion`, `FechaHora`, `Mensaje`).
 
 ## API
 
-- `GET /api/synops?hour=YYYYMMDDHH&nil=0&timeline=exact|latest&lookback=24`
-- `GET /api/synops/<omm>?hours=24&hour=YYYYMMDDHH&nil=0` — serie horaria de una estación
-- `GET /api/metars?hour=YYYYMMDDHH&hours=3&timeline=exact|latest&taf=1` — METAR/TAF (AviationWeather)
-- `GET /api/surveillance` — vigilancia METAR (SMN o contingencia)
+- `GET /api/synops?hour=YYYYMMDDHH&nil=0&timeline=exact|latest&lookback=24` — DMA→OGIMET
+- `GET /api/synops/<omm>?hours=24` — serie horaria (OGIMET)
+- `GET /api/surveillance` — vigilancia METAR (DMA → AW/OGIMET)
 - `GET /api/specis` — SPECI vigentes
-- `GET /api/lookup?ids=SAZR,SABE&hours=6&taf=1` — consulta multi-ICAO (METAR/SPECI/TAF)
-- `GET /api/taf-amends` — posibles enmiendas TAF vs METAR/SPECI
-- `GET /api/smn/status` — sondeo SMN
-- `GET /api/stations` — catálogo SYNOP
-- `GET /api/airports` — catálogo aeródromos
-- `GET /health` — healthcheck (+ estado SMN)
+- `GET /api/taf-amends` — posibles enmiendas TAF
+- `GET /api/dma/status` — sondeo MySQL DMA
+- `GET /health` — healthcheck (+ estado DMA)
 
-## Fuentes de datos (vigilancia METAR)
+## Cascade vigilancia METAR
 
-- **Intranet SMN**: SPECI → METAR → SYNOP (mensajes_new), luego AW / OGIMET.
-- **Render / red externa**: modo contingencia automático (AviationWeather + OGIMET). Forzar con `SMN_MODE=off`.
-- Variables: `SMN_MODE=off|auto|on`, `SMN_MENSAJES_URL`, `SMN_PROBE_TTL`.
-- SYNOP **NIL** no se muestran en la pestaña METAR.
-- Mapa METAR: barbas de viento + códigos de nube en texto plano (`BKN013` / `SCT008`).
-- Color por bases: verde brillante = despejado; verde oliva = FEW/SCT; resto por altura de techo.
-- La pestaña SYNOP del mapa sigue consultando **OGIMET** directamente.
+1. DMA `speci_obs`
+2. DMA `metar_obs`
+3. DMA `synop_obs` (AEROMET)
+4. AviationWeather SPECI/METAR
+5. OGIMET SYNOP
+
+Si DMA no responde → solo pasos 4–5 (`contingency_only`).
 
 ## Notas
 
-- OGIMET a veces tarda o limita; el backend tiene timeout y muestra el error en pantalla.
-- Los iconos viven en `img/barbs` e `img/simbolos` (se sirven en `/img/...`).
-- Si un SYNOP trae grupo 8 en sección 1 y uno o más `8NsChshs` en sección 3, el plot y el hover muestran **ambos**.
 - Zona horaria de consulta: **UTC**.
-- Nota: en `simbolos/` hay ww 56–99; si falta un código bajo, se muestra el número en texto.
+- SYNOP **NIL** no se muestran en la pestaña METAR.
+- Iconos en `img/barbs` e `img/simbolos` (`/img/...`).
