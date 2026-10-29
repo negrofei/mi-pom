@@ -896,7 +896,7 @@
     const nil = settings.includeNil ? "1" : "0";
     const timeline = settings.timeline || "exact";
     const gap = settings.plotGap || 0.75;
-    statusEl.textContent = "Consultando OGIMET…";
+    statusEl.textContent = "Consultando SYNOP (DMA→OGIMET)…";
     btnLoad.disabled = true;
     try {
       const url = `/api/synops?nil=${nil}&timeline=${timeline}&lookback=24${
@@ -913,10 +913,14 @@
 
       const w = Math.round(BASE_W * gap);
       const h = Math.round(BASE_H * gap);
+      const batchSource = data.source || "OGIMET";
+      const batchFallback = !!data.fallback || batchSource !== "DMA";
 
       for (const obs of data.synops) {
         if (obs.lat == null || obs.lng == null) continue;
         if (!firAllowed(obs)) continue;
+        if (!obs.source) obs.source = batchSource;
+        if (obs.fallback == null) obs.fallback = batchFallback;
 
         const html = StationPlot.buildStationHtml(obs, { gap });
         const icon = L.divIcon({
@@ -951,7 +955,8 @@
           : settings.firs.length
             ? `FIR ${settings.firs.join("+")}`
             : "sin FIR";
-      statusEl.textContent = `${data.hour_label} · ${shown}/${data.count} estaciones · ${modeLabel} · ${firLabel}`;
+      const srcLabel = batchFallback ? `${batchSource} (fallback)` : batchSource;
+      statusEl.textContent = `${data.hour_label} · ${shown}/${data.count} estaciones · ${modeLabel} · ${firLabel} · ${srcLabel}`;
     } catch (err) {
       console.error(err);
       statusEl.textContent = `Error: ${err.message}`;

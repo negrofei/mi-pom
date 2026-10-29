@@ -722,9 +722,13 @@
             (a.taf_amend.reason_labels || []).slice(0, 2).join(" · ")
           )}</div>`
         : "",
-      `<span style="color:${cat.color}"><b>${esc(cat.label)}</b></span> · ${esc(product)}${
-        a.source ? ` · ${esc(a.source)}` : ""
-      }`,
+      `<span style="color:${cat.color}"><b>${esc(cat.label)}</b></span> · ${esc(product)} · <b>Fuente: ${esc(
+        a.source
+          ? a.fallback || a.source !== "DMA"
+            ? `${a.source} (fallback)`
+            : a.source
+          : "—"
+      )}</b>`,
       a.obs_iso ? `UTC ${esc(a.obs_iso)}` : a.utc ? `UTC ${esc(a.utc)}` : "",
       `Vis ${coloredVisHtml(a.visibility_m)}`,
       bases !== "—"
@@ -788,7 +792,13 @@
         <div class="meta">
           <span class="flt-pill" style="background:${cat.color}">${esc(cat.label)}</span>
           · ${esc(product)}
-          ${a.source ? `· ${esc(a.source)}` : ""}
+          · <b>Fuente: ${esc(
+            a.source
+              ? a.fallback || a.source !== "DMA"
+                ? `${a.source} (fallback)`
+                : a.source
+              : "—"
+          )}</b>
           ${a.obs_iso ? `· ${esc(a.obs_iso)}` : a.utc ? `· ${esc(a.utc)}` : ""}
         </div>
         ${

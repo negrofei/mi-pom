@@ -415,6 +415,7 @@ def build_surveillance(
             "icao": icao,
             "product": product,
             "source": source,
+            "fallback": source != "DMA",
             "obs_iso": obs_iso,
             "hour_key": hour_key,
             "stale": stale,

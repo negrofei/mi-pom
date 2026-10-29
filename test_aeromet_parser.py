@@ -5,6 +5,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from aeromet_parser import parse_aeromet
+from dma_client import (
+    _AEROMET_CANDIDATES,
+    _ICAO_CANDIDATES,
+    _MSG_CANDIDATES,
+    _STATION_CANDIDATES,
+    _TIME_CANDIDATES,
+    _pick,
+)
 
 
 NOW = datetime(2026, 10, 29, 15, 0, tzinfo=timezone.utc)
@@ -50,8 +58,37 @@ def test_aeromet_empty_returns_none():
     assert parse_aeromet("NIL", omm="87582") is None
 
 
+def test_dma_column_map_matches_real_schema():
+    """Columnas reales reportadas por synop_obs / metar_obs."""
+    synop_cols = {
+        "aeromet": "aeromet",
+        "errores": "errores",
+        "estacion": "estacion",
+        "id": "id",
+        "mensaje": "mensaje",
+        "observadodesde": "observadoDesde",
+        "utc": "utc",
+    }
+    assert _pick(synop_cols, _STATION_CANDIDATES) == "estacion"
+    assert _pick(synop_cols, _TIME_CANDIDATES) == "utc"
+    assert _pick(synop_cols, _MSG_CANDIDATES) == "mensaje"
+    assert _pick(synop_cols, _AEROMET_CANDIDATES) == "aeromet"
+    assert _pick(synop_cols, _ICAO_CANDIDATES) == "observadoDesde"
+
+    metar_cols = {
+        "estacion": "estacion",
+        "mensaje": "mensaje",
+        "utc": "utc",
+        "observadodesde": "observadoDesde",
+        "id": "id",
+    }
+    assert _pick(metar_cols, _TIME_CANDIDATES) == "utc"
+    assert _pick(metar_cols, _STATION_CANDIDATES) == "estacion"
+
+
 if __name__ == "__main__":
     test_aeromet_bulletin_metar_like()
     test_aeromet_labeled_spanish()
     test_aeromet_empty_returns_none()
+    test_dma_column_map_matches_real_schema()
     print("ok")

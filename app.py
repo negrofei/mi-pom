@@ -311,12 +311,19 @@ def api_synops():
     elif not include_nil:
         synops = [s for s in synops if not s.get("nil")]
 
+    # Marcar fuente en cada estación (detalle al click)
+    fallback = source != "DMA"
+    for s in synops:
+        s["source"] = s.get("source") or source
+        s["fallback"] = fallback or (str(s.get("source") or "") != "DMA")
+
     payload = {
         "hour": when.strftime("%Y%m%d%H"),
         "hour_label": when.strftime("%d/%m/%Y %H:00 UTC"),
         "timeline": timeline,
         "lookback_hours": lookback if timeline == "latest" else 0,
         "source": source,
+        "fallback": fallback,
         "dma_error": dma_err,
         "count": len(synops),
         "synops": synops,

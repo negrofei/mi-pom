@@ -60,6 +60,7 @@ _STATION_CANDIDATES = (
     "indicativo",
 )
 _TIME_CANDIDATES = (
+    "utc",  # esquema DMA real (synop_obs / metar_obs / speci_obs)
     "fechahora",
     "fecha_hora",
     "fechaobs",
@@ -83,7 +84,16 @@ _MSG_CANDIDATES = (
     "parte",
 )
 _AEROMET_CANDIDATES = ("aeromet", "aero_met", "decodificado", "decoded")
-_ICAO_CANDIDATES = ("icao", "oaci", "aerodromo", "aeródromo", "estacion_oaci")
+# En synop_obs el OACI está en observadoDesde; en metar/speci estacion ya es OACI
+_ICAO_CANDIDATES = (
+    "observadodesde",
+    "observado_desde",
+    "icao",
+    "oaci",
+    "aerodromo",
+    "aeródromo",
+    "estacion_oaci",
+)
 
 _column_cache: dict[str, dict[str, Optional[str]]] = {}
 _status_cache: dict[str, Any] = {"ok": None, "checked_at": None, "reason": None}
@@ -195,14 +205,22 @@ def _describe(conn, table: str) -> dict[str, Optional[str]]:
     for r in rows:
         name = r.get("Field") or r.get("field") or next(iter(r.values()))
         originals[_norm_col(str(name))] = str(name)
-    mapping = {
+    # Esquema DMA conocido: estacion + utc + mensaje (+ aeromet / observadoDesde)
+    mapping: dict[str, Any] = {
         "station": _pick(originals, _STATION_CANDIDATES),
         "time": _pick(originals, _TIME_CANDIDATES),
         "message": _pick(originals, _MSG_CANDIDATES),
         "aeromet": _pick(originals, _AEROMET_CANDIDATES),
         "icao": _pick(originals, _ICAO_CANDIDATES),
-        "_all": originals,  # type: ignore[dict-item]
+        "_all": originals,
     }
+    # Si estacion es OACI (metar/speci), no usar la misma columna como icao auxiliar
+    # salvo que exista observadoDesde.
+    if mapping["icao"] and mapping["station"] and mapping["icao"] == mapping["station"]:
+        if "observadodesde" in originals:
+            mapping["icao"] = originals["observadodesde"]
+        else:
+            mapping["icao"] = None
     if not mapping["station"] or not mapping["time"]:
         raise RuntimeError(
             f"Tabla {table}: no se reconocieron columnas estación/fecha "
@@ -213,8 +231,8 @@ def _describe(conn, table: str) -> dict[str, Optional[str]]:
             f"Tabla {table}: falta columna de mensaje/AEROMET "
             f"(vimos: {sorted(originals.values())})"
         )
-    _column_cache[table] = mapping  # type: ignore[assignment]
-    return mapping  # type: ignore[return-value]
+    _column_cache[table] = mapping
+    return mapping
 
 
 def _as_dt(value: Any) -> Optional[datetime]:
