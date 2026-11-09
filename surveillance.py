@@ -364,7 +364,7 @@ def build_surveillance(
     seen_speci: set[str] = set()
     taf_amends: list[dict] = []
 
-    # TAF: DMA taf_obs primero; AW completa faltantes
+    # TAF: SMN taf_obs primero; AW completa faltantes (si SMN_ONLY=0)
     taf_by_icao, taf_source_by_icao, err_dma_taf = _fetch_dma_tafs()
     err_taf = err_dma_taf
     missing_taf = [
@@ -372,7 +372,7 @@ def build_surveillance(
         for a in airports.values()
         if a.get("icao") and str(a["icao"]).upper() not in taf_by_icao
     ]
-    if missing_taf or not taf_by_icao:
+    if (missing_taf or not taf_by_icao) and not SMN_ONLY:
         aw_tafs, err_aw_taf = _fetch_aw_tafs(airports)
         err_taf = err_taf or err_aw_taf
         for icao_r, raw_t in aw_tafs.items():
