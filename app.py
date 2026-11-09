@@ -7,7 +7,17 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+_env_path = Path(__file__).resolve().parent / ".env"
+_loaded = load_dotenv(_env_path)
+
+if _env_path.exists():
+    print(f"[dotenv] Cargando {_env_path}")
+    if os.environ.get("DMA_MYSQL_USER"):
+        print(f"[dotenv] DMA_MYSQL_USER = {os.environ.get('DMA_MYSQL_USER')}")
+    else:
+        print("[dotenv] ADVERTENCIA: DMA_MYSQL_USER está vacío")
+else:
+    print(f"[dotenv] ADVERTENCIA: No existe {_env_path}")
 
 import json
 import logging

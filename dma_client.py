@@ -16,6 +16,14 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+_env_path = Path(__file__).resolve().parent / ".env"
+_loaded = load_dotenv(_env_path)
+if not _loaded and _env_path.exists():
+    load_dotenv()  # fallback: buscar en cwd
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional
