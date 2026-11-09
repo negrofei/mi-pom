@@ -15,9 +15,10 @@ INSTALACION (una sola vez)
 2. Copiar .env.example a .env:
       copy .env.example .env
 
-3. Editar .env con las credenciales de la base DMA:
-      DMA_MYSQL_USER=tu_usuario
-      DMA_MYSQL_PASSWORD=tu_password
+3. Editar .env con las credenciales de la base SMN:
+      SMN_MYSQL_USER=tu_usuario
+      SMN_MYSQL_PASSWORD=tu_password
+      SMN_ONLY=1                          # opcional: sin fallback a OGIMET/AW
 
 4. Ejecutar INSTALAR_WINDOWS.bat (doble clic)
    - Crea el entorno virtual (venv)
@@ -47,11 +48,12 @@ Si esta ocupado, editar app.py linea final:
    port = int(os.environ.get("PORT", "8080"))
 Cambiar 8080 por otro puerto libre (ej: 8081).
 
-CONEXION A LA BASE DE DATOS DMA
+CONEXION A LA BASE DE DATOS SMN
 -------------------------------
 La aplicacion se conecta a MySQL en 10.10.100.121 (red interna SMN).
-- Si no hay conexion: usa fallback automatico a OGIMET / AviationWeather
-- El indicador "DMA" en la interfaz muestra si esta conectado
+- Si no hay conexion y SMN_ONLY=0: usa fallback a OGIMET / AviationWeather
+- Si SMN_ONLY=1: no usa fallback (solo datos del SMN)
+- El indicador "SMN" en la interfaz muestra si esta conectado
 - El endpoint /health muestra el estado de la conexion
 
 SOLUCION DE PROBLEMAS
