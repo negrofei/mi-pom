@@ -984,7 +984,7 @@
           : a.wx_string
             ? esc(a.wx_string)
             : "",
-      !speci ? `<div class="synop-line">${esc(a.raw || "")}</div>` : "",
+      !speci ? `<div class="synop-line synop-decoded">${synopWithTooltipsHtml(a.raw)}</div>` : "",
     ];
     return lines.filter(Boolean).join("<br/>");
   }
