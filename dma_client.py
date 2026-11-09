@@ -31,7 +31,7 @@ from typing import Any, Literal, Optional
 
 from aeromet_parser import parse_aeromet
 from metar_parser import parse_metar_raw
-from synop_parser import parse_synop
+from synop_parser import parse_synop, _safe_int
 
 log = logging.getLogger(__name__)
 
