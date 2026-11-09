@@ -432,11 +432,12 @@ def fetch_dma_metar_like(
             # Conservar solo el más reciente por estación (rows ORDER BY time DESC)
             continue
         seen.add(key)
-        # Preferir timestamp de la fila si el parse no trae hora
-        dt = _as_dt(row.get("obs_time"))
-        if dt and (not parsed.get("obs_iso") or timeline == "exact"):
-            parsed["obs_iso"] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-            parsed["hour_key"] = dt.strftime("%Y%m%d%H")
+        # Usar timestamp del mensaje (parseado); base de datos solo como fallback
+        if not parsed.get("obs_iso"):
+            dt = _as_dt(row.get("obs_time"))
+            if dt:
+                parsed["obs_iso"] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                parsed["hour_key"] = dt.strftime("%Y%m%d%H")
         meta = stations.get(str(parsed.get("wmo") or "")) or {}
         if meta:
             parsed.setdefault("nombre", meta.get("nombre"))
@@ -478,14 +479,50 @@ def fetch_dma_synops(
                 continue
         if wmo in seen:
             continue
-        dt = _as_dt(row.get("obs_time"))
-        obs_iso = dt.strftime("%Y-%m-%dT%H:%M:%SZ") if dt else None
-        hour_key = dt.strftime("%Y%m%d%H") if dt else None
+        db_dt = _as_dt(row.get("obs_time"))
         meta = stations.get(wmo) or {"omm": wmo}
         raw_msg = row.get("message")
         aeromet = row.get("aeromet")
 
         item: Optional[dict[str, Any]] = None
+        
+        # Primero intentar parsear para obtener día/hora del mensaje
+        synop_day: Optional[int] = None
+        synop_hour: Optional[int] = None
+        if raw_msg:
+            # Extraer AAXX YYGGi del mensaje
+            tokens = str(raw_msg).upper().split()
+            if len(tokens) >= 2 and tokens[0] == "AAXX":
+                yyggi = tokens[1]
+                if len(yyggi) >= 4:
+                    synop_day = _safe_int(yyggi[0:2])
+                    synop_hour = _safe_int(yyggi[2:4])
+        
+        # Construir fecha: usar día/hora del mensaje si disponible
+        year = db_dt.year if db_dt else now.year
+        month = db_dt.month if db_dt else now.month
+        day = synop_day if synop_day else (db_dt.day if db_dt else None)
+        hour = synop_hour if synop_hour is not None else (db_dt.hour if db_dt else None)
+        
+        if day is not None and hour is not None:
+            try:
+                msg_dt = datetime(year, month, day, hour, 0, tzinfo=timezone.utc)
+                # Si la fecha es futura, probablemente es del mes anterior
+                if msg_dt > now + timedelta(hours=24):
+                    if month == 1:
+                        year, month = year - 1, 12
+                    else:
+                        month -= 1
+                    msg_dt = datetime(year, month, day, hour, 0, tzinfo=timezone.utc)
+                obs_iso = msg_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                hour_key = msg_dt.strftime("%Y%m%d%H")
+            except ValueError:
+                obs_iso = db_dt.strftime("%Y-%m-%dT%H:%M:%SZ") if db_dt else None
+                hour_key = db_dt.strftime("%Y%m%d%H") if db_dt else None
+        else:
+            obs_iso = db_dt.strftime("%Y-%m-%dT%H:%M:%SZ") if db_dt else None
+            hour_key = db_dt.strftime("%Y%m%d%H") if db_dt else None
+
         if prefer_aeromet and aeromet:
             item = parse_aeromet(
                 str(aeromet),
@@ -497,16 +534,14 @@ def fetch_dma_synops(
                 meta=meta,
             )
         if item is None and raw_msg:
-            year = dt.year if dt else now.year
-            month = dt.month if dt else now.month
             decoded = parse_synop(
                 str(raw_msg),
                 wmo,
                 year=year,
                 month=month,
-                day=dt.day if dt else None,
-                hour=dt.hour if dt else None,
-                minute=dt.minute if dt else 0,
+                day=day,
+                hour=hour,
+                minute=0,
             )
             item = decoded.to_dict()
             item["source"] = "SMN"
@@ -644,11 +679,44 @@ def fetch_dma_station_synop_series(
     )
     points: list[dict[str, Any]] = []
     for row in rows:
-        dt = _as_dt(row.get("obs_time"))
-        obs_iso = dt.strftime("%Y-%m-%dT%H:%M:%SZ") if dt else None
-        hour_key = dt.strftime("%Y%m%d%H") if dt else None
+        db_dt = _as_dt(row.get("obs_time"))
         raw_msg = row.get("message")
         aeromet = row.get("aeromet")
+        
+        # Extraer día/hora del mensaje SYNOP (AAXX YYGGi)
+        synop_day: Optional[int] = None
+        synop_hour: Optional[int] = None
+        if raw_msg:
+            tokens = str(raw_msg).upper().split()
+            if len(tokens) >= 2 and tokens[0] == "AAXX":
+                yyggi = tokens[1]
+                if len(yyggi) >= 4:
+                    synop_day = _safe_int(yyggi[0:2])
+                    synop_hour = _safe_int(yyggi[2:4])
+        
+        year = db_dt.year if db_dt else when.year
+        month = db_dt.month if db_dt else when.month
+        day = synop_day if synop_day else (db_dt.day if db_dt else None)
+        hour = synop_hour if synop_hour is not None else (db_dt.hour if db_dt else None)
+        
+        if day is not None and hour is not None:
+            try:
+                msg_dt = datetime(year, month, day, hour, 0, tzinfo=timezone.utc)
+                if msg_dt > when + timedelta(hours=24):
+                    if month == 1:
+                        year, month = year - 1, 12
+                    else:
+                        month -= 1
+                    msg_dt = datetime(year, month, day, hour, 0, tzinfo=timezone.utc)
+                obs_iso = msg_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                hour_key = msg_dt.strftime("%Y%m%d%H")
+            except ValueError:
+                obs_iso = db_dt.strftime("%Y-%m-%dT%H:%M:%SZ") if db_dt else None
+                hour_key = db_dt.strftime("%Y%m%d%H") if db_dt else None
+        else:
+            obs_iso = db_dt.strftime("%Y-%m-%dT%H:%M:%SZ") if db_dt else None
+            hour_key = db_dt.strftime("%Y%m%d%H") if db_dt else None
+
         item: Optional[dict[str, Any]] = None
         if prefer_aeromet and aeromet:
             item = parse_aeromet(
@@ -664,11 +732,11 @@ def fetch_dma_station_synop_series(
             decoded = parse_synop(
                 str(raw_msg),
                 key,
-                year=dt.year if dt else when.year,
-                month=dt.month if dt else when.month,
-                day=dt.day if dt else None,
-                hour=dt.hour if dt else None,
-                minute=dt.minute if dt else 0,
+                year=year,
+                month=month,
+                day=day,
+                hour=hour,
+                minute=0,
             )
             item = decoded.to_dict()
             if obs_iso:
