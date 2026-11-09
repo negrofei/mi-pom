@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
-import json
-import logging
 import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+import json
+import logging
 
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory
 
