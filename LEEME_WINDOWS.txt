@@ -1,0 +1,81 @@
+================================================================================
+         VISOR SYNOP / METAR ARGENTINA - INSTALACION EN WINDOWS
+================================================================================
+
+REQUISITOS
+----------
+- Windows 10/11
+- Python 3.12 instalado (https://python.org)
+- Conexion a la red interna (VPN o red local) para acceder a DMA (10.10.100.121)
+
+INSTALACION (una sola vez)
+--------------------------
+1. Extraer esta carpeta en una ubicacion definitiva (ej: C:\Apps\synop-viewer)
+
+2. Copiar .env.example a .env:
+      copy .env.example .env
+
+3. Editar .env con las credenciales de la base DMA:
+      DMA_MYSQL_USER=tu_usuario
+      DMA_MYSQL_PASSWORD=tu_password
+
+4. Ejecutar INSTALAR_WINDOWS.bat (doble clic)
+   - Crea el entorno virtual (venv)
+   - Instala Flask, PyMySQL y dependencias
+
+USO DIARIO
+----------
+Opcion A - Con consola (recomendado para pruebas):
+   1. Ejecutar PROBAR_CON_CONSOLA.bat
+   2. Abrir http://localhost:8080 en el navegador
+   3. Cerrar con Ctrl+C en la consola
+
+Opcion B - Sin consola visible:
+   1. Ejecutar ABRIR_SYNOP.vbs (doble clic)
+   2. Se abre el navegador automaticamente
+   3. Para cerrar: ejecutar CERRAR_SERVIDOR.bat
+
+ACCESO DIRECTO
+--------------
+Click derecho en ABRIR_SYNOP.vbs > Crear acceso directo
+Mover el acceso directo al Escritorio o Menu Inicio.
+
+PUERTOS
+-------
+El servidor usa el puerto 8080 por defecto.
+Si esta ocupado, editar app.py linea final:
+   port = int(os.environ.get("PORT", "8080"))
+Cambiar 8080 por otro puerto libre (ej: 8081).
+
+CONEXION A LA BASE DE DATOS DMA
+-------------------------------
+La aplicacion se conecta a MySQL en 10.10.100.121 (red interna SMN).
+- Si no hay conexion: usa fallback automatico a OGIMET / AviationWeather
+- El indicador "DMA" en la interfaz muestra si esta conectado
+- El endpoint /health muestra el estado de la conexion
+
+SOLUCION DE PROBLEMAS
+---------------------
+"Python no encontrado":
+   - Verificar que Python 3.12 esta instalado
+   - Verificar que Python esta en el PATH del sistema
+
+"No se pudo conectar a DMA":
+   - Verificar conexion VPN o red interna
+   - Verificar credenciales en .env
+   - La app seguira funcionando con datos de contingencia (OGIMET/AW)
+
+"Puerto 8080 ocupado":
+   - Cerrar otra instancia con CERRAR_SERVIDOR.bat
+   - O cambiar el puerto en app.py
+
+ARCHIVOS IMPORTANTES
+--------------------
+.env                    - Credenciales (NO compartir)
+app.py                  - Servidor Flask principal
+requirements.txt        - Dependencias Python
+data/stations.json      - Estaciones SYNOP
+data/airports.json      - Aerodromos METAR
+venv/                   - Entorno virtual (se crea con INSTALAR_WINDOWS.bat)
+
+================================================================================

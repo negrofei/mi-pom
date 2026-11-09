@@ -1,4 +1,7 @@
 __pycache__/
 *.pyc
 .venv/
+venv/
 .env
+run_server_temp.bat
+*.log
