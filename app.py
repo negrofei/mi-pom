@@ -36,6 +36,7 @@ from dma_client import (
     fetch_dma_station_metar_series,
     fetch_dma_station_synop_series,
     fetch_dma_synops,
+    SMN_ONLY,
 )
 from ogimet_client import fetch_argentina_synops, fetch_station_series, resolve_synop_hour
 from surveillance import build_surveillance
@@ -271,7 +272,7 @@ def api_metar_station(icao: str):
         log.warning("DMA historial METAR %s falló: %s", key, exc)
         points = []
 
-    if not points:
+    if not points and not SMN_ONLY:
         try:
             points = fetch_station_metars(
                 key, airports=AIRPORTS, hours=hours, include_taf=include_taf
@@ -285,7 +286,7 @@ def api_metar_station(icao: str):
             return jsonify(
                 {
                     "error": (
-                        f"No se pudo consultar historial (DMA: {dma_err}; AW: {exc})"
+                        f"No se pudo consultar historial (SMN: {dma_err}; AW: {exc})"
                     )
                 }
             ), 502
@@ -343,7 +344,7 @@ def api_synops():
         log.warning("DMA SYNOP falló, fallback OGIMET: %s", exc)
         synops = []
 
-    if not synops:
+    if not synops and not SMN_ONLY:
         try:
             decoded = fetch_argentina_synops(
                 when,
@@ -357,7 +358,7 @@ def api_synops():
             source = "OGIMET"
         except Exception as exc:  # noqa: BLE001
             log.exception("Error consultando OGIMET")
-            msg = f"No se pudo consultar SYNOP (DMA: {dma_err}; OGIMET: {exc})"
+            msg = f"No se pudo consultar SYNOP (SMN: {dma_err}; OGIMET: {exc})"
             return jsonify({"error": msg}), 502
     elif not include_nil:
         synops = [s for s in synops if not s.get("nil")]
@@ -416,7 +417,7 @@ def api_station_series(omm: str):
         log.warning("DMA serie SYNOP %s falló: %s", omm, exc)
         points = []
 
-    if not points:
+    if not points and not SMN_ONLY:
         try:
             series = fetch_station_series(
                 str(omm), when, stations=STATIONS, hours=hours
@@ -426,7 +427,7 @@ def api_station_series(omm: str):
             return jsonify(
                 {
                     "error": (
-                        f"No se pudo consultar serie (DMA: {dma_err}; OGIMET: {exc})"
+                        f"No se pudo consultar serie (SMN: {dma_err}; OGIMET: {exc})"
                     )
                 }
             ), 502

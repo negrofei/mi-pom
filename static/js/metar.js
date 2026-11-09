@@ -38,14 +38,252 @@
     return CAT[code] || { color: "#888888", label: code || "—", hint: "Sin categoría" };
   }
 
+  // Estilos de alerta METAR
+  const ALERT_STYLES = {
+    wind_high: { background: "#d32f2f", color: "white", label: "Viento ≥20 kt" },
+    wind_mod: { background: "#ffcc80", color: "#4a2500", label: "Viento ≥15 kt" },
+    cb: { background: "#ed7a18", color: "#291300", label: "CB" },
+    tcu: { background: "#ffe3a3", color: "#593b00", label: "TCU" },
+    wx_precip: { background: "#fff59d", color: "#5f4b00", label: "BR/DZ/RA/VCSH" },
+    wx_fog: { background: "#ce93d8", color: "#3b0045", label: "FG" },
+    wx_severe: { background: "#b71c1c", color: "white", label: "TS/GR/FZRA/SQ" },
+  };
+
+  function getWindAlert(obs) {
+    const spd = obs.wind_speed_kt ?? obs.wind_speed;
+    const gust = obs.wind_gust_kt;
+    const maxWind = Math.max(spd || 0, gust || 0);
+    if (maxWind >= 20) return ALERT_STYLES.wind_high;
+    if (maxWind >= 15) return ALERT_STYLES.wind_mod;
+    return null;
+  }
+
+  function getConvectiveAlert(obs) {
+    const raw = String(obs.raw || "").toUpperCase();
+    const clouds = obs.clouds || [];
+    const hasCb = /\bCB\b/.test(raw) || clouds.some(c => /CB/i.test(c.type || c.convective || ""));
+    const hasTcu = /\bTCU\b/.test(raw) || clouds.some(c => /TCU/i.test(c.type || c.convective || ""));
+    if (hasCb) return ALERT_STYLES.cb;
+    if (hasTcu) return ALERT_STYLES.tcu;
+    return null;
+  }
+
+  function getWxAlert(obs) {
+    const wx = String(obs.wx_string || obs.raw || "").toUpperCase();
+    // Severos: TS, GR, FZRA, SQ
+    if (/\bTS\b|\+TS|TSRA|TSGR/.test(wx)) return ALERT_STYLES.wx_severe;
+    if (/\bGR\b|\+GR/.test(wx)) return ALERT_STYLES.wx_severe;
+    if (/\bFZRA\b|\+FZRA/.test(wx)) return ALERT_STYLES.wx_severe;
+    if (/\bSQ\b/.test(wx)) return ALERT_STYLES.wx_severe;
+    // Niebla
+    if (/\bFG\b|\+FG|BCFG|MIFG|PRFG|FZFG/.test(wx)) return ALERT_STYLES.wx_fog;
+    // Precipitación/neblina
+    if (/\bBR\b/.test(wx)) return ALERT_STYLES.wx_precip;
+    if (/\bDZ\b|\+DZ|-DZ|FZDZ/.test(wx)) return ALERT_STYLES.wx_precip;
+    if (/\bRA\b|\+RA|-RA|SHRA/.test(wx)) return ALERT_STYLES.wx_precip;
+    if (/\bVCSH\b/.test(wx)) return ALERT_STYLES.wx_precip;
+    return null;
+  }
+
+  function getAllAlerts(obs) {
+    const alerts = [];
+    const wind = getWindAlert(obs);
+    const conv = getConvectiveAlert(obs);
+    const wx = getWxAlert(obs);
+    if (wind) alerts.push({ type: "wind", ...wind });
+    if (conv) alerts.push({ type: "conv", ...conv });
+    if (wx) alerts.push({ type: "wx", ...wx });
+    return alerts;
+  }
+
+  function alertBadgesHtml(obs) {
+    const alerts = getAllAlerts(obs);
+    if (!alerts.length) return "";
+    return alerts.map(a => 
+      `<span class="metar-alert-badge" style="background:${a.background};color:${a.color}">${esc(a.label)}</span>`
+    ).join(" ");
+  }
+
+  // Decodificación de grupos SYNOP para hover
+  const SYNOP_GROUPS = {
+    header: (g) => {
+      if (!/^AAXX$/i.test(g)) return null;
+      return "AAXX: Mensaje SYNOP terrestre";
+    },
+    yyggi: (g) => {
+      if (!/^\d{5}$/.test(g)) return null;
+      const yy = g.slice(0, 2);
+      const gg = g.slice(2, 4);
+      const iw = g.slice(4, 5);
+      const windUnit = iw === "3" || iw === "4" ? "nudos" : "m/s";
+      return `Día ${yy}, hora ${gg} UTC, viento en ${windUnit}`;
+    },
+    station: (g) => {
+      if (!/^\d{5}$/.test(g)) return null;
+      return `Estación OMM ${g}`;
+    },
+    irixhvv: (g) => {
+      if (!/^\d{5}$/.test(g) || g[0] > "4") return null;
+      const ir = g[0]; // Indicador precipitación
+      const ix = g[1]; // Tipo de estación
+      const h = g[2];  // Base de nubes más bajas
+      const vv = g.slice(3, 5); // Visibilidad
+      const hDesc = {
+        "0": "< 50 m", "1": "50–100 m", "2": "100–200 m", "3": "200–300 m",
+        "4": "300–600 m", "5": "600–1000 m", "6": "1000–1500 m", "7": "1500–2000 m",
+        "8": "2000–2500 m", "9": "> 2500 m o sin nubes", "/": "desconocida"
+      }[h] || h;
+      let visM = parseInt(vv, 10);
+      let visDesc = vv;
+      if (visM >= 0 && visM <= 50) visDesc = `${visM * 100} m`;
+      else if (visM >= 56 && visM <= 80) visDesc = `${(visM - 50)} km`;
+      else if (visM >= 81 && visM <= 89) visDesc = `${30 + (visM - 80) * 5} km`;
+      else if (visM === 90) visDesc = "< 50 m";
+      else if (visM === 91) visDesc = "50 m";
+      else if (visM === 92) visDesc = "200 m";
+      else if (visM === 93) visDesc = "500 m";
+      else if (visM === 94) visDesc = "1 km";
+      else if (visM === 95) visDesc = "2 km";
+      else if (visM === 96) visDesc = "4 km";
+      else if (visM === 97) visDesc = "10 km";
+      else if (visM === 98) visDesc = "20 km";
+      else if (visM === 99) visDesc = "> 50 km";
+      return `Base nubes: ${hDesc}, Visibilidad: ${visDesc}`;
+    },
+    nddff: (g) => {
+      if (!/^\d{5}$/.test(g)) return null;
+      const n = g[0];
+      const dd = g.slice(1, 3);
+      const ff = g.slice(3, 5);
+      const nDesc = n === "0" ? "despejado" : n === "9" ? "cielo oculto" : `${n}/8 oktas`;
+      const dirDesc = dd === "00" ? "calma" : dd === "99" ? "variable" : `${parseInt(dd, 10) * 10}°`;
+      return `Nubes: ${nDesc}, Viento: ${dirDesc} / ${ff} (unidades según iw)`;
+    },
+    temp: (g) => {
+      if (!/^1[01]\d{3}$/.test(g)) return null;
+      const sign = g[1] === "1" ? "-" : "+";
+      const t = parseInt(g.slice(2), 10) / 10;
+      return `Temperatura: ${sign}${t}°C`;
+    },
+    dewpoint: (g) => {
+      if (!/^2[019]\d{3}$/.test(g)) return null;
+      const sign = g[1] === "1" ? "-" : (g[1] === "9" ? "HR " : "+");
+      const t = parseInt(g.slice(2), 10) / 10;
+      if (g[1] === "9") return `Humedad relativa: ${parseInt(g.slice(2), 10)}%`;
+      return `Punto de rocío: ${sign}${t}°C`;
+    },
+    pressure_sta: (g) => {
+      if (!/^3\d{4}$/.test(g)) return null;
+      const p = parseInt(g.slice(1), 10);
+      const pHpa = p < 5000 ? (p + 10000) / 10 : p / 10;
+      return `Presión estación: ${pHpa.toFixed(1)} hPa`;
+    },
+    pressure_msl: (g) => {
+      if (!/^4\d{4}$/.test(g)) return null;
+      const p = parseInt(g.slice(1), 10);
+      const pHpa = p < 5000 ? (p + 10000) / 10 : p / 10;
+      return `Presión nivel mar: ${pHpa.toFixed(1)} hPa`;
+    },
+    tendency: (g) => {
+      if (!/^5[0-8]\d{3}$/.test(g)) return null;
+      const a = g[1];
+      const ppp = parseInt(g.slice(2), 10) / 10;
+      const aDesc = {
+        "0": "subiendo, luego bajando", "1": "subiendo, luego estable",
+        "2": "subiendo", "3": "bajando o estable, luego subiendo",
+        "4": "estable", "5": "bajando, luego subiendo",
+        "6": "bajando, luego estable", "7": "bajando",
+        "8": "estable o subiendo, luego bajando"
+      }[a] || a;
+      return `Tendencia: ${aDesc}, cambio: ${ppp} hPa/3h`;
+    },
+    precip: (g) => {
+      if (!/^6\d{4}$/.test(g)) return null;
+      const rrr = g.slice(1, 4);
+      const tr = g[4];
+      if (rrr === "///") return "Precipitación: sin datos";
+      const mm = parseInt(rrr, 10);
+      const trDesc = { "1": "6h", "2": "12h", "3": "18h", "4": "24h", "5": "1h", "6": "2h", "7": "3h", "8": "9h", "9": "15h" }[tr] || tr;
+      return `Precipitación: ${mm} mm en ${trDesc}`;
+    },
+    weather: (g) => {
+      if (!/^7\d{4}$/.test(g)) return null;
+      const ww = g.slice(1, 3);
+      const w1w2 = g.slice(3, 5);
+      const wwText = WW().wwText(ww) || `código ${ww}`;
+      return `Tiempo presente: ${wwText} (ww=${ww}), pasado: ${w1w2}`;
+    },
+    clouds: (g) => {
+      if (!/^8[0-9\/]{4}$/.test(g)) return null;
+      const nh = g[1];
+      const cl = g[2];
+      const cm = g[3];
+      const ch = g[4];
+      const clDesc = { "0": "sin Cu/Cb", "1": "Cu humilis", "2": "Cu mediocris", "3": "Cb calvus", 
+                       "4": "Sc cumulogenitus", "5": "Sc no cumulog", "6": "St nebulosus", 
+                       "7": "St/Cu fractus", "8": "Cu/Sc", "9": "Cb capillatus", "/": "invisible" }[cl] || cl;
+      return `Nubes: Nh=${nh}/8, CL=${clDesc}, CM=${cm}, CH=${ch}`;
+    },
+  };
+
+  function decodeSynopGroup(group, index, allGroups) {
+    const g = String(group).toUpperCase();
+    if (g === "AAXX") return "AAXX: Mensaje SYNOP de estación terrestre";
+    if (g === "NIL" || g === "NIL=") return "NIL: Sin datos";
+    if (g === "333") return "333: Inicio sección climática regional";
+    if (g === "555") return "555: Inicio sección nacional";
+    if (g.endsWith("=")) return g.slice(0, -1) + " (fin de mensaje)";
+    
+    // YYGGiw después de AAXX
+    if (index === 1 && allGroups[0] === "AAXX") {
+      return SYNOP_GROUPS.yyggi(g);
+    }
+    // Estación después de YYGGiw
+    if (index === 2 && allGroups[0] === "AAXX") {
+      return SYNOP_GROUPS.station(g);
+    }
+    
+    // Grupos por prefijo
+    if (g.startsWith("1") && g.length === 5) return SYNOP_GROUPS.temp(g);
+    if (g.startsWith("2") && g.length === 5) return SYNOP_GROUPS.dewpoint(g);
+    if (g.startsWith("3") && g.length === 5) return SYNOP_GROUPS.pressure_sta(g);
+    if (g.startsWith("4") && g.length === 5) return SYNOP_GROUPS.pressure_msl(g);
+    if (g.startsWith("5") && g.length === 5) return SYNOP_GROUPS.tendency(g);
+    if (g.startsWith("6") && g.length === 5) return SYNOP_GROUPS.precip(g);
+    if (g.startsWith("7") && g.length === 5) return SYNOP_GROUPS.weather(g);
+    if (g.startsWith("8") && g.length === 5) return SYNOP_GROUPS.clouds(g);
+    
+    // iRixhVV y Nddff
+    if (g.length === 5 && /^\d{5}$/.test(g)) {
+      const decoded = SYNOP_GROUPS.irixhvv(g) || SYNOP_GROUPS.nddff(g);
+      if (decoded) return decoded;
+    }
+    
+    return null;
+  }
+
+  function synopWithTooltipsHtml(raw) {
+    if (!raw) return "—";
+    const groups = String(raw).replace(/=/g, " =").split(/\s+/).filter(Boolean);
+    return groups.map((g, i) => {
+      const decoded = decodeSynopGroup(g, i, groups);
+      if (decoded) {
+        return `<span class="synop-group" title="${esc(decoded)}">${esc(g)}</span>`;
+      }
+      return esc(g);
+    }).join(" ");
+  }
+
   function visStyle(m) {
     if (m == null || Number.isNaN(Number(m))) return null;
     const v = Number(m);
-    if (v < 1000) return { color: "#6a1b9a", label: "< 1 km", key: "v1" };
-    if (v < 3000) return { color: "#c62828", label: "1–3 km", key: "v2" };
-    if (v < 5000) return { color: "#ef6c00", label: "3–5 km", key: "v3" };
-    if (v < 10000) return { color: "#f9a825", label: "5–9 km", key: "v4" };
-    return { color: "#2e7d32", label: "≥ 10 km", key: "v5" };
+    if (v < 1000) return { color: "#e91e63", label: "< 1 km", key: "v1" };      // magenta
+    if (v < 1500) return { color: "#9c27b0", label: "1–1.5 km", key: "v2" };    // violeta
+    if (v < 3000) return { color: "#f44336", label: "1.5–3 km", key: "v3" };    // rojo
+    if (v < 5000) return { color: "#ff9800", label: "3–5 km", key: "v4" };      // naranja
+    if (v < 7000) return { color: "#ffeb3b", label: "5–7 km", key: "v5" };      // amarillo
+    if (v < 9999) return { color: "#2196f3", label: "7–9 km", key: "v6" };      // azul
+    return { color: "#4caf50", label: "≥ 10 km / CAVOK", key: "v7" };           // verde
   }
 
   function fmtVis(m) {
@@ -706,9 +944,11 @@
       : "—";
     const speci = a.speci;
     const product = a.product || "SYNOP";
+    const alertBadges = alertBadgesHtml(a);
     const lines = [
       `<b>${esc(a.icao || a.omm)}</b> · ${esc(a.nombre || "")}`,
       a.fir ? `FIR ${esc(a.fir)}` : "",
+      alertBadges ? `<div class="metar-alerts">${alertBadges}</div>` : "",
       a.stale ? `<span class="stale-badge">Dato hora anterior</span>` : "",
       speci
         ? `<span class="speci-badge">SPECI</span> ${esc(speci.obs_iso || "")}`
@@ -724,7 +964,7 @@
         : "",
       `<span style="color:${cat.color}"><b>${esc(cat.label)}</b></span> · ${esc(product)} · <b>Fuente: ${esc(
         a.source
-          ? a.fallback || a.source !== "DMA"
+          ? a.fallback || a.source !== "SMN"
             ? `${a.source} (fallback)`
             : a.source
           : "—"
@@ -794,7 +1034,7 @@
           · ${esc(product)}
           · <b>Fuente: ${esc(
             a.source
-              ? a.fallback || a.source !== "DMA"
+              ? a.fallback || a.source !== "SMN"
                 ? `${a.source} (fallback)`
                 : a.source
               : "—"
@@ -802,7 +1042,7 @@
           ${
             a.taf_source
               ? ` · TAF: ${esc(
-                  a.taf_source !== "DMA" ? `${a.taf_source} (fallback)` : a.taf_source
+                  a.taf_source !== "SMN" ? `${a.taf_source} (fallback)` : a.taf_source
                 )}`
               : ""
           }
@@ -864,7 +1104,10 @@
         <div><b>Bases de nubes</b></div>
         <ul class="av-bases">${basesHtml}</ul>
         <div><b>Viento</b> ${esc(wind)}</div>
-        <pre class="raw">${esc(a.raw || "—")}</pre>
+        <div class="synop-raw-section">
+          <div><b>Mensaje</b> <small>(hover para decodificar)</small></div>
+          <pre class="raw synop-decoded">${synopWithTooltipsHtml(a.raw)}</pre>
+        </div>
       </section>
       ${
         rawTaf && !tafAmend
@@ -1045,11 +1288,13 @@
       return `
         <div class="flt-legend" aria-label="Visibilidad">
           <span class="flt-leg flt-note">Vis ·</span>
-          <span class="flt-leg"><i style="background:#6a1b9a"></i>&lt;1 km</span>
-          <span class="flt-leg"><i style="background:#c62828"></i>1–3</span>
-          <span class="flt-leg"><i style="background:#ef6c00"></i>3–5</span>
-          <span class="flt-leg"><i style="background:#f9a825"></i>5–9</span>
-          <span class="flt-leg"><i style="background:#2e7d32"></i>≥10 km</span>
+          <span class="flt-leg"><i style="background:#e91e63"></i>&lt;1</span>
+          <span class="flt-leg"><i style="background:#9c27b0"></i>1–1.5</span>
+          <span class="flt-leg"><i style="background:#f44336"></i>1.5–3</span>
+          <span class="flt-leg"><i style="background:#ff9800"></i>3–5</span>
+          <span class="flt-leg"><i style="background:#ffeb3b;border-color:#666"></i>5–7</span>
+          <span class="flt-leg"><i style="background:#2196f3"></i>7–9</span>
+          <span class="flt-leg"><i style="background:#4caf50"></i>≥10 km</span>
         </div>`;
     }
     if (mode === "base") {
@@ -1274,5 +1519,15 @@
     obsTimeMs,
     playSpeciSound,
     playTafAmendSound,
+    // Alertas METAR
+    ALERT_STYLES,
+    getWindAlert,
+    getConvectiveAlert,
+    getWxAlert,
+    getAllAlerts,
+    alertBadgesHtml,
+    // SYNOP con decodificación
+    synopWithTooltipsHtml,
+    decodeSynopGroup,
   };
 })(window);
