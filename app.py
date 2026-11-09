@@ -12,10 +12,13 @@ _loaded = load_dotenv(_env_path)
 
 if _env_path.exists():
     print(f"[dotenv] Cargando {_env_path}")
-    if os.environ.get("DMA_MYSQL_USER"):
-        print(f"[dotenv] DMA_MYSQL_USER = {os.environ.get('DMA_MYSQL_USER')}")
+    user = os.environ.get("SMN_MYSQL_USER") or os.environ.get("DMA_MYSQL_USER")
+    if user:
+        print(f"[dotenv] SMN_MYSQL_USER = {user}")
     else:
-        print("[dotenv] ADVERTENCIA: DMA_MYSQL_USER está vacío")
+        print("[dotenv] ADVERTENCIA: SMN_MYSQL_USER está vacío")
+    if os.environ.get("SMN_ONLY", "").lower() in ("1", "true", "yes", "on"):
+        print("[dotenv] SMN_ONLY = 1 (sin fallback a OGIMET/AW)")
 else:
     print(f"[dotenv] ADVERTENCIA: No existe {_env_path}")
 
@@ -120,7 +123,8 @@ def api_airports():
 @app.get("/api/surveillance")
 def api_surveillance():
     """
-    Vigilancia METAR: cascade DMA → AviationWeather / OGIMET.
+    Vigilancia METAR: cascade SMN → AviationWeather / OGIMET.
+    Si SMN_ONLY=1, no usa fallback externo.
     """
     try:
         payload = build_surveillance(stations=STATIONS, airports=AIRPORTS)
@@ -130,9 +134,10 @@ def api_surveillance():
     return jsonify(payload)
 
 
-@app.get("/api/dma/status")
-def api_dma_status():
-    """Estado del sondeo MySQL DMA (10.10.100.121)."""
+@app.get("/api/smn/status")
+@app.get("/api/dma/status")  # compatibilidad
+def api_smn_status():
+    """Estado del sondeo MySQL SMN (10.10.100.121)."""
     force = (request.args.get("refresh") or "0") in ("1", "true", "yes")
     return jsonify(dma_status(force_refresh=force))
 
@@ -154,7 +159,7 @@ def api_specis():
     return jsonify(
         {
             "hours": hours,
-            "source": "contingency" if payload.get("contingency_only") else "DMA",
+            "source": "contingency" if payload.get("contingency_only") else "SMN",
             "contingency_only": payload.get("contingency_only"),
             "count": len(specis),
             "specis": specis,
@@ -174,7 +179,7 @@ def api_taf_amends():
     amends = payload.get("taf_amends") or []
     return jsonify(
         {
-            "source": "contingency" if payload.get("contingency_only") else "DMA",
+            "source": "contingency" if payload.get("contingency_only") else "SMN",
             "contingency_only": payload.get("contingency_only"),
             "taf_source": (payload.get("sources") or {}).get("aw_taf"),
             "count": len(amends),
@@ -254,7 +259,7 @@ def api_metar_station(icao: str):
     if key not in AIRPORTS:
         return jsonify({"error": f"Aeródromo {key} no encontrado"}), 404
 
-    source = "DMA"
+    source = "SMN"
     dma_err: str | None = None
     points: list = []
     try:
@@ -293,7 +298,7 @@ def api_metar_station(icao: str):
             "fir": meta.get("fir"),
             "hours": hours,
             "source": source,
-            "fallback": source != "DMA",
+            "fallback": source != "SMN",
             "dma_error": dma_err,
             "count": len(points),
             "points": points,
@@ -321,7 +326,7 @@ def api_synops():
         return jsonify({"error": str(exc)}), 400
 
     include_nil = request.args.get("nil", "0") == "1"
-    source = "DMA"
+    source = "SMN"
     synops: list[dict] = []
     dma_err: str | None = None
 
@@ -358,10 +363,10 @@ def api_synops():
         synops = [s for s in synops if not s.get("nil")]
 
     # Marcar fuente en cada estación (detalle al click)
-    fallback = source != "DMA"
+    fallback = source != "SMN"
     for s in synops:
         s["source"] = s.get("source") or source
-        s["fallback"] = fallback or (str(s.get("source") or "") != "DMA")
+        s["fallback"] = fallback or (str(s.get("source") or "") != "SMN")
 
     payload = {
         "hour": when.strftime("%Y%m%d%H"),
@@ -396,7 +401,7 @@ def api_station_series(omm: str):
         return jsonify({"error": f"Estación {omm} no encontrada"}), 404
 
     include_nil = request.args.get("nil", "0") == "1"
-    source = "DMA"
+    source = "SMN"
     dma_err: str | None = None
     points: list = []
 
@@ -445,7 +450,7 @@ def api_station_series(omm: str):
             "until": when.strftime("%Y%m%d%H"),
             "until_label": when.strftime("%d/%m/%Y %H:00 UTC"),
             "source": source,
-            "fallback": source != "DMA",
+            "fallback": source != "SMN",
             "dma_error": dma_err,
             "count": len(points),
             "points": points,

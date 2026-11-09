@@ -1,14 +1,15 @@
 """
-Vigilancia METAR (pestaña METAR) — rama vigilancia-dma.
+Vigilancia METAR (pestaña METAR).
 
 Cascade por estación:
-  1) DMA SPECI   (tabla speci_obs @ 10.10.100.121)
-  2) DMA METAR   (tabla metar_obs)
-  3) DMA SYNOP   (tabla synop_obs; plot vía AEROMET)
-  4) AviationWeather SPECI / METAR
-  5) OGIMET SYNOP
+  1) SMN SPECI   (tabla speci_obs @ 10.10.100.121)
+  2) SMN METAR   (tabla metar_obs)
+  3) SMN SYNOP   (tabla synop_obs; plot vía AEROMET)
+  4) AviationWeather SPECI / METAR  (si SMN_ONLY=0)
+  5) OGIMET SYNOP                   (si SMN_ONLY=0)
 
 SPECI vigente solo si es estrictamente posterior al METAR de la misma etapa.
+Si SMN_ONLY=1, no se usa fallback a fuentes externas.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from aviationweather_client import (
     fetch_argentina_metars,
     fetch_argentina_specis,
 )
-from dma_client import dma_status, fetch_dma_messages, fetch_dma_tafs
+from dma_client import dma_status, fetch_dma_messages, fetch_dma_tafs, SMN_ONLY
 from ogimet_client import fetch_argentina_synops, resolve_synop_hour
 from taf_amend import evaluate_amendment
 
@@ -117,7 +118,7 @@ def _fetch_dma_tafs() -> tuple[dict[str, str], dict[str, str], Optional[str]]:
             raw = item.get("raw")
             if raw:
                 raws[icao] = str(raw)
-                sources[icao] = "DMA"
+                sources[icao] = "SMN"
         return raws, sources, None
     except Exception as exc:  # noqa: BLE001
         log.warning("DMA TAF falló: %s", exc)
@@ -274,7 +275,7 @@ def build_surveillance(
     )
 
     chosen: dict[str, dict[str, Any]] = {}
-    filled_by = {"DMA": 0, "AviationWeather": 0, "OGIMET": 0}
+    filled_by = {"SMN": 0, "AviationWeather": 0, "OGIMET": 0}
     missing: list[str] = []
 
     for omm, meta in stations.items():
@@ -287,7 +288,7 @@ def build_surveillance(
                 chosen[key] = {
                     "obs": obs,
                     "product": product or "METAR",
-                    "source": obs.get("source") or "DMA",
+                    "source": obs.get("source") or "SMN",
                     "speci": (
                         dma_speci.get(key)
                         if product == "SPECI"
@@ -300,17 +301,17 @@ def build_surveillance(
                         else None
                     ),
                 }
-                filled_by["DMA"] += 1
+                filled_by["SMN"] += 1
                 continue
             syn = _usable_synop(dma_synop.get(key))
             if syn is not None:
                 chosen[key] = {
                     "obs": syn,
                     "product": "SYNOP",
-                    "source": syn.get("source") or "DMA",
+                    "source": syn.get("source") or "SMN",
                     "speci": None,
                 }
-                filled_by["DMA"] += 1
+                filled_by["SMN"] += 1
                 continue
         missing.append(key)
 
@@ -319,7 +320,7 @@ def build_surveillance(
     ogimet_synop: dict[str, dict] = {}
     err_aw_metar = err_aw_speci = err_ogimet = None
 
-    if missing:
+    if missing and not SMN_ONLY:
         aw_metar_rows, err_aw_metar = _fetch_aw_metars(airports)
         aw_speci_rows, err_aw_speci = _fetch_aw_specis(airports)
         ogimet_rows, err_ogimet = _fetch_ogimet_synops(stations)
@@ -427,7 +428,7 @@ def build_surveillance(
         taf_source = None
         if icao and icao in taf_by_icao:
             raw_taf = taf_by_icao[icao]
-            taf_source = taf_source_by_icao.get(icao) or "DMA"
+            taf_source = taf_source_by_icao.get(icao) or "SMN"
         if av_obs and raw_taf:
             try:
                 if icao and not av_obs.get("icao"):
@@ -449,7 +450,7 @@ def build_surveillance(
             "icao": icao,
             "product": product,
             "source": source,
-            "fallback": source != "DMA",
+            "fallback": source != "SMN",
             "obs_iso": obs_iso,
             "hour_key": hour_key,
             "stale": stale,
@@ -499,36 +500,36 @@ def build_surveillance(
         "contingency_only": contingency_only,
         "cascade": (
             [
-                "DMA SPECI",
-                "DMA METAR",
-                "DMA SYNOP (AEROMET)",
-                "AviationWeather SPECI/METAR",
-                "OGIMET SYNOP",
+                "SMN SPECI",
+                "SMN METAR",
+                "SMN SYNOP (AEROMET)",
             ]
+            + ([] if SMN_ONLY else ["AviationWeather SPECI/METAR", "OGIMET SYNOP"])
             if not contingency_only
-            else ["AviationWeather SPECI/METAR", "OGIMET SYNOP"]
+            else ([] if SMN_ONLY else ["AviationWeather SPECI/METAR", "OGIMET SYNOP"])
         ),
+        "smn_only": SMN_ONLY,
         "sources": {
-            "dma_speci": {
+            "smn_speci": {
                 "ok": err_dma_speci is None if status.get("ok") else False,
                 "count": len(dma_speci_rows),
                 "error": err_dma_speci
                 if status.get("ok")
-                else status.get("reason") or "DMA no disponible",
+                else status.get("reason") or "SMN no disponible",
             },
-            "dma_metar": {
+            "smn_metar": {
                 "ok": err_dma_metar is None if status.get("ok") else False,
                 "count": len(dma_metar_rows),
                 "error": err_dma_metar
                 if status.get("ok")
-                else status.get("reason") or "DMA no disponible",
+                else status.get("reason") or "SMN no disponible",
             },
-            "dma_synop": {
+            "smn_synop": {
                 "ok": err_dma_synop is None if status.get("ok") else False,
                 "count": len(dma_synop_rows),
                 "error": err_dma_synop
                 if status.get("ok")
-                else status.get("reason") or "DMA no disponible",
+                else status.get("reason") or "SMN no disponible",
             },
             "aw_metar": {
                 "ok": err_aw_metar is None if missing else None,
@@ -548,9 +549,9 @@ def build_surveillance(
                 "error": err_ogimet,
                 "used": bool(missing),
             },
-            "dma_taf": {
+            "smn_taf": {
                 "ok": err_dma_taf is None,
-                "count": sum(1 for s in taf_source_by_icao.values() if s == "DMA"),
+                "count": sum(1 for s in taf_source_by_icao.values() if s == "SMN"),
                 "error": err_dma_taf,
             },
             "aw_taf": {
@@ -561,17 +562,17 @@ def build_surveillance(
                 "error": None if err_dma_taf is None else err_taf,
                 "used": True,
             },
-            "metar": "DMA"
-            if filled_by["DMA"] and not contingency_only
+            "metar": "SMN"
+            if filled_by["SMN"] and not contingency_only
             else ("AviationWeather" if filled_by["AviationWeather"] else "—"),
-            "synop": "DMA"
-            if filled_by["DMA"] and not contingency_only
+            "synop": "SMN"
+            if filled_by["SMN"] and not contingency_only
             else ("OGIMET" if filled_by["OGIMET"] else "—"),
-            "speci": "DMA"
-            if filled_by["DMA"] and not contingency_only
+            "speci": "SMN"
+            if filled_by["SMN"] and not contingency_only
             else ("AviationWeather" if filled_by["AviationWeather"] else "—"),
-            "taf": "DMA"
-            if any(s == "DMA" for s in taf_source_by_icao.values())
+            "taf": "SMN"
+            if any(s == "SMN" for s in taf_source_by_icao.values())
             else (
                 "AviationWeather"
                 if any(s == "AviationWeather" for s in taf_source_by_icao.values())

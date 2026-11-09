@@ -1,15 +1,16 @@
 """
-Cliente MySQL DMA (10.10.100.121) — metar_obs / speci_obs / synop_obs / taf_obs.
+Cliente MySQL SMN (10.10.100.121) — metar_obs / speci_obs / synop_obs / taf_obs.
 
-Fuente primaria de vigilancia-dma. Credenciales por entorno:
+Fuente primaria de vigilancia. Credenciales por entorno:
 
-  DMA_MYSQL_HOST=10.10.100.121
-  DMA_MYSQL_PORT=3306
-  DMA_MYSQL_USER=...
-  DMA_MYSQL_PASSWORD=...
-  DMA_MYSQL_DATABASE=mensajes
-  DMA_MYSQL_CONNECT_TIMEOUT=5
-  DMA_MYSQL_SSL=0          # el servidor DMA no ofrece TLS
+  SMN_MYSQL_HOST=10.10.100.121      (o DMA_MYSQL_HOST para compatibilidad)
+  SMN_MYSQL_PORT=3306
+  SMN_MYSQL_USER=...
+  SMN_MYSQL_PASSWORD=...
+  SMN_MYSQL_DATABASE=mensajes
+  SMN_MYSQL_CONNECT_TIMEOUT=5
+  SMN_MYSQL_SSL=0                   # el servidor no ofrece TLS
+  SMN_ONLY=1                        # si está en 1, no usa fallback OGIMET/AW
 """
 
 from __future__ import annotations
@@ -36,25 +37,29 @@ log = logging.getLogger(__name__)
 
 ObsKind = Literal["metar", "speci", "synop", "taf"]
 
-DEFAULT_HOST = os.environ.get("DMA_MYSQL_HOST", "10.10.100.121")
-DEFAULT_PORT = int(os.environ.get("DMA_MYSQL_PORT", "3306"))
-DEFAULT_USER = os.environ.get("DMA_MYSQL_USER", os.environ.get("MYSQL_USER", ""))
-DEFAULT_PASSWORD = os.environ.get(
-    "DMA_MYSQL_PASSWORD", os.environ.get("MYSQL_PASSWORD", "")
-)
-DEFAULT_DATABASE = os.environ.get(
-    "DMA_MYSQL_DATABASE", os.environ.get("MYSQL_DATABASE", "mensajes")
-)
-CONNECT_TIMEOUT = float(os.environ.get("DMA_MYSQL_CONNECT_TIMEOUT", "5"))
-# El MySQL DMA no soporta TLS; clientes nuevos fallan si exigen SSL.
-_SSL_ENV = (os.environ.get("DMA_MYSQL_SSL") or "0").strip().lower()
+def _env(name: str, default: str = "") -> str:
+    """Lee variable SMN_* o DMA_* (compatibilidad)."""
+    return os.environ.get(f"SMN_{name}") or os.environ.get(f"DMA_{name}") or default
+
+
+DEFAULT_HOST = _env("MYSQL_HOST", "10.10.100.121")
+DEFAULT_PORT = int(_env("MYSQL_PORT", "3306"))
+DEFAULT_USER = _env("MYSQL_USER") or os.environ.get("MYSQL_USER", "")
+DEFAULT_PASSWORD = _env("MYSQL_PASSWORD") or os.environ.get("MYSQL_PASSWORD", "")
+DEFAULT_DATABASE = _env("MYSQL_DATABASE") or os.environ.get("MYSQL_DATABASE", "mensajes")
+CONNECT_TIMEOUT = float(_env("MYSQL_CONNECT_TIMEOUT", "5"))
+
+_SSL_ENV = (_env("MYSQL_SSL") or "0").strip().lower()
 SSL_ENABLED = _SSL_ENV in ("1", "true", "yes", "on")
 
+_SMN_ONLY_ENV = (os.environ.get("SMN_ONLY") or "0").strip().lower()
+SMN_ONLY = _SMN_ONLY_ENV in ("1", "true", "yes", "on")
+
 TABLE_BY_KIND: dict[ObsKind, str] = {
-    "metar": os.environ.get("DMA_TABLE_METAR", "metar_obs"),
-    "speci": os.environ.get("DMA_TABLE_SPECI", "speci_obs"),
-    "synop": os.environ.get("DMA_TABLE_SYNOP", "synop_obs"),
-    "taf": os.environ.get("DMA_TABLE_TAF", "taf_obs"),
+    "metar": _env("TABLE_METAR", "metar_obs"),
+    "speci": _env("TABLE_SPECI", "speci_obs"),
+    "synop": _env("TABLE_SYNOP", "synop_obs"),
+    "taf": _env("TABLE_TAF", "taf_obs"),
 }
 
 # Candidatos de columnas (minúsculas) → rol lógico
@@ -120,6 +125,12 @@ def _import_pymysql():
 
 
 def dma_config() -> dict[str, Any]:
+    """Alias de smn_config() para compatibilidad."""
+    return smn_config()
+
+
+def smn_config() -> dict[str, Any]:
+    """Configuración actual (para diagnóstico)."""
     return {
         "host": DEFAULT_HOST,
         "port": DEFAULT_PORT,
@@ -127,6 +138,7 @@ def dma_config() -> dict[str, Any]:
         "database": DEFAULT_DATABASE,
         "password_set": bool(DEFAULT_PASSWORD),
         "ssl": SSL_ENABLED,
+        "smn_only": SMN_ONLY,
         "tables": dict(TABLE_BY_KIND),
     }
 
@@ -134,7 +146,7 @@ def dma_config() -> dict[str, Any]:
 def connect():
     if not DEFAULT_USER:
         raise RuntimeError(
-            "DMA_MYSQL_USER no configurado (base 10.10.100.121 / mensajes)"
+            "SMN_MYSQL_USER no configurado (base 10.10.100.121 / mensajes)"
         )
     pymysql, DictCursor = _import_pymysql()
     kwargs: dict[str, Any] = {
@@ -156,8 +168,8 @@ def connect():
     return pymysql.connect(**kwargs)
 
 
-def dma_status(*, force_refresh: bool = False) -> dict[str, Any]:
-    """Sondeo rápido de conectividad DMA."""
+def smn_status(*, force_refresh: bool = False) -> dict[str, Any]:
+    """Sondeo rápido de conectividad SMN."""
     now = datetime.now(timezone.utc)
     cached_at = _status_cache.get("checked_at")
     if (
@@ -169,7 +181,7 @@ def dma_status(*, force_refresh: bool = False) -> dict[str, Any]:
         return {
             "ok": _status_cache["ok"],
             "reason": _status_cache.get("reason"),
-            "config": dma_config(),
+            "config": smn_config(),
             "cached": True,
         }
     reason = None
@@ -189,7 +201,12 @@ def dma_status(*, force_refresh: bool = False) -> dict[str, Any]:
         reason = str(exc)
         log.warning("DMA status fail: %s", exc)
     _status_cache.update({"ok": ok, "reason": reason, "checked_at": now})
-    return {"ok": ok, "reason": reason, "config": dma_config(), "cached": False}
+    return {"ok": ok, "reason": reason, "config": smn_config(), "cached": False}
+
+
+def dma_status(*, force_refresh: bool = False) -> dict[str, Any]:
+    """Alias de smn_status() para compatibilidad."""
+    return smn_status(force_refresh=force_refresh)
 
 
 def _norm_col(name: str) -> str:
@@ -401,7 +418,7 @@ def fetch_dma_metar_like(
             airports=airports,
             wmo=wmo,
             now=now,
-            source="DMA",
+            source="SMN",
         )
         if not parsed:
             continue
@@ -426,7 +443,7 @@ def fetch_dma_metar_like(
             parsed.setdefault("lat", meta.get("lat"))
             parsed.setdefault("lng", meta.get("lng"))
             parsed.setdefault("fir", meta.get("fir"))
-        parsed["source"] = "DMA"
+        parsed["source"] = "SMN"
         parsed["is_speci"] = kind == "speci" or bool(parsed.get("is_speci"))
         out.append(parsed)
     return out
@@ -492,7 +509,7 @@ def fetch_dma_synops(
                 minute=dt.minute if dt else 0,
             )
             item = decoded.to_dict()
-            item["source"] = "DMA"
+            item["source"] = "SMN"
             if obs_iso:
                 item["obs_iso"] = obs_iso
                 item["hour_key"] = hour_key
@@ -509,7 +526,7 @@ def fetch_dma_synops(
         item["lat"] = meta.get("lat")
         item["lng"] = meta.get("lng")
         item["fir"] = meta.get("fir")
-        item["source"] = "DMA"
+        item["source"] = "SMN"
         out.append(item)
     return out
 
@@ -522,7 +539,7 @@ def fetch_dma_tafs(
     """
     Último TAF por ICAO desde taf_obs.
 
-    Returns: { "SABE": {"raw": "...", "obs_iso": "...", "source": "DMA"}, ... }
+    Returns: { "SABE": {"raw": "...", "obs_iso": "...", "source": "SMN"}, ... }
     """
     rows = _fetch_rows(
         "taf", when=when, timeline="latest", lookback_hours=lookback_hours
@@ -543,7 +560,7 @@ def fetch_dma_tafs(
             "raw": " ".join(str(raw).split()),
             "obs_iso": dt.strftime("%Y-%m-%dT%H:%M:%SZ") if dt else None,
             "hour_key": dt.strftime("%Y%m%d%H") if dt else None,
-            "source": "DMA",
+            "source": "SMN",
         }
     return out
 
@@ -584,7 +601,7 @@ def fetch_dma_station_metar_series(
                 airports=airports,
                 wmo=wmo,
                 now=when,
-                source="DMA",
+                source="SMN",
             )
             if not parsed:
                 continue
@@ -592,7 +609,7 @@ def fetch_dma_station_metar_series(
             if dt:
                 parsed["obs_iso"] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
                 parsed["hour_key"] = dt.strftime("%Y%m%d%H")
-            parsed["source"] = "DMA"
+            parsed["source"] = "SMN"
             parsed["fallback"] = False
             parsed["is_speci"] = kind == "speci" or bool(parsed.get("is_speci"))
             if kind == "speci":
@@ -667,7 +684,7 @@ def fetch_dma_station_synop_series(
         item["lat"] = meta.get("lat")
         item["lng"] = meta.get("lng")
         item["fir"] = meta.get("fir")
-        item["source"] = "DMA"
+        item["source"] = "SMN"
         item["fallback"] = False
         points.append(item)
 
