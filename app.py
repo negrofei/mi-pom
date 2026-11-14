@@ -38,6 +38,7 @@ from dma_client import (
     fetch_dma_station_metar_series,
     fetch_dma_station_synop_series,
     fetch_dma_synops,
+    fetch_dma_tafs,
     SMN_ONLY,
 )
 from ogimet_client import fetch_argentina_synops, fetch_station_series, resolve_synop_hour
@@ -196,7 +197,9 @@ def api_taf_amends():
 
 @app.get("/api/lookup")
 def api_lookup():
-    """Consulta tipo AviationWeather: ICAOs + horas → TAF y METAR/SPECI."""
+    """Consulta ICAOs + horas → TAF y METAR/SPECI. SMN primero, AW fallback."""
+    from taf_amend import evaluate_amendment
+
     ids_raw = request.args.get("ids") or request.args.get("icao") or ""
     try:
         hours = int(request.args.get("hours", "6"))
@@ -204,24 +207,128 @@ def api_lookup():
         return jsonify({"error": "hours inválido"}), 400
     hours = max(1, min(hours, 48))
     include_taf = request.args.get("taf", "1") == "1"
+    include_amend = request.args.get("amend", "1") == "1"
     ids = parse_icao_ids(ids_raw)
     if not ids:
         return jsonify(
             {"error": "Indicá uno o más ICAO (OACI) separados por coma"}
         ), 400
-    try:
-        include_amend = request.args.get("amend", "1") == "1"
-        payload = fetch_stations_bulletin(
-            ids,
-            hours=hours,
-            include_taf=include_taf,
-            include_amend=include_amend,
-            airports=AIRPORTS,
-        )
-    except Exception as exc:  # noqa: BLE001
-        log.exception("Error en consulta AW lookup")
-        return jsonify({"error": f"No se pudo consultar AviationWeather: {exc}"}), 502
-    return jsonify(payload)
+
+    status = dma_status()
+    use_smn = bool(status.get("ok"))
+    smn_err = None
+
+    smn_msgs_by_icao: dict[str, list[dict]] = {i: [] for i in ids}
+    smn_tafs: dict[str, dict] = {}
+
+    if use_smn:
+        try:
+            for icao in ids:
+                msgs = fetch_dma_station_metar_series(
+                    icao, airports=AIRPORTS, hours=hours
+                )
+                smn_msgs_by_icao[icao] = msgs
+        except Exception as exc:  # noqa: BLE001
+            log.warning("SMN lookup METAR/SPECI falló: %s", exc)
+            smn_err = str(exc)
+
+        if include_taf:
+            try:
+                all_tafs = fetch_dma_tafs(lookback_hours=30)
+                smn_tafs = {k: v for k, v in all_tafs.items() if k in ids}
+            except Exception as exc:  # noqa: BLE001
+                log.warning("SMN lookup TAF falló: %s", exc)
+
+    missing_metar = [i for i in ids if not smn_msgs_by_icao.get(i)]
+    missing_taf = [i for i in ids if include_taf and i not in smn_tafs]
+
+    aw_msgs_by_icao: dict[str, list[dict]] = {}
+    aw_tafs: dict[str, dict] = {}
+    aw_err = None
+
+    if (missing_metar or missing_taf) and not SMN_ONLY:
+        try:
+            aw_payload = fetch_stations_bulletin(
+                ids,
+                hours=hours,
+                include_taf=include_taf,
+                include_amend=False,
+                airports=AIRPORTS,
+            )
+            for st in aw_payload.get("stations") or []:
+                icao = st.get("icao")
+                if not icao:
+                    continue
+                if icao in missing_metar:
+                    aw_msgs_by_icao[icao] = st.get("messages") or []
+                if icao in missing_taf and st.get("taf"):
+                    aw_tafs[icao] = st["taf"]
+        except Exception as exc:  # noqa: BLE001
+            log.warning("AW lookup fallback falló: %s", exc)
+            aw_err = str(exc)
+
+    stations = []
+    total_msgs = 0
+    total_tafs = 0
+    total_amends = 0
+
+    for icao in ids:
+        meta = AIRPORTS.get(icao) or {}
+        msgs = smn_msgs_by_icao.get(icao) or aw_msgs_by_icao.get(icao) or []
+        msg_source = "SMN" if smn_msgs_by_icao.get(icao) else "AviationWeather"
+        taf = smn_tafs.get(icao) or aw_tafs.get(icao)
+        taf_source = "SMN" if icao in smn_tafs else "AviationWeather"
+
+        if taf and taf.get("raw"):
+            for m in msgs:
+                if not m.get("raw_taf"):
+                    m["raw_taf"] = taf["raw"]
+
+        taf_alert = None
+        if include_amend and include_taf and taf and taf.get("raw") and msgs:
+            try:
+                taf_alert = evaluate_amendment(msgs[0], taf["raw"])
+            except Exception as exc:  # noqa: BLE001
+                log.warning("TAF amend lookup %s: %s", icao, exc)
+
+        stations.append({
+            "icao": icao,
+            "nombre": meta.get("nombre") or (msgs[0].get("nombre") if msgs else icao),
+            "fir": meta.get("fir") or (msgs[0].get("fir") if msgs else None),
+            "lat": meta.get("lat") or (msgs[0].get("lat") if msgs else None),
+            "lng": meta.get("lng") or (msgs[0].get("lng") if msgs else None),
+            "source": msg_source,
+            "taf": taf,
+            "taf_source": taf_source if taf else None,
+            "message_count": len(msgs),
+            "messages": msgs,
+            "has_taf_amend": bool(taf_alert),
+            "taf_amend": taf_alert,
+        })
+        total_msgs += len(msgs)
+        if taf:
+            total_tafs += 1
+        if taf_alert:
+            total_amends += 1
+
+    smn_count = sum(1 for s in stations if s.get("source") == "SMN")
+    aw_count = sum(1 for s in stations if s.get("source") == "AviationWeather")
+    primary_source = "SMN" if smn_count >= aw_count else "AviationWeather"
+
+    return jsonify({
+        "hours": hours,
+        "source": primary_source,
+        "smn_ok": use_smn,
+        "smn_error": smn_err,
+        "aw_fallback": aw_count > 0,
+        "aw_error": aw_err,
+        "ids": ids,
+        "count": len(stations),
+        "message_count": total_msgs,
+        "taf_count": total_tafs,
+        "taf_amend_count": total_amends,
+        "stations": stations,
+    })
 
 
 @app.get("/api/metars")
