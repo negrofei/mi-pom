@@ -13,4 +13,6 @@ services:
       DMA_MYSQL_PASSWORD: ${DMA_MYSQL_PASSWORD:-}
       DMA_MYSQL_DATABASE: ${DMA_MYSQL_DATABASE:-mensajes}
       DMA_MYSQL_SSL: ${DMA_MYSQL_SSL:-0}
+      # 1 = AW/OGIMET si DMA falta o no cubre estaciones. 0 = solo DMA.
+      CONTINGENCY_ENABLED: ${CONTINGENCY_ENABLED:-1}
     restart: unless-stopped

@@ -1,13 +1,58 @@
 :root {
+  color-scheme: light;
   --bg: #d7e3ec;
+  --bg-spot-1: #f4f8fb;
+  --bg-spot-2: #c9dce8;
+  --bg-top: #e8f0f5;
   --ink: #1a2430;
+  --ink-muted: #556270;
   --panel: rgba(248, 251, 253, 0.94);
+  --panel-solid: #f8fbfd;
+  --input-bg: #ffffff;
+  --raw-bg: #eef3f7;
+  --chip-bg: rgba(255, 255, 255, 0.92);
+  --chip-bg-strong: rgba(255, 255, 255, 0.97);
   --accent: #0b5f8a;
+  --accent-soft: rgba(11, 95, 138, 0.08);
   --accent-2: #b33a2b;
   --line: rgba(26, 36, 48, 0.14);
   --shadow: 0 10px 30px rgba(20, 40, 60, 0.18);
+  --halo: #ffffff;
+  --chart-bg: #ffffff;
+  --chart-grid: rgba(0, 0, 0, 0.08);
+  --hover-synop-bg: #cfe3f2;
+  --hover-synop-ink: #0b3a55;
+  --map-tile-filter: none;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --sans: "Source Sans 3", "Segoe UI", sans-serif;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e141b;
+  --bg-spot-1: #1a2736;
+  --bg-spot-2: #15202c;
+  --bg-top: #121a22;
+  --ink: #e8eef4;
+  --ink-muted: #9aa8b5;
+  --panel: rgba(22, 30, 40, 0.94);
+  --panel-solid: #161e28;
+  --input-bg: #0f1620;
+  --raw-bg: #1c2633;
+  --chip-bg: rgba(28, 38, 50, 0.94);
+  --chip-bg-strong: rgba(30, 40, 52, 0.98);
+  --accent: #5eb3d9;
+  --accent-soft: rgba(94, 179, 217, 0.14);
+  --accent-2: #e07a6a;
+  --line: rgba(200, 220, 235, 0.14);
+  --shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  --halo: #0e141b;
+  --chart-bg: #121a22;
+  --chart-grid: rgba(255, 255, 255, 0.08);
+  --hover-synop-bg: #2a4558;
+  --hover-synop-ink: #d7eef8;
+  /* Oscurece Argenmap sin cambiar el proveedor (toponimia IGN) */
+  --map-tile-filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.92);
 }
 
 * { box-sizing: border-box; }
@@ -18,9 +63,13 @@ html, body {
   font-family: var(--sans);
   color: var(--ink);
   background:
-    radial-gradient(1200px 600px at 10% -10%, #f4f8fb 0%, transparent 55%),
-    radial-gradient(900px 500px at 90% 0%, #c9dce8 0%, transparent 50%),
-    linear-gradient(180deg, #e8f0f5 0%, var(--bg) 100%);
+    radial-gradient(1200px 600px at 10% -10%, var(--bg-spot-1) 0%, transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, var(--bg-spot-2) 0%, transparent 50%),
+    linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 100%);
+}
+
+.leaflet-tile-pane {
+  filter: var(--map-tile-filter);
 }
 
 .topbar {
@@ -83,9 +132,19 @@ html, body {
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: #fff;
+  background: var(--input-bg);
   color: var(--ink);
 }
+
+.btn.theme-toggle {
+  min-width: 2.4rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+html[data-theme="dark"] .btn.theme-toggle .theme-icon-dark { display: none; }
+html:not([data-theme="dark"]) .btn.theme-toggle .theme-icon-light { display: none; }
 
 .btn {
   font-family: var(--sans);
@@ -110,7 +169,7 @@ html, body {
 }
 
 .btn.ghost:hover {
-  background: rgba(11, 95, 138, 0.08);
+  background: var(--accent-soft);
 }
 
 .product-toggle {
@@ -150,7 +209,7 @@ html, body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem 0.75rem;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--chip-bg);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.4rem 0.65rem;
@@ -238,7 +297,7 @@ html, body {
   align-items: center;
   gap: 0.35rem;
   border: 1px solid #b71c1c;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--chip-bg);
   color: #1a1a1a;
   border-radius: 999px;
   padding: 0.45rem 0.75rem 0.45rem 0.55rem;
@@ -282,7 +341,7 @@ html, body {
   align-items: center;
   gap: 0.35rem;
   border: 1px solid #0d47a1;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--chip-bg);
   color: #1a1a1a;
   border-radius: 999px;
   padding: 0.45rem 0.75rem 0.45rem 0.55rem;
@@ -342,7 +401,7 @@ html, body {
   max-height: calc(100vh - 6rem);
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.97);
+  background: var(--chip-bg-strong);
   border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: var(--shadow);
@@ -396,7 +455,7 @@ html, body {
   border: 1px solid var(--line);
   border-left: 4px solid #1565c0;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--chip-bg);
   padding: 0.55rem 0.65rem;
   cursor: pointer;
   font: inherit;
@@ -483,7 +542,7 @@ html, body {
   padding: 0.55rem 0.65rem;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--accent-soft);
 }
 
 .speci-list-panel {
@@ -495,7 +554,7 @@ html, body {
   max-height: calc(100vh - 6rem);
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.97);
+  background: var(--chip-bg-strong);
   border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: var(--shadow);
@@ -560,7 +619,7 @@ html, body {
   border: 1px solid var(--line);
   border-left: 4px solid #b71c1c;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--chip-bg);
   padding: 0.55rem 0.65rem;
   cursor: pointer;
   font: inherit;
@@ -618,7 +677,7 @@ html, body {
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.5rem 0.6rem;
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--accent-soft);
 }
 
 .av-label {
@@ -832,10 +891,13 @@ html, body {
 }
 
 .metar-hist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 0.55rem 0.65rem;
-  background: rgba(255, 255, 255, 0.55);
+  padding: 0.45rem 0.65rem;
+  background: var(--accent-soft);
 }
 
 .metar-hist-item.is-speci {
@@ -843,18 +905,15 @@ html, body {
   box-shadow: inset 3px 0 0 #b71c1c;
 }
 
-.metar-hist-item header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.35rem;
-  font-family: var(--mono);
-  font-size: 0.78rem;
+.metar-hist-item .flt-pill {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
 }
 
 .metar-hist-item .raw {
-  margin: 0.2rem 0;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
   font-size: 0.78rem;
 }
 
@@ -1252,14 +1311,14 @@ html, body {
   align-items: center;
   justify-content: center;
   min-width: 2.4rem;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--chip-bg);
   border: 1px solid rgba(26, 36, 48, 0.25);
   border-radius: 3px;
   padding: 1px 4px;
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 600;
-  color: #1a2430;
+  color: var(--ink);
   line-height: 1.2;
   white-space: nowrap;
   cursor: help;
@@ -1277,7 +1336,7 @@ html, body {
   top: calc(44px * var(--plot-gap));
 }
 
-.plot-layer-ft { color: #1a2430; letter-spacing: 0.02em; }
+.plot-layer-ft { color: var(--ink); letter-spacing: 0.02em; }
 
 /* Plot METAR: disco de color + barbas + códigos BKN013 */
 .plot-metar-disc {
@@ -1408,13 +1467,51 @@ html, body {
 .detail .raw {
   font-family: var(--mono);
   font-size: 0.78rem;
-  background: #eef3f7;
+  background: var(--raw-bg);
   border-radius: 4px;
   padding: 0.65rem 0.7rem;
   white-space: pre-wrap;
   word-break: break-word;
   margin: 0.5rem 0 0.9rem;
 }
+
+.detail .raw-hint {
+  font-size: 0.72rem;
+  font-weight: 400;
+  opacity: 0.65;
+  margin-left: 0.35rem;
+}
+
+.synop-raw-annotated .synop-g {
+  cursor: help;
+  border-radius: 3px;
+  padding: 0 1px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.synop-raw-annotated .synop-g:hover,
+.synop-raw-annotated .synop-g:focus {
+  background: var(--hover-synop-bg);
+  color: var(--hover-synop-ink);
+  outline: none;
+}
+
+.synop-tok-tip {
+  position: fixed;
+  z-index: 1500;
+  pointer-events: none;
+  max-width: min(420px, 92vw);
+  white-space: pre-line;
+  background: rgba(20, 30, 40, 0.95);
+  color: #f4f7fa;
+  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  box-shadow: var(--shadow);
+}
+
+.synop-tok-tip.hidden { display: none; }
 
 .detail dl {
   display: grid;
@@ -1523,16 +1620,129 @@ html, body {
 .ts-leg.t::before { background: #c62828; }
 .ts-leg.td::before { background: #1565c0; }
 .ts-leg.wind::before { background: #333; }
-.ts-leg.cloud::before { background: #5d6d7e; }
-.ts-leg.vis::before { background: #2e7d32; }
+.ts-leg.cloud::before {
+  background: linear-gradient(90deg, #f0f0f0 0%, #2a2a2a 100%);
+  border: 1px solid #999;
+}
+.ts-leg.vis::before {
+  background: linear-gradient(90deg, #6a1b9a, #c62828, #ef6c00, #f9a825, #26a69a);
+  border: 1px solid #999;
+}
+
+.haz-cb {
+  color: #b71c1c;
+  font-weight: 700;
+}
+.haz-tcu {
+  color: #e65100;
+  font-weight: 700;
+}
+
+.synop-g--cb,
+.metar-tok-cb {
+  background: #b71c1c !important;
+  color: #fff !important;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.synop-g--tcu,
+.metar-tok-tcu {
+  background: #e65100 !important;
+  color: #fff !important;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* Segmentos METAR/SPECI: viento y visibilidad */
+.metar-tok-wind-y {
+  color: #f9a825;
+  font-weight: 700;
+}
+.metar-tok-wind-o {
+  color: #ef6c00;
+  font-weight: 700;
+}
+.metar-tok-wind-r {
+  color: #c62828;
+  font-weight: 700;
+}
+.metar-tok-vis-m {
+  color: #ff00ff;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.metar-tok-vis-r {
+  color: #c62828;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.metar-tok-vis-o {
+  color: #ef6c00;
+  font-weight: 700;
+}
+.metar-tok-vis-y {
+  color: #f9a825;
+  font-weight: 700;
+}
+.metar-tok-vis-u {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* Fenómenos */
+.metar-tok-wx-y {
+  color: #f9a825;
+  font-weight: 700;
+}
+.metar-tok-wx-r {
+  color: #c62828;
+  font-weight: 700;
+}
+
+/* Techos BKN/OVC */
+.metar-tok-cld-mu {
+  color: #ff00ff;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.metar-tok-cld-m {
+  color: #ff00ff;
+  font-weight: 700;
+}
+.metar-tok-cld-r {
+  color: #c62828;
+  font-weight: 700;
+}
+.metar-tok-cld-o {
+  color: #ef6c00;
+  font-weight: 700;
+}
+.metar-tok-cld-y {
+  color: #f9a825;
+  font-weight: 700;
+}
+.metar-tok-cld-u {
+  font-weight: 600;
+  text-decoration: underline;
+}
+.synop-g--wind-yellow { background: #fff59d; color: #5d4037; font-weight: 700; border-radius: 3px; }
+.synop-g--wind-orange { background: #ffcc80; color: #bf360c; font-weight: 700; border-radius: 3px; }
+.synop-g--wind-red { background: #ef9a9a; color: #b71c1c; font-weight: 700; border-radius: 3px; }
+.synop-g--vis-violet { background: #e1bee7; color: #4a148c; font-weight: 700; border-radius: 3px; }
+.synop-g--vis-red { background: #ffcdd2; color: #b71c1c; font-weight: 700; border-radius: 3px; }
+.synop-g--vis-orange { background: #ffe0b2; color: #e65100; font-weight: 700; border-radius: 3px; }
+.synop-g--vis-yellow { background: #fff9c4; color: #f57f17; font-weight: 700; border-radius: 3px; }
 .ts-leg.ww::before { background: #000; }
 
 .ts-svg {
   display: block;
   min-width: 680px;
-  background: #fff;
+  background: var(--chart-bg);
   border: 1px solid var(--line);
   border-radius: 6px;
+  color: var(--ink-muted);
 }
 
 .ts-row-label {
@@ -1604,9 +1814,10 @@ html, body {
 }
 
 .lookup-head h1 {
-  margin: 0 0 0.15rem;
+  margin: 0 0 0.55rem;
   font-size: 1.35rem;
   font-weight: 700;
+  color: #000;
 }
 
 .lookup-sub {
@@ -1621,7 +1832,7 @@ html, body {
   gap: 0.75rem 1rem;
   align-items: flex-end;
   padding: 0.85rem 1rem;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--chip-bg);
   border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: var(--shadow);
@@ -1657,7 +1868,8 @@ html, body {
   padding: 0.45rem 0.55rem;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--input-bg);
+  color: var(--ink);
 }
 
 .lookup-field.lookup-taf {
@@ -1681,7 +1893,7 @@ html, body {
 }
 
 .lookup-station {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--chip-bg);
   border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: var(--shadow);
@@ -1724,7 +1936,7 @@ html, body {
 
 .lookup-col-obs {
   border-right: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--accent-soft);
 }
 
 .lookup-col-taf {
@@ -1827,6 +2039,9 @@ html, body {
 }
 
 .lookup-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
   padding: 0.55rem 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
@@ -1834,6 +2049,17 @@ html, body {
 .lookup-msg:last-child {
   border-bottom: none;
   padding-bottom: 0;
+}
+
+.lookup-msg .flt-pill {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.lookup-msg .raw {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
 }
 
 .lookup-msg.is-speci {
@@ -1969,3 +2195,69 @@ body.mode-lookup #nilWrap {
   line-height: 1.6;
   word-break: break-word;
 }
+
+/* —— Dark mode: Halos de plot / Leaflet —— */
+html[data-theme="dark"] .plot-temp,
+html[data-theme="dark"] .plot-td,
+html[data-theme="dark"] .plot-vis,
+html[data-theme="dark"] .plot-h,
+html[data-theme="dark"] .plot-p,
+html[data-theme="dark"] .plot-metar-code,
+html[data-theme="dark"] .plot-metar-vis,
+html[data-theme="dark"] .plot-metar-icao {
+  text-shadow:
+    0 0 3px var(--halo),
+    1px 0 0 var(--halo),
+    -1px 0 0 var(--halo),
+    0 1px 0 var(--halo),
+    0 -1px 0 var(--halo);
+  fill: var(--ink);
+  color: #fff;
+}
+
+html[data-theme="dark"] .speci-list-fab,
+html[data-theme="dark"] .taf-amend-list-fab {
+  color: #fff;
+}
+
+/* Barbas y tiempo presente en blanco (SYNOP + METAR; mapa y serie) */
+html[data-theme="dark"] .plot-barb,
+html[data-theme="dark"] img.plot-ww,
+html[data-theme="dark"] .ts-wind image,
+html[data-theme="dark"] .ts-ww image {
+  filter: brightness(0) invert(1);
+}
+
+/* SVG ww ya es blanco sobre negro → quitar fondo para verlo sobre el mapa oscuro */
+html[data-theme="dark"] .plot-ww-svg rect {
+  fill: transparent !important;
+}
+
+html[data-theme="dark"] .leaflet-control-attribution,
+html[data-theme="dark"] .leaflet-control-zoom a {
+  background: var(--chip-bg) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+
+html[data-theme="dark"] .leaflet-bar a {
+  background: var(--panel-solid) !important;
+  color: var(--ink) !important;
+  border-bottom-color: var(--line) !important;
+}
+
+html[data-theme="dark"] .leaflet-bar a:hover {
+  background: var(--accent-soft) !important;
+}
+
+html[data-theme="dark"] .product-btn.active {
+  background: var(--accent);
+  color: #0a1218;
+}
+
+html[data-theme="dark"] .btn.primary {
+  color: #0a1218;
+}
+
+html[data-theme="dark"] .ts-leg.wind::before { background: #cfd8dc; }
+html[data-theme="dark"] .ts-leg.ww::before { background: #eceff1; }

@@ -15,6 +15,7 @@ Si SMN_ONLY=1, no se usa fallback a fuentes externas.
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -27,6 +28,12 @@ from ogimet_client import fetch_argentina_synops, resolve_synop_hour
 from taf_amend import evaluate_amendment
 
 log = logging.getLogger(__name__)
+
+# Contingencia AW/OGIMET: timeouts cortos para no matar el worker (gunicorn ~60s)
+# detrás de VPN que bloquea o rutea mal internet público.
+_CONTINGENCY_TIMEOUT: tuple[float, float] = (3.0, 10.0)
+_CONTINGENCY_ENV = (os.environ.get("CONTINGENCY_ENABLED") or "0").strip().lower()
+CONTINGENCY_ENABLED = _CONTINGENCY_ENV in ("1", "true", "yes", "on")
 
 
 def _floor_hour(dt: datetime) -> datetime:
@@ -101,10 +108,11 @@ def _fetch_aw_metars(airports: dict[str, dict]) -> tuple[list[dict], Optional[st
             include_taf=True,
             timeline="latest",
             when=resolve_synop_hour(None),
+            timeout=_CONTINGENCY_TIMEOUT,
         )
         return rows or [], None
     except Exception as exc:  # noqa: BLE001
-        log.exception("AW METAR falló")
+        log.warning("AW METAR falló (contingencia): %s", exc)
         return [], str(exc)
 
 
@@ -133,6 +141,7 @@ def _fetch_aw_tafs(airports: dict[str, dict]) -> tuple[dict[str, str], Optional[
             include_taf=True,
             timeline="latest",
             when=resolve_synop_hour(None),
+            timeout=_CONTINGENCY_TIMEOUT,
         )
         out: dict[str, str] = {}
         for r in rows or []:
@@ -142,16 +151,18 @@ def _fetch_aw_tafs(airports: dict[str, dict]) -> tuple[dict[str, str], Optional[
                 out[icao] = str(raw)
         return out, None
     except Exception as exc:  # noqa: BLE001
-        log.exception("AW TAF falló")
+        log.warning("AW TAF falló (contingencia): %s", exc)
         return {}, str(exc)
 
 
 def _fetch_aw_specis(airports: dict[str, dict]) -> tuple[list[dict], Optional[str]]:
     try:
-        rows = fetch_argentina_specis(airports=airports, hours=6)
+        rows = fetch_argentina_specis(
+            airports=airports, hours=6, timeout=_CONTINGENCY_TIMEOUT
+        )
         return rows or [], None
     except Exception as exc:  # noqa: BLE001
-        log.exception("AW SPECI falló")
+        log.warning("AW SPECI falló (contingencia): %s", exc)
         return [], str(exc)
 
 
@@ -159,7 +170,11 @@ def _fetch_ogimet_synops(stations: dict[str, dict]) -> tuple[list[dict], Optiona
     try:
         when = resolve_synop_hour(None)
         decoded = fetch_argentina_synops(
-            when, stations=stations, timeline="latest", lookback_hours=24
+            when,
+            stations=stations,
+            timeline="latest",
+            lookback_hours=24,
+            timeout=_CONTINGENCY_TIMEOUT,
         )
         rows = []
         for d in decoded:
@@ -177,7 +192,7 @@ def _fetch_ogimet_synops(stations: dict[str, dict]) -> tuple[list[dict], Optiona
             rows.append(item)
         return rows, None
     except Exception as exc:  # noqa: BLE001
-        log.exception("OGIMET SYNOP falló")
+        log.warning("OGIMET SYNOP falló (contingencia): %s", exc)
         return [], str(exc)
 
 
@@ -321,13 +336,13 @@ def build_surveillance(
     err_aw_metar = err_aw_speci = err_ogimet = None
 
     if missing and not SMN_ONLY:
+        # 1) AW primero (timeout corto). 2) OGIMET solo si aún faltan estaciones.
         aw_metar_rows, err_aw_metar = _fetch_aw_metars(airports)
         aw_speci_rows, err_aw_speci = _fetch_aw_specis(airports)
-        ogimet_rows, err_ogimet = _fetch_ogimet_synops(stations)
         aw_metar = _index_metar_like(aw_metar_rows)
         aw_speci = _index_metar_like(aw_speci_rows)
-        ogimet_synop = _latest_by_key(ogimet_rows, "omm")
 
+        still_missing: list[str] = []
         for key in missing:
             obs, product = _pick_speci_or_metar(aw_speci.get(key), aw_metar.get(key))
             if obs is not None:
@@ -349,15 +364,26 @@ def build_surveillance(
                 }
                 filled_by["AviationWeather"] += 1
                 continue
-            syn = _usable_synop(ogimet_synop.get(key))
-            if syn is not None:
-                chosen[key] = {
-                    "obs": syn,
-                    "product": "SYNOP",
-                    "source": syn.get("source") or "OGIMET",
-                    "speci": None,
-                }
-                filled_by["OGIMET"] += 1
+            still_missing.append(key)
+
+        if still_missing:
+            ogimet_rows, err_ogimet = _fetch_ogimet_synops(stations)
+            ogimet_synop = _latest_by_key(ogimet_rows, "omm")
+            for key in still_missing:
+                syn = _usable_synop(ogimet_synop.get(key))
+                if syn is not None:
+                    chosen[key] = {
+                        "obs": syn,
+                        "product": "SYNOP",
+                        "source": syn.get("source") or "OGIMET",
+                        "speci": None,
+                    }
+                    filled_by["OGIMET"] += 1
+    elif missing:
+        log.info(
+            "Contingencia AW/OGIMET desactivada; %d estaciones sin dato DMA",
+            len(missing),
+        )
 
     points: list[dict[str, Any]] = []
     active_specis: list[dict] = []
@@ -367,6 +393,7 @@ def build_surveillance(
     # TAF: SMN taf_obs primero; AW completa faltantes (si SMN_ONLY=0)
     taf_by_icao, taf_source_by_icao, err_dma_taf = _fetch_dma_tafs()
     err_taf = err_dma_taf
+    err_aw_taf = None
     missing_taf = [
         str(a.get("icao") or "").upper()
         for a in airports.values()
@@ -492,11 +519,14 @@ def build_surveillance(
     taf_amends.sort(key=lambda x: x.get("obs_iso") or "", reverse=True)
 
     contingency_only = not bool(status.get("ok"))
+    used_contingency = (not SMN_ONLY) and bool(missing)
+
     return {
         "now_iso": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "current_hour": current_hour_key,
         "hour_label": current_hour.strftime("%d/%m/%Y %H:00 UTC"),
         "dma": status,
+        "contingency_enabled": not SMN_ONLY,
         "contingency_only": contingency_only,
         "cascade": (
             [
@@ -532,22 +562,22 @@ def build_surveillance(
                 else status.get("reason") or "SMN no disponible",
             },
             "aw_metar": {
-                "ok": err_aw_metar is None if missing else None,
-                "count": len(aw_metar) if missing else 0,
+                "ok": err_aw_metar is None if used_contingency else None,
+                "count": len(aw_metar) if used_contingency else 0,
                 "error": err_aw_metar,
-                "used": bool(missing),
+                "used": used_contingency,
             },
             "aw_speci": {
-                "ok": err_aw_speci is None if missing else None,
-                "count": len(aw_speci) if missing else 0,
+                "ok": err_aw_speci is None if used_contingency else None,
+                "count": len(aw_speci) if used_contingency else 0,
                 "error": err_aw_speci,
-                "used": bool(missing),
+                "used": used_contingency,
             },
             "ogimet_synop": {
-                "ok": err_ogimet is None if missing else None,
-                "count": len(ogimet_synop) if missing else 0,
+                "ok": err_ogimet is None if used_contingency else None,
+                "count": len(ogimet_synop) if used_contingency else 0,
                 "error": err_ogimet,
-                "used": bool(missing),
+                "used": used_contingency,
             },
             "smn_taf": {
                 "ok": err_dma_taf is None,
@@ -555,12 +585,12 @@ def build_surveillance(
                 "error": err_dma_taf,
             },
             "aw_taf": {
-                "ok": err_taf is None if err_dma_taf else True,
+                "ok": (err_aw_taf is None) if not SMN_ONLY else None,
                 "count": sum(
                     1 for s in taf_source_by_icao.values() if s == "AviationWeather"
                 ),
-                "error": None if err_dma_taf is None else err_taf,
-                "used": True,
+                "error": err_aw_taf,
+                "used": (not SMN_ONLY) and bool(missing_taf or not taf_by_icao),
             },
             "metar": "SMN"
             if filled_by["SMN"] and not contingency_only

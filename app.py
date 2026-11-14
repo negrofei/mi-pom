@@ -30,6 +30,8 @@ from flask import Flask, jsonify, redirect, render_template, request, send_from_
 from aviationweather_client import (
     fetch_argentina_metars,
     fetch_station_metars,
+    fetch_stations_bulletin,
+    parse_icao_ids,
 )
 from dma_client import (
     dma_status,
@@ -67,7 +69,7 @@ STATIONS = load_stations()
 AIRPORTS = load_airports()
 
 
-_UI_PRODUCT = {"synop": "synop", "metar": "metar"}
+_UI_PRODUCT = {"synop": "synop", "metar": "metar", "consulta": "lookup"}
 
 
 @app.get("/")
@@ -77,6 +79,7 @@ def index_root():
 
 @app.get("/synop")
 @app.get("/metar")
+@app.get("/consulta")
 def index_product():
     """Una URL por panel para poder abrirlos en pestañas distintas del navegador."""
     page = (request.path or "/synop").strip("/") or "synop"
@@ -84,6 +87,7 @@ def index_product():
     titles = {
         "synop": "SYNOP Argentina",
         "metar": "METAR / vigilancia Argentina",
+        "consulta": "Consulta METAR · SPECI · TAF",
     }
     return render_template(
         "index.html",
@@ -190,6 +194,36 @@ def api_taf_amends():
     )
 
 
+@app.get("/api/lookup")
+def api_lookup():
+    """Consulta tipo AviationWeather: ICAOs + horas → TAF y METAR/SPECI."""
+    ids_raw = request.args.get("ids") or request.args.get("icao") or ""
+    try:
+        hours = int(request.args.get("hours", "6"))
+    except ValueError:
+        return jsonify({"error": "hours inválido"}), 400
+    hours = max(1, min(hours, 48))
+    include_taf = request.args.get("taf", "1") == "1"
+    ids = parse_icao_ids(ids_raw)
+    if not ids:
+        return jsonify(
+            {"error": "Indicá uno o más ICAO (OACI) separados por coma"}
+        ), 400
+    try:
+        include_amend = request.args.get("amend", "1") == "1"
+        payload = fetch_stations_bulletin(
+            ids,
+            hours=hours,
+            include_taf=include_taf,
+            include_amend=include_amend,
+            airports=AIRPORTS,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Error en consulta AW lookup")
+        return jsonify({"error": f"No se pudo consultar AviationWeather: {exc}"}), 502
+    return jsonify(payload)
+
+
 @app.get("/api/metars")
 def api_metars():
     """METARs (y TAF) de aeródromos argentinos vía AviationWeather."""
@@ -275,7 +309,11 @@ def api_metar_station(icao: str):
     if not points and not SMN_ONLY:
         try:
             points = fetch_station_metars(
-                key, airports=AIRPORTS, hours=hours, include_taf=include_taf
+                key,
+                airports=AIRPORTS,
+                hours=hours,
+                include_taf=include_taf,
+                timeout=(3.0, 12.0),
             )
             source = "AviationWeather"
             for p in points:
@@ -351,6 +389,7 @@ def api_synops():
                 stations=STATIONS,
                 timeline=timeline,  # type: ignore[arg-type]
                 lookback_hours=lookback,
+                timeout=(3.0, 12.0),
             )
             if not include_nil:
                 decoded = [s for s in decoded if not s.nil]
@@ -420,7 +459,11 @@ def api_station_series(omm: str):
     if not points and not SMN_ONLY:
         try:
             series = fetch_station_series(
-                str(omm), when, stations=STATIONS, hours=hours
+                str(omm),
+                when,
+                stations=STATIONS,
+                hours=hours,
+                timeout=(3.0, 12.0),
             )
         except Exception as exc:  # noqa: BLE001
             log.exception("Error consultando serie OGIMET")

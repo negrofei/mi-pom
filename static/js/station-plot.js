@@ -254,20 +254,43 @@
     return lines.filter(Boolean).join("<br/>");
   }
 
+  function synopConvectiveKind(layer) {
+    const code = layer && layer.genus != null ? String(layer.genus) : "";
+    const name = String((layer && (layer.genus_name || layer.genus)) || "");
+    if (code === "9" || /\bCb\b|Cumulonimbus/i.test(name)) return "CB";
+    if (/\bTCU\b|Towering/i.test(name)) return "TCU";
+    return null;
+  }
+
+  function hazardDd(html) {
+    return html;
+  }
+
   function detailHtml(obs) {
+    const MP = global.MetarPlot;
     const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
     const layerRows = layers.length
       ? layers.map((layer, i) => {
           const ft = feetLabel(layer);
+          const conv = synopConvectiveKind(layer);
+          const badge =
+            MP && conv ? ` ${MP.convectiveBadgeHtml(conv)}` : "";
+          const genusTxt = layer.genus_name || (layer.genus != null ? `C=${layer.genus}` : null);
+          const genusHtml =
+            conv === "CB"
+              ? `<span class="haz-cb">${S().esc(genusTxt || "CB")}</span>`
+              : conv === "TCU"
+                ? `<span class="haz-tcu">${S().esc(genusTxt || "TCU")}</span>`
+                : S().esc(genusTxt || "");
           const val = [
             ft != null ? `${ft} ft` : "altura —",
-            layer.genus_name || (layer.genus != null ? `C=${layer.genus}` : null),
-            layer.ns != null ? `Ns=${layer.ns}` : null,
-            layer.raw || "",
+            genusHtml || null,
+            layer.ns != null ? `Ns=${S().esc(String(layer.ns))}` : null,
+            layer.raw ? S().esc(layer.raw) : null,
           ]
             .filter(Boolean)
             .join(" · ");
-          return [`Capa sec.3 #${i + 1}`, val];
+          return [`Capa sec.3 #${i + 1}`, val + badge];
         })
       : [["Capas sec.3", "(ausente)"]];
 
@@ -275,35 +298,76 @@
       ? WW().wwText(obs.present_weather) || obs.present_weather
       : "—";
 
+    const windHtml =
+      MP && MP.coloredWindHtml
+        ? MP.coloredWindHtml(obs.wind_speed_kt, obs.wind_gust_kt, obs.wind_dir)
+        : S().esc(
+            `${obs.wind_dir != null ? obs.wind_dir + "°" : "—"} · ${
+              obs.wind_speed_kt != null ? obs.wind_speed_kt + " kt" : "—"
+            }`
+          );
+
+    const visHtml =
+      MP && MP.coloredVisHtml
+        ? MP.coloredVisHtml(obs.visibility_m)
+        : S().esc(fmtVisibility(obs) || "—");
+
+    const cl = obs.cl != null ? String(obs.cl) : "";
+    const clIsCb = cl === "3" || cl === "9";
+    const clIsTcu = cl === "2";
+    const clHtml = clIsCb
+      ? `<span class="haz-cb">CL=${S().esc(cl)}</span>${
+          MP ? " " + MP.convectiveBadgeHtml("CB") : ""
+        }`
+      : clIsTcu
+        ? `<span class="haz-tcu">CL=${S().esc(cl)}</span>${
+            MP ? " " + MP.convectiveBadgeHtml("TCU") : ""
+          }`
+        : S().esc(cl || "/");
+
     const rows = [
-      ["Estación", `${obs.omm} — ${obs.nombre || ""}`],
-      ["FIR", obs.fir || "—"],
-      ["Fuente", sourceLabel(obs)],
-      ["UTC", obs.utc || "—"],
-      ["Temperatura", obs.temp_c != null ? `${fmtTemp(obs.temp_c)} °C` : "—"],
-      ["Punto de rocío", obs.dewpoint_c != null ? `${fmtTemp(obs.dewpoint_c)} °C` : "—"],
-      ["Presión MSL", obs.msl_pressure != null ? `${obs.msl_pressure.toFixed(1)} hPa` : "—"],
-      ["Presión estación", obs.station_pressure != null ? `${obs.station_pressure.toFixed(1)} hPa` : "—"],
+      ["Estación", S().esc(`${obs.omm} — ${obs.nombre || ""}`)],
+      ["FIR", S().esc(obs.fir || "—")],
+      ["Fuente", S().esc(sourceLabel(obs))],
+      ["UTC", S().esc(obs.utc || "—")],
+      ["Temperatura", S().esc(obs.temp_c != null ? `${fmtTemp(obs.temp_c)} °C` : "—")],
       [
-        "Viento",
-        `${obs.wind_dir != null ? obs.wind_dir + "°" : "—"} · ${
-          obs.wind_speed_kt != null ? obs.wind_speed_kt + " kt" : "—"
-        }`,
+        "Punto de rocío",
+        S().esc(obs.dewpoint_c != null ? `${fmtTemp(obs.dewpoint_c)} °C` : "—"),
       ],
-      ["N (cobertura)", obs.total_cloud ?? "—"],
-      ["Visibilidad VV", obs.visibility ?? "—"],
-      ["Visibilidad horizontal", fmtVisibility(obs) || "—"],
-      ["h (base, sec.1)", obs.cloud_base_h ?? "—"],
-      ["Tiempo presente", wwDecoded],
-      ["Nh / CL / CM / CH (sec.1)", `${obs.nh ?? "/"} ${obs.cl ?? "/"} ${obs.cm ?? "/"} ${obs.ch ?? "/"}`],
+      [
+        "Presión MSL",
+        S().esc(obs.msl_pressure != null ? `${obs.msl_pressure.toFixed(1)} hPa` : "—"),
+      ],
+      [
+        "Presión estación",
+        S().esc(
+          obs.station_pressure != null ? `${obs.station_pressure.toFixed(1)} hPa` : "—"
+        ),
+      ],
+      ["Viento", hazardDd(windHtml)],
+      ["N (cobertura)", S().esc(String(obs.total_cloud ?? "—"))],
+      ["Visibilidad VV", S().esc(String(obs.visibility ?? "—"))],
+      ["Visibilidad horizontal", hazardDd(visHtml)],
+      ["h (base, sec.1)", S().esc(String(obs.cloud_base_h ?? "—"))],
+      ["Tiempo presente", S().esc(wwDecoded)],
+      [
+        "Nh / CL / CM / CH (sec.1)",
+        `${S().esc(String(obs.nh ?? "/"))} ${clHtml} ${S().esc(
+          String(obs.cm ?? "/")
+        )} ${S().esc(String(obs.ch ?? "/"))}`,
+      ],
       ...layerRows,
-      ["Tendencia", `${obs.tendency_char ?? "—"} ${obs.tendency_val ?? ""}`],
+      [
+        "Tendencia",
+        S().esc(`${obs.tendency_char ?? "—"} ${obs.tendency_val ?? ""}`),
+      ],
     ];
     if (obs.raw_aeromet) {
-      rows.push(["AEROMET", obs.raw_aeromet]);
+      rows.push(["AEROMET", S().esc(obs.raw_aeromet)]);
     }
     const dl = rows
-      .map(([k, v]) => `<dt>${S().esc(k)}</dt><dd>${S().esc(String(v))}</dd>`)
+      .map(([k, v]) => `<dt>${S().esc(k)}</dt><dd>${v}</dd>`)
       .join("");
     const src = sourceLabel(obs);
     return `
@@ -312,8 +376,15 @@
       <button type="button" class="btn primary ts-open-btn" data-omm="${S().esc(obs.omm)}" data-nombre="${S().esc(obs.nombre || obs.omm)}">
         Ver serie temporal
       </button>
-      <div><b>SYNOP</b></div>
-      <pre class="raw">${S().esc(obs.raw)}</pre>
+      <div><b>SYNOP</b> <span class="raw-hint">pasá el mouse sobre cada grupo</span></div>
+      <pre class="raw synop-raw-annotated">${
+        global.SynopDecode
+          ? global.SynopDecode.annotateRawHtml(obs.raw, {
+              wind_speed_kt: obs.wind_speed_kt,
+              visibility_m: obs.visibility_m,
+            })
+          : S().esc(obs.raw || "—")
+      }</pre>
       <dl>${dl}</dl>
     `;
   }

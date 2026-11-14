@@ -32,16 +32,6 @@
       .slice(0, 40);
   }
 
-  function catPill(cat) {
-    if (!cat) return "";
-    const meta =
-      (global.MetarPlot && global.MetarPlot.catMeta && global.MetarPlot.catMeta(cat)) || {
-        color: "#888",
-        label: cat,
-      };
-    return `<span class="flt-pill" style="background:${meta.color}">${esc(meta.label || cat)}</span>`;
-  }
-
   function highlight(raw, reasons, side) {
     if (global.MetarPlot && typeof global.MetarPlot.highlightRawHtml === "function") {
       return global.MetarPlot.highlightRawHtml(raw, reasons || [], side);
@@ -98,20 +88,20 @@
             const kind = m.is_speci || m.metar_type === "SPECI" ? "SPECI" : "METAR";
             const isLatest = idx === 0;
             const rawHtml =
-              isLatest && reasons.length
-                ? highlight(m.raw || "", reasons, "obs")
+              global.MetarPlot && typeof global.MetarPlot.annotateMetarRawHtml === "function"
+                ? global.MetarPlot.annotateMetarRawHtml(m.raw || "")
                 : esc(m.raw || "—");
+            const cat =
+              (global.MetarPlot && global.MetarPlot.catMeta && global.MetarPlot.catMeta(m.flt_cat)) || {
+                color: "#888",
+                label: m.flt_cat || "—",
+              };
             return `
             <article class="lookup-msg${kind === "SPECI" ? " is-speci" : ""}${
               isLatest ? " is-latest" : ""
             }">
-              <header>
-                <span class="lookup-msg-kind">${esc(kind)}</span>
-                <time>${esc(m.obs_iso || "—")}</time>
-                ${catPill(m.flt_cat)}
-                ${isLatest ? `<span class="lookup-latest-tag">vs TAF</span>` : ""}
-              </header>
-              <pre class="raw taf-amend-raw">${rawHtml}</pre>
+              <span class="flt-pill" style="background:${cat.color}">${esc(cat.label || "—")}</span>
+              <pre class="raw taf-amend-raw metar-raw-annotated">${rawHtml}</pre>
             </article>`;
           })
           .join("")
@@ -130,7 +120,11 @@
                 : ""
             }
           </div>
-          <pre class="raw taf-raw taf-amend-raw">${highlight(taf.raw, reasons, "taf")}</pre>`
+          <pre class="raw taf-raw taf-amend-raw metar-raw-annotated">${
+            global.MetarPlot && typeof global.MetarPlot.annotateTafRawHtml === "function"
+              ? global.MetarPlot.annotateTafRawHtml(taf.raw)
+              : esc(taf.raw || "—")
+          }</pre>`
         : `<div class="lookup-empty">Sin TAF disponible.</div>`;
 
     const amendHtml =

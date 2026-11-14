@@ -1,11 +1,10 @@
 /**
- * Serie temporal 24 h por estación: T/Td, barbas, nubes bajas, visibilidad, ww.
+ * Serie temporal 24 h por estación: T/Td, barbas, nubes (contourf), visibilidad, ww.
  */
 (function (global) {
   const S = () => global.SynopSymbols;
   const WW = () => global.PresentWeather;
   const IMG = "/img";
-  const LOW_GENUS = new Set(["6", "7", "8", "9"]);
 
   function fmtTemp(v) {
     if (v == null || Number.isNaN(Number(v))) return null;
@@ -33,33 +32,269 @@
     "9": 8200,
   };
 
-  function lowestCloud(obs) {
-    const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
-    const candidates = layers.filter((l) => feetLabel(l) != null);
-    const low = candidates.filter((l) => LOW_GENUS.has(String(l.genus)));
-    const pool = low.length ? low : candidates;
-    if (pool.length) {
-      pool.sort((a, b) => feetLabel(a) - feetLabel(b));
-      const best = pool[0];
-      return {
-        height_ft: feetLabel(best),
-        cover: best.ns ?? obs.nh ?? obs.total_cloud ?? null,
-        label: best.genus_name || (best.genus != null ? `C=${best.genus}` : null),
-        raw: best.raw || null,
-      };
-    }
-    // Fallback: grupo 1 (Nh + h)
-    const h = obs.cloud_base_h != null ? String(obs.cloud_base_h) : null;
-    const ft = h != null && H_BASE_FT[h] != null ? H_BASE_FT[h] : null;
-    if (ft == null && obs.nh == null && obs.total_cloud == null) {
-      return { height_ft: null, cover: null, label: null };
-    }
-    return {
-      height_ft: ft,
-      cover: obs.nh ?? obs.total_cloud ?? null,
-      label: h != null ? `h=${h} (sec.1)` : "sec.1",
-      raw: null,
+  // Espesores típicos (m) para renderizar — media del rango operativo
+  const THICKNESS_M = {
+    St: 300,
+    Sc: 600,
+    Cu_hum: 300,
+    Cu_med: 1000,
+    Cu_con: 3000,
+    Ac: 500,
+    As: 1800,
+    Ns: 5000,
+    Ci: 500,
+    Cc: 500,
+    Cs: 1000,
+    Cb: 9000,
+  };
+
+  const M_TO_FT = 3.28084;
+
+  /** Espesor (m) desde género sec.3 (C = 0..9). */
+  function thicknessFromGenus(genus) {
+    const g = genus != null ? String(genus) : "";
+    const map = {
+      "0": THICKNESS_M.Ci,
+      "1": THICKNESS_M.Cc,
+      "2": THICKNESS_M.Cs,
+      "3": THICKNESS_M.Ac,
+      "4": THICKNESS_M.As,
+      "5": THICKNESS_M.Ns,
+      "6": THICKNESS_M.Sc,
+      "7": THICKNESS_M.St,
+      "8": THICKNESS_M.Cu_med, // Cu sin más detalle → mediocris
+      "9": THICKNESS_M.Cb,
     };
+    return map[g] != null ? map[g] : THICKNESS_M.Sc;
+  }
+
+  /** Espesor (m) desde códigos sec.1 CL / CM / CH. */
+  function thicknessFromSection1(kind, code) {
+    const c = code != null ? String(code) : "";
+    if (!c || c === "/" || c === "0") return null;
+    if (kind === "CL") {
+      if (c === "1") return THICKNESS_M.Cu_hum;
+      if (c === "2") return THICKNESS_M.Cu_med; // congestus → Cu_con si se distingue luego
+      if (c === "3" || c === "9") return THICKNESS_M.Cb;
+      if (c === "4" || c === "5" || c === "8") return THICKNESS_M.Sc;
+      if (c === "6" || c === "7") return THICKNESS_M.St;
+    }
+    if (kind === "CM") {
+      if (c === "1") return THICKNESS_M.As;
+      if (c === "2") return THICKNESS_M.Ns; // As opacus / Ns
+      if (c === "3" || c === "4" || c === "5" || c === "7") return THICKNESS_M.Ac;
+      if (c === "6") return THICKNESS_M.Ac;
+      if (c === "8" || c === "9") return THICKNESS_M.Ac;
+    }
+    if (kind === "CH") {
+      if (c === "1" || c === "2" || c === "3" || c === "4") return THICKNESS_M.Ci;
+      if (c === "5" || c === "6" || c === "7" || c === "8") return THICKNESS_M.Cs;
+      if (c === "9") return THICKNESS_M.Cc;
+    }
+    return null;
+  }
+
+  function metersToFeet(m) {
+    return Math.round((Number(m) * M_TO_FT) / 50) * 50; // redondeo a 50 ft
+  }
+
+  function makeCloudBand({ base_ft, thickness_m, cover, label, raw, ns, kind }) {
+    const thickFt = Math.max(100, metersToFeet(thickness_m));
+    return {
+      height_ft: base_ft,
+      top_ft: base_ft + thickFt,
+      thickness_m,
+      thickness_ft: thickFt,
+      cover: Math.max(0, Math.min(8, cover)),
+      label,
+      raw: raw || null,
+      ns,
+      kind: kind || null,
+    };
+  }
+
+  /**
+   * Capas con base + tope (base + espesor típico según tipo).
+   * Prioridad: grupos 8NsChshs (sec.3); si no hay, sec.1 Nh+h+CL.
+   */
+  function allCloudLayers(obs) {
+    if (!obs || obs.missing) return [];
+    const out = [];
+    const layers = Array.isArray(obs.cloud_layers) ? obs.cloud_layers : [];
+    layers.forEach((l) => {
+      const ft = feetLabel(l);
+      if (ft == null) return;
+      const cover = l.ns != null && l.ns !== "/" ? Number(l.ns) : null;
+      if (cover == null || Number.isNaN(cover)) return;
+      const thick = thicknessFromGenus(l.genus);
+      out.push(
+        makeCloudBand({
+          base_ft: ft,
+          thickness_m: thick,
+          cover,
+          label: l.genus_name || (l.genus != null ? `C=${l.genus}` : null),
+          raw: l.raw || null,
+          ns: l.ns,
+          kind: "sec.3",
+        })
+      );
+    });
+
+    if (!out.length) {
+      const h = obs.cloud_base_h != null ? String(obs.cloud_base_h) : null;
+      const ft = h != null && H_BASE_FT[h] != null ? H_BASE_FT[h] : null;
+      const coverRaw = obs.nh ?? obs.total_cloud;
+      const cover =
+        coverRaw != null && coverRaw !== "/" ? Number(coverRaw) : null;
+      const thick =
+        thicknessFromSection1("CL", obs.cl) ||
+        thicknessFromSection1("CM", obs.cm) ||
+        THICKNESS_M.Sc;
+      if (ft != null && cover != null && !Number.isNaN(cover)) {
+        const cl = obs.cl != null ? String(obs.cl) : null;
+        out.push(
+          makeCloudBand({
+            base_ft: ft,
+            thickness_m: thick,
+            cover,
+            label:
+              cl != null
+                ? `CL=${cl} · h=${h} (sec.1)`
+                : h != null
+                  ? `h=${h} (sec.1)`
+                  : "sec.1",
+            raw: null,
+            ns: String(coverRaw),
+            kind: "sec.1",
+          })
+        );
+      }
+    }
+    out.sort((a, b) => a.height_ft - b.height_ft);
+    return out;
+  }
+
+  function lowestCloud(obs) {
+    const layers = allCloudLayers(obs);
+    if (!layers.length) return { height_ft: null, cover: null, label: null };
+    const best = layers[0];
+    return {
+      height_ft: best.height_ft,
+      cover: best.ns ?? best.cover,
+      label: best.label,
+      raw: best.raw,
+      top_ft: best.top_ft,
+      thickness_m: best.thickness_m,
+    };
+  }
+
+  // Escala vertical: Cb puede superar 10 kft (base + ~9 km)
+  const CLOUD_FLOOR_FT = 0;
+  const CLOUD_CEIL_FT = 35000;
+
+  /**
+   * Campo 2D suavizado: cada capa pinta [base, base+espesor] con oktas.
+   * Suavizado leve en el tiempo; bordes verticales suaves (±1 bin).
+   */
+  function buildCloudField(points, { ny = 96, sigmaX = 0.7 } = {}) {
+    const nx = points.length;
+    const field = Array.from({ length: ny }, () => new Float32Array(nx));
+    if (!nx) return field;
+
+    function yIndex(ft) {
+      const clamped = Math.max(CLOUD_FLOOR_FT, Math.min(CLOUD_CEIL_FT, Number(ft)));
+      const t = (clamped - CLOUD_FLOOR_FT) / (CLOUD_CEIL_FT - CLOUD_FLOOR_FT);
+      return Math.max(0, Math.min(ny - 1, Math.round(t * (ny - 1))));
+    }
+
+    const tmp = Array.from({ length: ny }, () => new Float32Array(nx));
+    points.forEach((p, i) => {
+      allCloudLayers(p).forEach((layer) => {
+        const yLo = yIndex(layer.height_ft);
+        const yHi = yIndex(layer.top_ft != null ? layer.top_ft : layer.height_ft);
+        const lo = Math.min(yLo, yHi);
+        const hi = Math.max(yLo, yHi);
+        const cover = layer.cover;
+        for (let y = lo; y <= hi; y++) {
+          // Soft-edge vertical (1 bin) para que no se vea pixelado
+          let edge = 1;
+          if (hi > lo) {
+            if (y === lo || y === hi) edge = 0.65;
+          }
+          tmp[y][i] = Math.max(tmp[y][i], cover * edge);
+        }
+      });
+    });
+
+    const rx = Math.ceil(sigmaX * 3);
+    for (let y = 0; y < ny; y++) {
+      for (let x = 0; x < nx; x++) {
+        let acc = 0;
+        let wsum = 0;
+        for (let dx = -rx; dx <= rx; dx++) {
+          const xi = x + dx;
+          if (xi < 0 || xi >= nx) continue;
+          const w = Math.exp(-(dx * dx) / (2 * sigmaX * sigmaX));
+          acc += tmp[y][xi] * w;
+          wsum += w;
+        }
+        field[y][x] = wsum ? Math.min(8, acc / wsum) : 0;
+      }
+    }
+    return field;
+  }
+
+  function cloudFieldToDataUrl(field, widthPx, heightPx) {
+    const ny = field.length;
+    const nx = field[0] ? field[0].length : 0;
+    if (!nx || !ny) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(widthPx));
+    canvas.height = Math.max(1, Math.round(heightPx));
+    const ctx = canvas.getContext("2d");
+    const img = ctx.createImageData(canvas.width, canvas.height);
+    const data = img.data;
+
+    for (let py = 0; py < canvas.height; py++) {
+      // y=0 arriba (nubes altas); field[0] = piso (abajo) → invertir
+      const fy = ((canvas.height - 1 - py) / Math.max(1, canvas.height - 1)) * (ny - 1);
+      const y0 = Math.floor(fy);
+      const y1 = Math.min(ny - 1, y0 + 1);
+      const ty = fy - y0;
+      for (let px = 0; px < canvas.width; px++) {
+        const fx = (px / Math.max(1, canvas.width - 1)) * (nx - 1);
+        const x0 = Math.floor(fx);
+        const x1 = Math.min(nx - 1, x0 + 1);
+        const tx = fx - x0;
+        const v00 = field[y0][x0];
+        const v10 = field[y0][x1];
+        const v01 = field[y1][x0];
+        const v11 = field[y1][x1];
+        const v =
+          v00 * (1 - tx) * (1 - ty) +
+          v10 * tx * (1 - ty) +
+          v01 * (1 - tx) * ty +
+          v11 * tx * ty;
+        const oktas = Math.max(0, Math.min(8, v));
+        const i = (py * canvas.width + px) * 4;
+        if (oktas < 0.08) {
+          data[i] = 0;
+          data[i + 1] = 0;
+          data[i + 2] = 0;
+          data[i + 3] = 0;
+        } else {
+          // Escala de grises: más oktas → más oscuro
+          const g = Math.round(245 - (oktas / 8) * 200);
+          const a = Math.round(40 + (oktas / 8) * 200);
+          data[i] = g;
+          data[i + 1] = g;
+          data[i + 2] = g;
+          data[i + 3] = a;
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return canvas.toDataURL("image/png");
   }
 
   function visText(obs) {
@@ -166,12 +401,18 @@
     const points = alignPointsToSlots(observed, payload.until, hours);
     container.innerHTML = "";
 
+    const themeCss = getComputedStyle(document.documentElement);
+    const axisInk = (themeCss.getPropertyValue("--ink-muted") || "#666").trim() || "#666";
+    const hourInk = (themeCss.getPropertyValue("--ink") || "#556").trim() || "#556";
+    const hourMiss = (themeCss.getPropertyValue("--ink-muted") || "#b0b6bd").trim() || "#b0b6bd";
+    const gridStroke = (themeCss.getPropertyValue("--chart-grid") || "rgba(0,0,0,0.08)").trim();
+
     const W = Math.max(720, points.length * 36 + 90);
     const labelX = 14;
     const padL = 72;
     const padR = 20;
     const padT = 28;
-    const rowH = { temp: 130, wind: 56, cloud: 96, vis: 96, ww: 48 };
+    const rowH = { temp: 130, wind: 56, cloud: 150, vis: 96, ww: 48 };
     const gap = 18;
     let y = padT;
     const rows = [
@@ -180,15 +421,16 @@
     y += rowH.temp + gap;
     rows.push({ key: "wind", label: "Viento", y: y, h: rowH.wind });
     y += rowH.wind + gap;
-    rows.push({ key: "cloud", label: "Nubes (log)", y: y, h: rowH.cloud });
+    rows.push({ key: "cloud", label: "Nubes (ft)", y: y, h: rowH.cloud });
     y += rowH.cloud + gap;
-    rows.push({ key: "vis", label: "Visibilidad (log)", y: y, h: rowH.vis });
+    rows.push({ key: "vis", label: "Visibilidad", y: y, h: rowH.vis });
     y += rowH.vis + gap;
     rows.push({ key: "ww", label: "Tiempo presente", y: y, h: rowH.ww });
     const H = y + rowH.ww + 36;
 
     const xs = points.map((_, i) => padL + ((W - padL - padR) * (i + 0.5)) / points.length);
     const xAt = (i) => xs[i];
+    const colW = points.length > 1 ? (W - padL - padR) / points.length : 28;
 
     const temps = points.map((p) => (p.missing ? null : p.temp_c)).filter((v) => v != null);
     const tds = points.map((p) => (p.missing ? null : p.dewpoint_c)).filter((v) => v != null);
@@ -213,28 +455,40 @@
     const ty = (v) =>
       tempRow.y + tempRow.h - ((v - tMin) / (tMax - tMin)) * tempRow.h;
 
-    // Escala log fija 100–10000 ft: resalta bases bajas; ≥10000 ft va al tope
-    const CLOUD_FLOOR_FT = 100;
-    const CLOUD_CEIL_FT = 10000;
-    const clouds = points.map((p) => (p.missing ? { height_ft: null } : lowestCloud(p)));
+    // Escala lineal 0–35000 ft (Cb puede subir mucho); bandas base→base+espesor
     const cloudRow = rows[2];
-    const logCloud = (ft) => Math.log10(Math.max(CLOUD_FLOOR_FT, Math.min(CLOUD_CEIL_FT, Number(ft))));
-    const logCloudMin = Math.log10(CLOUD_FLOOR_FT);
-    const logCloudMax = Math.log10(CLOUD_CEIL_FT);
-    const cy = (v) =>
-      cloudRow.y + cloudRow.h - ((logCloud(v) - logCloudMin) / (logCloudMax - logCloudMin)) * cloudRow.h;
-    const cloudTicks = [100, 200, 500, 1000, 2000, 5000, 10000];
+    const cy = (v) => {
+      const clamped = Math.max(CLOUD_FLOOR_FT, Math.min(CLOUD_CEIL_FT, Number(v)));
+      return (
+        cloudRow.y +
+        cloudRow.h -
+        ((clamped - CLOUD_FLOOR_FT) / (CLOUD_CEIL_FT - CLOUD_FLOOR_FT)) * cloudRow.h
+      );
+    };
+    const cloudTicks = [0, 5000, 10000, 15000, 20000, 25000, 30000, 35000];
+    const cloudField = buildCloudField(points);
+    const cloudImgW = Math.max(1, W - padL - padR);
+    const cloudDataUrl = cloudFieldToDataUrl(cloudField, cloudImgW * 2, cloudRow.h * 2);
 
-    // Visibilidad: log fija 50–10000 m (valores mayores al tope)
-    const VIS_FLOOR_M = 50;
+    // Visibilidad: lineal 0–10000 m + color por umbral
+    const VIS_FLOOR_M = 0;
     const VIS_CEIL_M = 10000;
     const visRow = rows[3];
-    const logVis = (m) => Math.log10(Math.max(VIS_FLOOR_M, Math.min(VIS_CEIL_M, Number(m))));
-    const logVisMin = Math.log10(VIS_FLOOR_M);
-    const logVisMax = Math.log10(VIS_CEIL_M);
-    const vy = (v) =>
-      visRow.y + visRow.h - ((logVis(v) - logVisMin) / (logVisMax - logVisMin)) * visRow.h;
-    const visTicks = [50, 150, 350, 600, 800, 1500, 3000, 5000, 10000];
+    const vy = (v) => {
+      const clamped = Math.max(VIS_FLOOR_M, Math.min(VIS_CEIL_M, Number(v)));
+      return (
+        visRow.y +
+        visRow.h -
+        ((clamped - VIS_FLOOR_M) / (VIS_CEIL_M - VIS_FLOOR_M)) * visRow.h
+      );
+    };
+    const visTicks = [0, 1000, 2000, 3000, 5000, 7000, 10000];
+    function visColor(m) {
+      const st = global.MetarPlot && global.MetarPlot.visStyle(m);
+      if (st) return st.color;
+      if (m == null) return "#90a4ae";
+      return "#26a69a"; // >7000 m / sin umbral: teal
+    }
 
     // Rompe la línea en huecos (horas sin dato)
     function linePath(values, yFn) {
@@ -277,12 +531,12 @@
       const x = xAt(i);
       parts.push(
         `<text class="ts-hour${p.missing ? " ts-hour-missing" : ""}" x="${x}" y="${padT - 10}" text-anchor="middle" font-size="10" fill="${
-          p.missing ? "#b0b6bd" : "#556"
-        }">${S().esc(hourLabel(p))}</text>`
+          p.missing ? hourMiss : hourInk
+        }" opacity="${p.missing ? "0.45" : "0.85"}">${S().esc(hourLabel(p))}</text>`
       );
       parts.push(
-        `<line x1="${x}" y1="${padT}" x2="${x}" y2="${H - 28}" stroke="${
-          p.missing ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.06)"
+        `<line x1="${x}" y1="${padT}" x2="${x}" y2="${H - 28}" stroke="${gridStroke}" opacity="${
+          p.missing ? "0.35" : "0.7"
         }" />`
       );
     });
@@ -295,13 +549,13 @@
       const isMajor = ((t % tMajorStep) + tMajorStep) % tMajorStep === 0;
       if (isMajor) {
         parts.push(
-          `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="rgba(0,0,0,0.08)" />`
+          `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="${gridStroke}" />`
         );
         parts.push(
-          `<line x1="${padL - 5}" y1="${yy}" x2="${padL}" y2="${yy}" stroke="#666" stroke-width="1.2" />`
+          `<line x1="${padL - 5}" y1="${yy}" x2="${padL}" y2="${yy}" stroke="${axisInk}" stroke-width="1.2" />`
         );
         parts.push(
-          `<text x="${padL - 7}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#666">${t}°</text>`
+          `<text x="${padL - 7}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="${axisInk}">${t}°</text>`
         );
       } else if (tMajorStep > 1) {
         parts.push(
@@ -370,54 +624,100 @@
       );
     });
 
-    // Nubes: escala log 100–10000 ft (valores >10000 se grafican en el tope)
+    // Nubes: contourf en escala de grises (oktas) + marcas de capas
+    if (cloudDataUrl) {
+      parts.push(
+        `<image class="ts-cloud-field" href="${cloudDataUrl}" xlink:href="${cloudDataUrl}" x="${padL}" y="${cloudRow.y}" width="${cloudImgW}" height="${cloudRow.h}" preserveAspectRatio="none" />`
+      );
+    }
     cloudTicks.forEach((ft) => {
       const yy = cy(ft);
       parts.push(
-        `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="rgba(93,109,126,0.18)" stroke-dasharray="3 3" />`
+        `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="${gridStroke}" stroke-dasharray="3 3" />`
       );
       parts.push(
-        `<line x1="${padL - 5}" y1="${yy}" x2="${padL}" y2="${yy}" stroke="#666" stroke-width="1.2" />`
+        `<line x1="${padL - 5}" y1="${yy}" x2="${padL}" y2="${yy}" stroke="${axisInk}" stroke-width="1.2" />`
       );
       parts.push(
-        `<text x="${padL - 7}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#666">${ft}</text>`
+        `<text x="${padL - 7}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="${axisInk}">${ft}</text>`
       );
     });
     points.forEach((p, i) => {
       if (p.missing) return;
+      const layers = allCloudLayers(p);
+      if (!layers.length) return;
       const x = xAt(i);
-      const c = clouds[i];
-      if (c.height_ft == null) return;
-      const capped = c.height_ft > CLOUD_CEIL_FT;
-      const y1 = cy(c.height_ft);
-      const cover = c.cover != null ? String(c.cover) : "9999";
-      const tipTxt = tip("Nubosidad más baja", [
-        `Base: ${c.height_ft} ft${capped ? ` (≥${CLOUD_CEIL_FT} ft → tope del gráfico)` : ""}`,
-        c.cover != null ? `Cobertura Ns/N: ${c.cover}/8` : null,
-        c.label,
-        hourLabel(p),
-      ]);
+      const tipLines = layers.map((c) => {
+        const top = c.top_ft != null ? c.top_ft : c.height_ft;
+        return `${c.height_ft}–${top} ft · espesor ≈${c.thickness_m} m · ${c.cover}/8${
+          c.label ? ` · ${c.label}` : ""
+        }`;
+      });
+      const tipTxt = tip("Nubosidad (base + espesor típico)", tipLines.concat([hourLabel(p)]));
+      // Marcas: base (círculo) y tope (rayita)
+      const marks = layers
+        .map((c) => {
+          const yBase = cy(c.height_ft);
+          const yTop = cy(c.top_ft != null ? c.top_ft : c.height_ft);
+          const g = Math.round(220 - (c.cover / 8) * 180);
+          const yLo = Math.min(yBase, yTop);
+          const yHi = Math.max(yBase, yTop);
+          return (
+            `<line x1="${x}" y1="${yLo}" x2="${x}" y2="${yHi}" stroke="rgba(30,30,30,0.35)" stroke-width="1.2" />` +
+            `<circle cx="${x}" cy="${yBase}" r="2.4" fill="rgb(${g},${g},${g})" stroke="#222" stroke-width="0.7" />`
+          );
+        })
+        .join("");
       parts.push(
         `<g class="ts-hit ts-cloud" data-tip="${tipTxt}">
-          <line x1="${x}" y1="${cloudRow.y + cloudRow.h}" x2="${x}" y2="${y1}" stroke="#5d6d7e" stroke-width="2" />
-          <circle cx="${x}" cy="${y1}" r="3.5" fill="${capped ? "#9aa5b1" : "#5d6d7e"}" />
-          <image href="${IMG}/simbolos/N${cover}.png" xlink:href="${IMG}/simbolos/N${cover}.png" x="${x - 8}" y="${y1 - 28}" width="16" height="16" />
-          <rect x="${x - 12}" y="${y1 - 30}" width="24" height="${cloudRow.y + cloudRow.h - y1 + 32}" fill="transparent" />
+          ${marks}
+          <rect x="${x - 14}" y="${cloudRow.y}" width="28" height="${cloudRow.h}" fill="transparent" />
         </g>`
       );
     });
 
-    // Visibilidad: escala log 50–10000 m
+    // Bandas de umbral de visibilidad (fondo)
+    const visBands = [
+      { lo: 0, hi: 1000, color: "rgba(106,27,154,0.12)" },
+      { lo: 1000, hi: 2000, color: "rgba(198,40,40,0.10)" },
+      { lo: 3000, hi: 5000, color: "rgba(239,108,0,0.10)" },
+      { lo: 5000, hi: 7000, color: "rgba(249,168,37,0.12)" },
+    ];
+    visBands.forEach((b) => {
+      const yTop = vy(b.hi);
+      const yBot = vy(b.lo);
+      parts.push(
+        `<rect x="${padL}" y="${yTop}" width="${W - padL - padR}" height="${Math.max(
+          0,
+          yBot - yTop
+        )}" fill="${b.color}" />`
+      );
+    });
     visTicks.forEach((m) => {
       const yy = vy(m);
       parts.push(
-        `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="rgba(46,125,50,0.16)" stroke-dasharray="3 3" />`
+        `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="${gridStroke}" stroke-dasharray="3 3" />`
       );
       parts.push(
-        `<line x1="${padL - 5}" y1="${yy}" x2="${padL}" y2="${yy}" stroke="#666" stroke-width="1.2" />`
+        `<line x1="${padL - 5}" y1="${yy}" x2="${padL}" y2="${yy}" stroke="${axisInk}" stroke-width="1.2" />`
       );
       parts.push(
-        `<text x="${padL - 7}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="#666">${m}</text>`
+        `<text x="${padL - 7}" y="${yy}" text-anchor="end" dominant-baseline="middle" font-size="9" fill="${axisInk}">${m}</text>`
+      );
+    });
+    // Barras de color + línea
+    points.forEach((p, i) => {
+      if (p.missing || p.visibility_m == null) return;
+      const x = xAt(i);
+      const y1 = vy(p.visibility_m);
+      const y0 = visRow.y + visRow.h;
+      const bw = Math.max(8, colW * 0.55);
+      const color = visColor(p.visibility_m);
+      parts.push(
+        `<rect class="ts-vis-bar" x="${x - bw / 2}" y="${y1}" width="${bw}" height="${Math.max(
+          1,
+          y0 - y1
+        )}" fill="${color}" opacity="0.55" rx="2" />`
       );
     });
     const visPath = linePath(
@@ -426,22 +726,24 @@
     );
     if (visPath) {
       parts.push(
-        `<path d="${visPath}" fill="none" stroke="#2e7d32" stroke-width="2" class="ts-line-vis" />`
+        `<path d="${visPath}" fill="none" stroke="#455a64" stroke-width="1.6" class="ts-line-vis" />`
       );
     }
     points.forEach((p, i) => {
       if (p.missing || p.visibility_m == null) return;
       const x = xAt(i);
       const capped = p.visibility_m > VIS_CEIL_M;
+      const color = visColor(p.visibility_m);
       parts.push(
-        `<circle class="ts-hit ts-vis" cx="${x}" cy="${vy(p.visibility_m)}" r="4.5" fill="${
-          capped ? "#81c784" : "#2e7d32"
-        }" data-tip="${tip("Visibilidad horizontal", [
-          visText(p),
-          capped ? `(≥${VIS_CEIL_M} m → tope del gráfico)` : null,
-          `VV=${p.visibility ?? "—"}`,
-          hourLabel(p),
-        ])}" />`
+        `<circle class="ts-hit ts-vis" cx="${x}" cy="${vy(p.visibility_m)}" r="5" fill="${color}" stroke="#fff" stroke-width="1.2" data-tip="${tip(
+          "Visibilidad horizontal",
+          [
+            visText(p),
+            capped ? `(≥${VIS_CEIL_M} m → tope del gráfico)` : null,
+            `VV=${p.visibility ?? "—"}`,
+            hourLabel(p),
+          ]
+        )}" />`
       );
     });
 
@@ -468,8 +770,8 @@
         <span class="ts-leg t">Temperatura</span>
         <span class="ts-leg td">Rocío</span>
         <span class="ts-leg wind">Barbas de viento</span>
-        <span class="ts-leg cloud">Nubes (log 100–10000 ft)</span>
-        <span class="ts-leg vis">Visibilidad (log 50–10000 m)</span>
+        <span class="ts-leg cloud">Nubes (oktas · base+espesor, 0–35000 ft)</span>
+        <span class="ts-leg vis">Visibilidad (color por umbral, 0–10000 m)</span>
         <span class="ts-leg ww">Tiempo presente</span>
       </div>`;
 
@@ -514,5 +816,12 @@
     return data;
   }
 
-  global.TimeSeries = { renderSeriesChart, loadAndRender, lowestCloud };
+  global.TimeSeries = {
+    renderSeriesChart,
+    loadAndRender,
+    lowestCloud,
+    allCloudLayers,
+    thicknessFromGenus,
+    thicknessFromSection1,
+  };
 })(window);

@@ -1,5 +1,7 @@
 (function () {
   const STORAGE_KEY = "synop-ar-config-v5";
+  const THEME_KEY = "synop-ar-theme";
+  const THEME_PREF_KEY = "synop-ar-theme-pref"; // light | dark | system
   const BASE_W = 120;
   const BASE_H = 160;
   const REFRESH_MS = 2 * 60 * 1000;
@@ -17,11 +19,15 @@
   const hourInput = document.getElementById("hourInput");
   const btnLoad = document.getElementById("btnLoad");
   const btnConfig = document.getElementById("btnConfig");
+  const btnTheme = document.getElementById("btnTheme");
   const configPanel = document.getElementById("configPanel");
   const configClose = document.getElementById("configClose");
   const chkNil = document.getElementById("chkNil");
   const nilWrap = document.getElementById("nilWrap");
   const cfgAutorefresh = document.getElementById("cfgAutorefresh");
+  const cfgThemeLight = document.getElementById("cfgThemeLight");
+  const cfgThemeDark = document.getElementById("cfgThemeDark");
+  const cfgThemeSystem = document.getElementById("cfgThemeSystem");
   const cfgTimelineExact = document.getElementById("cfgTimelineExact");
   const cfgTimelineLatest = document.getElementById("cfgTimelineLatest");
   const cfgPlotGap = document.getElementById("cfgPlotGap");
@@ -32,8 +38,18 @@
   const cfgColorFlight = document.getElementById("cfgColorFlight");
   const cfgColorBase = document.getElementById("cfgColorBase");
   const cfgColorVis = document.getElementById("cfgColorVis");
+  const cfgColorRawMessages = document.getElementById("cfgColorRawMessages");
   const btnProductSynop = document.getElementById("btnProductSynop");
   const btnProductMetar = document.getElementById("btnProductMetar");
+  const btnProductLookup = document.getElementById("btnProductLookup");
+  const lookupPanel = document.getElementById("lookupPanel");
+  const lookupForm = document.getElementById("lookupForm");
+  const lookupIds = document.getElementById("lookupIds");
+  const lookupHours = document.getElementById("lookupHours");
+  const lookupTaf = document.getElementById("lookupTaf");
+  const lookupStatus = document.getElementById("lookupStatus");
+  const lookupResults = document.getElementById("lookupResults");
+  const lookupSubmit = document.getElementById("lookupSubmit");
   const fltLegend = document.getElementById("fltLegend");
   const btnSpeciList = document.getElementById("btnSpeciList");
   const speciListPanel = document.getElementById("speciListPanel");
@@ -65,19 +81,28 @@
     includeNil: false,
     colorBy: "flight",
     firs: [...ALL_FIRS],
+    lookupIds: "SAZR, SABE",
+    lookupHours: 6,
+    lookupTaf: true,
+    colorRawMessages: true,
   };
 
   function productFromPage() {
-    if (window.__INITIAL_PRODUCT__ && ["synop", "metar"].includes(window.__INITIAL_PRODUCT__)) {
+    if (
+      window.__INITIAL_PRODUCT__ &&
+      ["synop", "metar", "lookup"].includes(window.__INITIAL_PRODUCT__)
+    ) {
       return window.__INITIAL_PRODUCT__;
     }
     const seg = (location.pathname || "/").replace(/\/+$/, "").split("/").pop();
     if (seg === "metar") return "metar";
+    if (seg === "consulta") return "lookup";
     return "synop";
   }
 
   function pathForProduct(product) {
     if (product === "metar") return "/metar";
+    if (product === "lookup") return "/consulta";
     return "/synop";
   }
 
@@ -97,7 +122,7 @@
       if (!Array.isArray(parsed.firs) || !parsed.firs.length) {
         parsed.firs = [...ALL_FIRS];
       }
-      if (!["metar", "synop"].includes(parsed.product)) {
+      if (!["metar", "synop", "lookup"].includes(parsed.product)) {
         parsed.product = "synop";
       }
       if (!COLOR_BY.includes(parsed.colorBy)) {
@@ -112,6 +137,62 @@
   function saveSettings(settings) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }
+
+  function systemPrefersDark() {
+    try {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    } catch {
+      return false;
+    }
+  }
+
+  function loadThemePref() {
+    try {
+      const pref = localStorage.getItem(THEME_PREF_KEY);
+      if (pref === "light" || pref === "dark" || pref === "system") return pref;
+      const legacy = localStorage.getItem(THEME_KEY);
+      if (legacy === "light" || legacy === "dark") return legacy;
+    } catch {
+      /* ignore */
+    }
+    return "system";
+  }
+
+  function resolvedTheme(pref) {
+    if (pref === "dark" || pref === "light") return pref;
+    return systemPrefersDark() ? "dark" : "light";
+  }
+
+  function applyTheme(pref, { persist = true } = {}) {
+    const p = pref === "dark" || pref === "light" || pref === "system" ? pref : "system";
+    const theme = resolvedTheme(p);
+    document.documentElement.setAttribute("data-theme", theme);
+    if (persist) {
+      try {
+        localStorage.setItem(THEME_PREF_KEY, p);
+        localStorage.setItem(THEME_KEY, theme);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (cfgThemeLight) cfgThemeLight.checked = p === "light";
+    if (cfgThemeDark) cfgThemeDark.checked = p === "dark";
+    if (cfgThemeSystem) cfgThemeSystem.checked = p === "system";
+    if (btnTheme) {
+      const label =
+        p === "system"
+          ? `Tema: sistema (${theme === "dark" ? "oscuro" : "claro"})`
+          : theme === "dark"
+            ? "Tema oscuro"
+            : "Tema claro";
+      btnTheme.setAttribute("aria-label", label);
+      btnTheme.title = `${label} · clic para cambiar`;
+    }
+    return theme;
+  }
+
+  let themePref = loadThemePref();
+  applyTheme(themePref);
 
   let settings = loadSettings();
   // URL manda: cada endpoint fija el panel (permite pestañas del navegador)
@@ -261,6 +342,13 @@
     return "flight";
   }
 
+  function applyColorRawPref() {
+    const on = settings.colorRawMessages !== false;
+    if (window.MetarPlot && typeof window.MetarPlot.setColorRawMessages === "function") {
+      window.MetarPlot.setColorRawMessages(on);
+    }
+  }
+
   function applySettingsToUi() {
     cfgAutorefresh.checked = !!settings.autorefresh;
     chkNil.checked = !!settings.includeNil;
@@ -270,6 +358,11 @@
     cfgGapLabel.textContent = Number(settings.plotGap).toFixed(2);
     applyFirChecks(settings.firs);
     applyColorByUi(settings.colorBy);
+    if (cfgColorRawMessages) cfgColorRawMessages.checked = settings.colorRawMessages !== false;
+    if (lookupIds) lookupIds.value = settings.lookupIds || defaults.lookupIds;
+    if (lookupHours) lookupHours.value = String(settings.lookupHours || defaults.lookupHours);
+    if (lookupTaf) lookupTaf.checked = settings.lookupTaf !== false;
+    applyColorRawPref();
     applyProductUi();
   }
 
@@ -282,27 +375,40 @@
       includeNil: chkNil.checked,
       colorBy: colorByFromUi(),
       firs: selectedFirsFromUi(),
+      lookupIds: lookupIds ? lookupIds.value : settings.lookupIds,
+      lookupHours: lookupHours ? Number(lookupHours.value) : settings.lookupHours,
+      lookupTaf: lookupTaf ? !!lookupTaf.checked : settings.lookupTaf,
+      colorRawMessages: cfgColorRawMessages ? !!cfgColorRawMessages.checked : settings.colorRawMessages !== false,
     };
     cfgGapLabel.textContent = settings.plotGap.toFixed(2);
     saveSettings(settings);
+    applyColorRawPref();
     syncAutorefresh();
     refreshFirStyles();
   }
 
   function applyProductUi() {
     const isMetar = settings.product === "metar";
-    const isSynop = !isMetar;
+    const isLookup = settings.product === "lookup";
+    const isSynop = !isMetar && !isLookup;
     btnProductSynop.classList.toggle("active", isSynop);
     btnProductMetar.classList.toggle("active", isMetar);
-    document.body.classList.remove("mode-lookup");
-    nilWrap.classList.toggle("hidden", isMetar);
+    if (btnProductLookup) btnProductLookup.classList.toggle("active", isLookup);
+    document.body.classList.toggle("mode-lookup", isLookup);
+    if (lookupPanel) lookupPanel.classList.toggle("hidden", !isLookup);
+    nilWrap.classList.toggle("hidden", isMetar || isLookup);
     fltLegend.classList.toggle("hidden", !isMetar);
     if (isMetar) fltLegend.innerHTML = MetarPlot.legendHtml(settings.colorBy);
     const gapRow = cfgPlotGap && cfgPlotGap.closest(".config-row");
-    if (gapRow) gapRow.classList.toggle("hidden", isMetar);
+    if (gapRow) gapRow.classList.toggle("hidden", isMetar || isLookup);
     if (colorByWrap) colorByWrap.classList.toggle("hidden", !isMetar);
     const timelineFs = cfgTimelineExact && cfgTimelineExact.closest(".config-fieldset");
-    if (timelineFs) timelineFs.classList.toggle("hidden", isMetar);
+    if (timelineFs) timelineFs.classList.toggle("hidden", isMetar || isLookup);
+    if (btnLoad) btnLoad.classList.toggle("hidden", isLookup);
+    if (hourInput) {
+      const hourField = hourInput.closest(".field");
+      if (hourField) hourField.classList.toggle("hidden", isLookup);
+    }
     if (!isMetar) {
       setSpeciListOpen(false);
       setTafAmendListOpen(false);
@@ -455,6 +561,7 @@
   function setProduct(product) {
     let next = "synop";
     if (product === "metar") next = "metar";
+    else if (product === "lookup") next = "lookup";
     const target = pathForProduct(next);
     // Navegar al endpoint del panel (permite abrir cada uno en otra pestaña)
     if (pathForProduct(settings.product) !== target) {
@@ -485,8 +592,10 @@
       clearInterval(refreshTimer);
       refreshTimer = null;
     }
-    // METAR siempre refresca cada 2 min; SYNOP respeta el checkbox
-    const enabled = settings.product === "metar" || settings.autorefresh;
+    // METAR siempre refresca cada 2 min; SYNOP respeta el checkbox; Consulta no
+    const enabled =
+      settings.product !== "lookup" &&
+      (settings.product === "metar" || settings.autorefresh);
     if (enabled) {
       refreshTimer = setInterval(() => {
         setDefaultHour();
@@ -637,8 +746,54 @@
   }
 
   function loadCurrent() {
+    if (settings.product === "lookup") return loadLookup();
     if (settings.product === "metar") return loadMetars();
     return loadSynops();
+  }
+
+  async function loadLookup() {
+    if (!window.AwLookup) {
+      statusEl.textContent = "Módulo de consulta no disponible";
+      return;
+    }
+    const ids = AwLookup.parseIdsInput(lookupIds ? lookupIds.value : settings.lookupIds);
+    const hours = Number(lookupHours && lookupHours.value) || settings.lookupHours || 6;
+    const includeTaf = lookupTaf ? !!lookupTaf.checked : settings.lookupTaf !== false;
+    settings.lookupIds = lookupIds ? lookupIds.value : settings.lookupIds;
+    settings.lookupHours = hours;
+    settings.lookupTaf = includeTaf;
+    saveSettings(settings);
+
+    if (!ids.length) {
+      statusEl.textContent = "Consulta: indicá ICAO";
+      if (lookupStatus) lookupStatus.textContent = "Indicá uno o más ICAO (ej. SAZR, SABE)";
+      if (lookupResults) lookupResults.innerHTML = "";
+      return;
+    }
+
+    statusEl.textContent = `Consulta ${ids.join(", ")}…`;
+    if (lookupStatus) lookupStatus.textContent = `Consultando ${ids.join(", ")} · ${hours} h…`;
+    if (lookupSubmit) lookupSubmit.disabled = true;
+    try {
+      const data = await AwLookup.runLookup({ ids, hours, includeTaf });
+      if (lookupResults) lookupResults.innerHTML = AwLookup.resultsHtml(data);
+      const msg = `${data.count || 0} estaciones · ${data.message_count || 0} obs · ${
+        data.taf_count || 0
+      } TAF`;
+      if (lookupStatus) lookupStatus.textContent = msg;
+      statusEl.textContent = `Consulta · ${msg}`;
+    } catch (err) {
+      console.error(err);
+      const m = String(err.message || err);
+      if (lookupStatus) lookupStatus.textContent = `Error: ${m}`;
+      if (lookupResults)
+        lookupResults.innerHTML = `<div class="lookup-empty">Error: ${m
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")}</div>`;
+      statusEl.textContent = `Error consulta: ${m}`;
+    } finally {
+      if (lookupSubmit) lookupSubmit.disabled = false;
+    }
   }
 
   async function openTimeSeries(omm, nombre) {
@@ -673,6 +828,30 @@
   detailClose.addEventListener("click", () => detail.classList.add("hidden"));
   configClose.addEventListener("click", () => toggleConfig(false));
   btnConfig.addEventListener("click", () => toggleConfig());
+  if (btnTheme) {
+    btnTheme.addEventListener("click", () => {
+      // Ciclo rápido: light → dark → system → light
+      const next =
+        themePref === "light" ? "dark" : themePref === "dark" ? "system" : "light";
+      themePref = next;
+      applyTheme(themePref);
+    });
+  }
+  function onThemeRadioChange() {
+    const checked = document.querySelector('input[name="theme"]:checked');
+    themePref = checked ? checked.value : "system";
+    applyTheme(themePref);
+  }
+  if (cfgThemeLight) cfgThemeLight.addEventListener("change", onThemeRadioChange);
+  if (cfgThemeDark) cfgThemeDark.addEventListener("change", onThemeRadioChange);
+  if (cfgThemeSystem) cfgThemeSystem.addEventListener("change", onThemeRadioChange);
+  try {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      if (themePref === "system") applyTheme("system");
+    });
+  } catch {
+    /* ignore */
+  }
   tsClose.addEventListener("click", closeTimeSeries);
   tsModal.addEventListener("click", (e) => {
     if (e.target === tsModal) closeTimeSeries();
@@ -686,6 +865,45 @@
     const btn = e.target.closest(".ts-open-btn");
     if (!btn) return;
     openTimeSeries(btn.getAttribute("data-omm"), btn.getAttribute("data-nombre"));
+  });
+
+  // Hover de decodificación SYNOP (grupos del mensaje crudo)
+  let synopTokTip = document.getElementById("synopTokTip");
+  if (!synopTokTip) {
+    synopTokTip = document.createElement("div");
+    synopTokTip.id = "synopTokTip";
+    synopTokTip.className = "synop-tok-tip hidden";
+    document.body.appendChild(synopTokTip);
+  }
+  function moveSynopTokTip(e) {
+    const pad = 12;
+    let left = e.clientX + pad;
+    let top = e.clientY + pad;
+    synopTokTip.classList.remove("hidden");
+    const rect = synopTokTip.getBoundingClientRect();
+    if (left + rect.width > window.innerWidth - 8) left = e.clientX - rect.width - pad;
+    if (top + rect.height > window.innerHeight - 8) top = e.clientY - rect.height - pad;
+    synopTokTip.style.left = `${Math.max(8, left)}px`;
+    synopTokTip.style.top = `${Math.max(8, top)}px`;
+  }
+  detailBody.addEventListener("mouseover", (e) => {
+    const tok = e.target.closest(".synop-g");
+    if (!tok || !detailBody.contains(tok)) return;
+    const raw = tok.getAttribute("data-tip") || "";
+    synopTokTip.textContent = raw;
+    moveSynopTokTip(e);
+  });
+  detailBody.addEventListener("mousemove", (e) => {
+    if (!e.target.closest(".synop-g")) return;
+    if (synopTokTip.classList.contains("hidden")) return;
+    moveSynopTokTip(e);
+  });
+  detailBody.addEventListener("mouseout", (e) => {
+    const tok = e.target.closest(".synop-g");
+    if (!tok) return;
+    const to = e.relatedTarget;
+    if (to && tok.contains(to)) return;
+    synopTokTip.classList.add("hidden");
   });
 
   async function openMetarHistory(icao, nombre) {
@@ -1063,6 +1281,9 @@
     if (!el) return;
     el.addEventListener("change", () => onConfigChange(true));
   });
+  if (cfgColorRawMessages) {
+    cfgColorRawMessages.addEventListener("change", () => onConfigChange(true));
+  }
   cfgFirAll.addEventListener("change", () => {
     const on = cfgFirAll.checked;
     firChecks.querySelectorAll('input[type="checkbox"]').forEach((b) => {
@@ -1086,6 +1307,13 @@
   }
   bindProductNav(btnProductSynop, "synop");
   bindProductNav(btnProductMetar, "metar");
+  bindProductNav(btnProductLookup, "lookup");
+  if (lookupForm) {
+    lookupForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      loadLookup();
+    });
+  }
   if (btnSpeciList) {
     btnSpeciList.addEventListener("click", () => {
       const open = speciListPanel && speciListPanel.classList.contains("hidden");

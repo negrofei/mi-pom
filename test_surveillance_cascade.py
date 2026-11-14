@@ -110,8 +110,29 @@ def test_barb_key_and_metar_parser_wind_barb():
     assert [c["cover"] for c in m["clouds"]] == ["SCT", "BKN"]
 
 
+def test_dma_only_skips_aw_ogimet_by_default():
+    """Sin CONTINGENCY_ENABLED, no se llama AW/OGIMET aunque falten estaciones."""
+    with patch("surveillance.CONTINGENCY_ENABLED", False), patch(
+        "surveillance.dma_status",
+        return_value={"ok": False, "reason": "Network unreachable"},
+    ), patch("surveillance.fetch_dma_messages") as dma, patch(
+        "surveillance.fetch_dma_tafs", return_value={}
+    ), patch("surveillance.fetch_argentina_metars") as aw_m, patch(
+        "surveillance.fetch_argentina_specis"
+    ) as aw_s, patch("surveillance.fetch_argentina_synops") as og:
+        out = build_surveillance(stations={"87582": STATIONS["87582"]}, airports=AIRPORTS)
+
+    dma.assert_not_called()
+    aw_m.assert_not_called()
+    aw_s.assert_not_called()
+    og.assert_not_called()
+    assert out["contingency_enabled"] is False
+    assert out["count"] == 0
+    assert out["missing_after_dma"] == 1
+
+
 def test_contingency_skips_dma_when_unavailable():
-    with patch(
+    with patch("surveillance.CONTINGENCY_ENABLED", True), patch(
         "surveillance.dma_status",
         return_value={"ok": False, "reason": "Network unreachable"},
     ), patch("surveillance.fetch_dma_messages") as dma, patch(
@@ -129,9 +150,37 @@ def test_contingency_skips_dma_when_unavailable():
         out = build_surveillance(stations={"87582": STATIONS["87582"]}, airports=AIRPORTS)
 
     dma.assert_not_called()
+    # AW cubrió la estación: no llamar OGIMET (evita hang detrás de VPN)
+    og.assert_not_called()
     assert out["contingency_only"] is True
     assert out["filled_by"]["AviationWeather"] == 1
     assert out["filled_by"]["DMA"] == 0
+
+
+def test_ogimet_only_when_aw_misses():
+    class Fake:
+        def __init__(self, omm, obs_iso):
+            self.omm = omm
+            self.obs_iso = obs_iso
+            self.nil = False
+            self.raw = "AAXX"
+
+        def to_dict(self):
+            return _synop(self.omm, self.obs_iso, source="OGIMET")
+
+    with patch("surveillance.CONTINGENCY_ENABLED", True), patch(
+        "surveillance.dma_status", return_value={"ok": False, "reason": "off"}
+    ), patch("surveillance.fetch_dma_tafs", return_value={}), patch(
+        "surveillance.fetch_argentina_metars", return_value=[]
+    ), patch("surveillance.fetch_argentina_specis", return_value=[]), patch(
+        "surveillance.fetch_argentina_synops",
+        return_value=[Fake("87582", "2026-08-12T11:00:00Z")],
+    ) as og, patch("surveillance.resolve_synop_hour", return_value=None):
+        out = build_surveillance(stations={"87582": STATIONS["87582"]}, airports=AIRPORTS)
+
+    og.assert_called_once()
+    assert out["filled_by"]["OGIMET"] == 1
+    assert out["stations"][0]["source"] == "OGIMET"
 
 
 def test_nil_synop_hidden():
@@ -145,7 +194,7 @@ def test_nil_synop_hidden():
         def to_dict(self):
             return _synop(self.omm, self.obs_iso, source="OGIMET", nil=self.nil)
 
-    with patch(
+    with patch("surveillance.CONTINGENCY_ENABLED", True), patch(
         "surveillance.dma_status", return_value={"ok": False, "reason": "off"}
     ), patch("surveillance.fetch_dma_tafs", return_value={}), patch(
         "surveillance.fetch_argentina_metars", return_value=[]
@@ -204,7 +253,9 @@ def test_cascade_dma_speci_then_metar():
 
 if __name__ == "__main__":
     test_barb_key_and_metar_parser_wind_barb()
+    test_dma_only_skips_aw_ogimet_by_default()
     test_contingency_skips_dma_when_unavailable()
+    test_ogimet_only_when_aw_misses()
     test_nil_synop_hidden()
     test_cascade_dma_speci_then_metar()
     print("ok")

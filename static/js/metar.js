@@ -277,13 +277,38 @@
   function visStyle(m) {
     if (m == null || Number.isNaN(Number(m))) return null;
     const v = Number(m);
-    if (v < 1000) return { color: "#e91e63", label: "< 1 km", key: "v1" };      // magenta
-    if (v < 1500) return { color: "#9c27b0", label: "1–1.5 km", key: "v2" };    // violeta
-    if (v < 3000) return { color: "#f44336", label: "1.5–3 km", key: "v3" };    // rojo
-    if (v < 5000) return { color: "#ff9800", label: "3–5 km", key: "v4" };      // naranja
-    if (v < 7000) return { color: "#ffeb3b", label: "5–7 km", key: "v5" };      // amarillo
-    if (v < 9999) return { color: "#2196f3", label: "7–9 km", key: "v6" };      // azul
-    return { color: "#4caf50", label: "≥ 10 km / CAVOK", key: "v7" };           // verde
+    // Mensajes: <500 magenta · 500–999 rojo · 1000–2999 naranja · 3000–4999 amarillo · 5000–7999 subrayado
+    if (v < 500) return { color: "#ff00ff", underline: true, label: "< 500 m", key: "magenta" };
+    if (v < 1000) return { color: "#c62828", underline: true, label: "500–999 m", key: "rojo" };
+    if (v < 3000) return { color: "#ef6c00", underline: false, label: "1000–2999 m", key: "naranja" };
+    if (v < 5000) return { color: "#f9a825", underline: false, label: "3000–4999 m", key: "amarillo" };
+    if (v < 8000) return { color: null, underline: true, label: "5000–7999 m", key: "subrayado" };
+    return null;
+  }
+
+  /**
+   * Viento en mensaje: >15 kt amarillo · >20 kt o ráfaga ≥20 naranja · >25 kt o ráfaga >25 rojo.
+   */
+  function windStyle(speedKt, gustKt) {
+    const s = Number(speedKt);
+    const g = gustKt != null ? Number(gustKt) : NaN;
+    const speed = Number.isNaN(s) ? 0 : s;
+    const gust = Number.isNaN(g) ? 0 : g;
+    if (speed > 25 || gust > 25) return { color: "#c62828", label: "> 25 kt", key: "rojo" };
+    if (speed > 20 || gust >= 20) return { color: "#ef6c00", label: "> 20 kt", key: "naranja" };
+    if (speed > 15) return { color: "#f9a825", label: "> 15 kt", key: "amarillo" };
+    return null;
+  }
+
+  function coloredWindHtml(speedKt, gustKt, dir) {
+    const parts = [];
+    if (dir != null) parts.push(`${dir}°`);
+    if (speedKt != null) parts.push(`${speedKt} kt`);
+    if (gustKt != null) parts.push(`ráfaga ${gustKt} kt`);
+    const txt = parts.length ? parts.join(" · ") : "—";
+    const st = windStyle(speedKt, gustKt);
+    if (!st) return esc(txt);
+    return `<span class="metar-wind" style="color:${st.color};font-weight:700">${esc(txt)}</span>`;
   }
 
   function fmtVis(m) {
@@ -299,7 +324,199 @@
     const txt = fmtVis(m);
     const st = visStyle(m);
     if (!st) return esc(txt);
-    return `<span class="metar-vis" style="color:${st.color};font-weight:700">${esc(txt)}</span>`;
+    const color = st.color || "inherit";
+    const ul = st.underline ? "text-decoration:underline;" : "";
+    return `<span class="metar-vis" style="color:${color};font-weight:700;${ul}">${esc(txt)}</span>`;
+  }
+
+  function parseWindToken(tok) {
+    const m = String(tok || "")
+      .toUpperCase()
+      .match(/^(?:VRB|[0-9]{3})([0-9]{2,3})(?:G([0-9]{2,3}))?(KT|MPS|KMH)$/);
+    if (!m) return null;
+    let speed = Number(m[1]);
+    let gust = m[2] != null ? Number(m[2]) : null;
+    const unit = m[3];
+    if (unit === "MPS") {
+      speed = Math.round(speed * 1.94384);
+      if (gust != null) gust = Math.round(gust * 1.94384);
+    } else if (unit === "KMH") {
+      speed = Math.round(speed / 1.852);
+      if (gust != null) gust = Math.round(gust / 1.852);
+    }
+    return { speedKt: speed, gustKt: gust };
+  }
+
+  function parseVisTokenMeters(tok) {
+    const t = String(tok || "").toUpperCase();
+    if (t === "CAVOK" || t === "////") return null;
+    // Metros ICAO: 0000–9999, opcional NDV o dirección (p.ej. 1200NE)
+    const m = t.match(/^([0-9]{4})(?:NDV|[NSEW]{1,2})?$/);
+    if (m) return Number(m[1]);
+    // Statute miles: 3SM, 1/2SM
+    const smSimple = t.match(/^([0-9]{1,2})SM$/);
+    if (smSimple) return Math.round(Number(smSimple[1]) * 1609.34);
+    const smFrac = t.match(/^([0-9])\/([0-9])SM$/);
+    if (smFrac) return Math.round((Number(smFrac[1]) / Number(smFrac[2])) * 1609.34);
+    return null;
+  }
+
+  function wrapMetarToken(tok, cls, title) {
+    return `<span class="${cls}"${title ? ` title="${esc(title)}"` : ""}>${esc(tok)}</span>`;
+  }
+
+  /** Estilo de techo BKN/OVC según base (ft). Umbrales inclusivos por código METAR. */
+  function ceilingTokenStyle(ft) {
+    if (ft == null || Number.isNaN(Number(ft))) return null;
+    const h = Number(ft);
+    // ≤003 magenta+ul · >003 y ≤005 magenta · >005 y ≤010 rojo · … · >020 y ≤030 subrayado
+    if (h <= 300) return { cls: "metar-tok-cld-mu", label: "≤ 300 ft (003)", key: "cld-mu" };
+    if (h <= 500) return { cls: "metar-tok-cld-m", label: "301–500 ft (005)", key: "cld-m" };
+    if (h <= 1000) return { cls: "metar-tok-cld-r", label: "501–1000 ft (010)", key: "cld-r" };
+    if (h <= 1500) return { cls: "metar-tok-cld-o", label: "1001–1500 ft (015)", key: "cld-o" };
+    if (h <= 2000) return { cls: "metar-tok-cld-y", label: "1501–2000 ft (020)", key: "cld-y" };
+    if (h <= 3000) return { cls: "metar-tok-cld-u", label: "2001–3000 ft (030)", key: "cld-u" };
+    return null;
+  }
+
+  /**
+   * Fenómenos: BR/MI/DZ/RA → amarillo; FG/GR/TS* → rojo; intensidad + → rojo.
+   */
+  function parseWxTokenStyle(tok) {
+    const t = String(tok || "").toUpperCase();
+    if (!t || t === "NSW" || t === "NSC" || t === "NCD" || t === "SKC" || t === "CLR") return null;
+    const m = t.match(
+      /^(\+|-|VC)?((?:MI|PR|BC|DR|BL|SH|TS|FZ)*)((?:DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)*)$/
+    );
+    if (!m) return null;
+    const intensity = m[1] || "";
+    const desc = m[2] || "";
+    const phen = m[3] || "";
+    if (!desc && !phen) return null;
+    // Descriptor solo: permitir TS (tormenta); MI/SH/etc. sin fenómeno no se colorean
+    if (!phen && desc !== "TS" && !desc.startsWith("TS")) return null;
+
+    const hasPlus = intensity === "+";
+    const hasTs = desc.includes("TS");
+    const hasFg = phen.includes("FG");
+    const hasGr = phen.includes("GR");
+    if (hasPlus || hasTs || hasFg || hasGr) {
+      return { cls: "metar-tok-wx-r", label: "Fenómeno significativo", key: "wx-r" };
+    }
+    // MI es descriptor (p.ej. MIFG ya cubierto por FG); BR/DZ/RA en fenómeno
+    const hasYellow =
+      phen.includes("BR") ||
+      phen.includes("DZ") ||
+      phen.includes("RA") ||
+      desc.includes("MI");
+    if (hasYellow) {
+      return { cls: "metar-tok-wx-y", label: "Fenómeno", key: "wx-y" };
+    }
+    return null;
+  }
+
+  function annotateCloudToken(tok) {
+    const t = String(tok || "").toUpperCase();
+    // BKN/OVC + altura (+ CB/TCU opcional)
+    const bknOvc = t.match(/^(BKN|OVC)([0-9]{3})(CB|TCU)?$/);
+    if (bknOvc) {
+      const ft = Number(bknOvc[2]) * 100;
+      const conv = bknOvc[3] || "";
+      const st = ceilingTokenStyle(ft);
+      const classes = [];
+      if (st) classes.push(st.cls);
+      if (conv === "CB") classes.push("metar-tok-cb");
+      else if (conv === "TCU") classes.push("metar-tok-tcu");
+      if (!classes.length) return esc(tok);
+      const title = [st && st.label ? `Techo ${st.label}` : null, conv === "CB" ? "Cumulonimbus" : conv === "TCU" ? "Towering Cumulus" : null]
+        .filter(Boolean)
+        .join(" · ");
+      return wrapMetarToken(tok, classes.join(" "), title || undefined);
+    }
+    // FEW/SCT/VV + CB/TCU (sin umbral de techo pedido)
+    const convOnly = t.match(/^((?:FEW|SCT|VV)[0-9]{0,3})(CB|TCU)$/);
+    if (convOnly) {
+      const conv = convOnly[2];
+      const cls = conv === "CB" ? "metar-tok-cb" : "metar-tok-tcu";
+      return wrapMetarToken(
+        tok,
+        cls,
+        conv === "CB" ? "Cumulonimbus" : "Towering Cumulus"
+      );
+    }
+    return null;
+  }
+
+  /** Preferencia UI: colorear segmentos en mensajes crudos (Configuración). */
+  let colorRawMessages = true;
+
+  function setColorRawMessages(on) {
+    colorRawMessages = on !== false;
+  }
+
+  function isColorRawMessages() {
+    return colorRawMessages !== false;
+  }
+
+  /**
+   * Colorea segmentos de METAR/SPECI/TAF: viento, vis, fenómenos, techos BKN/OVC, CB/TCU.
+   */
+  function annotateMetarRawHtml(raw) {
+    const text = String(raw || "").trim();
+    if (!text) return esc("—");
+    if (!colorRawMessages) return esc(text);
+    const parts = text.split(/(\s+|\n+)/);
+    return parts
+      .map((tok) => {
+        if (!tok || /^\s+$/.test(tok) || /^\n+$/.test(tok)) return tok;
+
+        const wind = parseWindToken(tok);
+        if (wind) {
+          const st = windStyle(wind.speedKt, wind.gustKt);
+          if (st) {
+            const cls =
+              st.key === "rojo"
+                ? "metar-tok-wind-r"
+                : st.key === "naranja"
+                  ? "metar-tok-wind-o"
+                  : "metar-tok-wind-y";
+            return wrapMetarToken(tok, cls, `Viento ${st.label}`);
+          }
+          return esc(tok);
+        }
+
+        const visM = parseVisTokenMeters(tok);
+        if (visM != null) {
+          const st = visStyle(visM);
+          if (st) {
+            const cls =
+              st.key === "magenta"
+                ? "metar-tok-vis-m"
+                : st.key === "rojo"
+                  ? "metar-tok-vis-r"
+                  : st.key === "naranja"
+                    ? "metar-tok-vis-o"
+                    : st.key === "amarillo"
+                      ? "metar-tok-vis-y"
+                      : "metar-tok-vis-u";
+            return wrapMetarToken(tok, cls, `Vis ${st.label}`);
+          }
+          return esc(tok);
+        }
+
+        const cloudHtml = annotateCloudToken(tok);
+        if (cloudHtml != null) return cloudHtml;
+
+        const wx = parseWxTokenStyle(tok);
+        if (wx) return wrapMetarToken(tok, wx.cls, wx.label);
+
+        return esc(tok);
+      })
+      .join("");
+  }
+
+  function annotateTafRawHtml(raw) {
+    return annotateMetarRawHtml(formatTafDisplay(raw));
   }
 
   function flightCategory(ceilingFt, visM) {
@@ -552,16 +769,12 @@
     const fill = markerFillColor(obs, colorBy);
     const dir = obs.wind_dir != null ? Number(obs.wind_dir) : 0;
     const barb = barbKeyFromObs(obs);
-    const cloudHtml = metarCloudLines(obs)
-      .map((t) => `<div class="plot-metar-cloud">${esc(t)}</div>`)
-      .join("");
     const staleCls = obs.stale ? " is-stale" : "";
     const speciCls = obs.has_speci || obs.product === "SPECI" || obs.is_speci ? " has-speci" : "";
     return `
       <div class="plot plot-metar${staleCls}${speciCls}" style="--plot-gap:${gap};--metar-fill:${fill}">
         <div class="plot-anchor">
           <div class="plot-metar-disc" title="${esc(obs.flt_cat || colorBy)}"></div>
-          <div class="plot-metar-clouds">${cloudHtml}</div>
           <img class="plot-barb" src="/img/barbs/barb_${esc(barb)}.png" alt=""
                style="transform: rotate(${dir}deg);" draggable="false" />
           ${
@@ -886,12 +1099,6 @@
   function speciPanelHtml(speci) {
     if (!speci) return "";
     const cat = catMeta(speci.flt_cat);
-    const wind =
-      speci.wind_dir != null || speci.wind_speed_kt != null
-        ? `${speci.wind_dir != null ? speci.wind_dir + "°" : "—"} · ${
-            speci.wind_speed_kt != null ? speci.wind_speed_kt + " kt" : "—"
-          }${speci.wind_gust_kt != null ? ` · ráfaga ${speci.wind_gust_kt} kt` : ""}`
-        : "—";
     return `
       <section class="speci-panel">
         <div class="meta">
@@ -900,7 +1107,7 @@
           ${speci.icao ? `· ${esc(speci.icao)}` : ""}
           ${speci.obs_iso ? `· ${esc(speci.obs_iso)}` : ""}
         </div>
-        <pre class="raw speci-raw">${esc(speci.raw || "—")}</pre>
+        <pre class="raw speci-raw metar-raw-annotated">${annotateMetarRawHtml(speci.raw)}</pre>
         <div class="av-grid">
           <div class="av-card">
             <div class="av-label">Visibilidad</div>
@@ -924,7 +1131,11 @@
           </div>
         </div>
         <div><b>Nubes</b> ${formatCloudsAw(speci.clouds, speci.raw)}</div>
-        <div><b>Viento</b> ${esc(wind)}</div>
+        <div><b>Viento</b> ${coloredWindHtml(
+          speci.wind_speed_kt,
+          speci.wind_gust_kt,
+          speci.wind_dir
+        )}</div>
         ${
           speci.icao
             ? `<button type="button" class="btn ghost metar-hist-btn" data-icao="${esc(
@@ -971,10 +1182,10 @@
       )}</b>`,
       a.obs_iso ? `UTC ${esc(a.obs_iso)}` : a.utc ? `UTC ${esc(a.utc)}` : "",
       `Vis ${coloredVisHtml(a.visibility_m)}`,
+      `Viento ${coloredWindHtml(a.wind_speed_kt, a.wind_gust_kt, a.wind_dir)}`,
       bases !== "—"
         ? `<div class="hover-bases"><b>Bases</b><br/>${bases}</div>`
         : "Bases —",
-      a.wind_gust_kt != null ? `<b>Ráfaga ${esc(String(a.wind_gust_kt))} kt</b>` : "",
       a.significant
         ? `<span class="wx-tag ${a.significant.tone}">${esc(a.significant.label)}</span> ${esc(
             a.ww_text || ""
@@ -992,12 +1203,6 @@
   function detailHtml(obs) {
     const a = obs.cloud_bases || obs.product ? obs : fromSynop(obs);
     const cat = catMeta(a.flt_cat);
-    const wind =
-      a.wind_dir != null || a.wind_speed_kt != null
-        ? `${a.wind_dir != null ? a.wind_dir + "°" : "—"} · ${
-            a.wind_speed_kt != null ? a.wind_speed_kt + " kt" : "—"
-          }${a.wind_gust_kt != null ? ` · ráfaga ${a.wind_gust_kt} kt` : ""}`
-        : "—";
     const layers = metarCloudLayers(a);
     const basesHtml = layers.length
       ? layers
@@ -1103,16 +1308,13 @@
         </div>
         <div><b>Bases de nubes</b></div>
         <ul class="av-bases">${basesHtml}</ul>
-        <div><b>Viento</b> ${esc(wind)}</div>
-        <div class="synop-raw-section">
-          <div><b>Mensaje</b> <small>(hover para decodificar)</small></div>
-          <pre class="raw synop-decoded">${synopWithTooltipsHtml(a.raw)}</pre>
-        </div>
+        <div><b>Viento</b> ${coloredWindHtml(a.wind_speed_kt, a.wind_gust_kt, a.wind_dir)}</div>
+        <pre class="raw metar-raw-annotated">${annotateMetarRawHtml(a.raw)}</pre>
       </section>
       ${
         rawTaf && !tafAmend
-          ? `<section class="taf-panel"><div class="meta"><b>TAF</b></div><pre class="raw taf-raw">${esc(
-              formatTafDisplay(rawTaf)
+          ? `<section class="taf-panel"><div class="meta"><b>TAF</b></div><pre class="raw taf-raw metar-raw-annotated">${annotateTafRawHtml(
+              rawTaf
             )}</pre></section>`
           : ""
       }
@@ -1242,19 +1444,15 @@
         ${reasonsHtml}
         ${
           obsRaw
-            ? `<div><b>Obs</b></div><pre class="raw taf-amend-raw">${highlightRawHtml(
-                obsRaw,
-                reasonObjs,
-                "obs"
+            ? `<div><b>Obs</b></div><pre class="raw taf-amend-raw metar-raw-annotated">${annotateMetarRawHtml(
+                obsRaw
               )}</pre>`
             : ""
         }
         ${
           raw
-            ? `<div><b>TAF</b></div><pre class="raw taf-raw taf-amend-raw">${highlightRawHtml(
-                raw,
-                reasonObjs,
-                "taf"
+            ? `<div><b>TAF</b></div><pre class="raw taf-raw taf-amend-raw metar-raw-annotated">${annotateTafRawHtml(
+                raw
               )}</pre>`
             : ""
         }
@@ -1439,32 +1637,10 @@
     const items = points
       .map((p) => {
         const cat = catMeta(p.flt_cat);
-        const cloudsHtml = formatCloudsAw(p.clouds, p.raw);
-        const ceilFallback =
-          (!p.clouds || !p.clouds.length) && p.ceiling_ft != null
-            ? `${amountBadgeHtml(amountFromAwCover(p.cover)) || ""} ${coloredBaseHtml(
-                p.ceiling_ft
-              )}`.trim()
-            : null;
         return `
           <article class="metar-hist-item${p.is_speci ? " is-speci" : ""}">
-            <header>
-              <time>${esc(p.obs_iso || "—")}</time>
-              <span class="flt-pill" style="background:${cat.color}">${esc(cat.label || "—")}</span>
-              ${p.is_speci ? `<span class="speci-badge">SPECI</span>` : `<span class="metar-badge">METAR</span>`}
-            </header>
-            <pre class="raw">${esc(p.raw || "—")}</pre>
-            <div class="metar-hist-meta">
-              <div>Vis ${coloredVisHtml(p.visibility_m)}</div>
-              <div class="metar-hist-clouds">Nubes ${
-                cloudsHtml !== "—" ? cloudsHtml : ceilFallback || "—"
-              }</div>
-              ${
-                p.wind_gust_kt != null
-                  ? `<div class="av-gust">Ráfaga ${esc(String(p.wind_gust_kt))} kt</div>`
-                  : ""
-              }
-            </div>
+            <span class="flt-pill" style="background:${cat.color}">${esc(cat.label || "—")}</span>
+            <pre class="raw metar-raw-annotated">${annotateMetarRawHtml(p.raw)}</pre>
           </article>`;
       })
       .join("");
@@ -1484,8 +1660,14 @@
     CAT,
     catMeta,
     visStyle,
+    windStyle,
     fmtVis,
     coloredVisHtml,
+    coloredWindHtml,
+    annotateMetarRawHtml,
+    annotateTafRawHtml,
+    setColorRawMessages,
+    isColorRawMessages,
     baseHeightStyle,
     skyState,
     coverAmount,

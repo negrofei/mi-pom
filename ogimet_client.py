@@ -15,7 +15,8 @@ from synop_parser import SynopDecoded, parse_synop
 log = logging.getLogger(__name__)
 
 OGIMET_URL = "https://www.ogimet.com/cgi-bin/getsynop"
-DEFAULT_TIMEOUT = 45
+# (connect, read). Con VPN corporativa OGIMET a menudo cuelga: no usar 45s.
+DEFAULT_TIMEOUT: float | tuple[float, float] = (3.0, 12.0)
 
 TimelineMode = Literal["exact", "latest"]
 
@@ -43,6 +44,7 @@ def fetch_argentina_synops(
     stations: dict[str, dict],
     timeline: TimelineMode = "exact",
     lookback_hours: int = 24,
+    timeout: float | tuple[float, float] | None = None,
 ) -> list[SynopDecoded]:
     """
     Trae SYNOPs de Argentina.
@@ -67,7 +69,9 @@ def fetch_argentina_synops(
     }
 
     log.info("OGIMET request timeline=%s %s", timeline, params)
-    resp = requests.get(OGIMET_URL, params=params, timeout=DEFAULT_TIMEOUT)
+    resp = requests.get(
+        OGIMET_URL, params=params, timeout=timeout if timeout is not None else DEFAULT_TIMEOUT
+    )
     resp.raise_for_status()
     text = resp.text
 
@@ -147,6 +151,7 @@ def fetch_station_series(
     *,
     stations: dict[str, dict],
     hours: int = 24,
+    timeout: float | tuple[float, float] | None = None,
 ) -> list[tuple[datetime, SynopDecoded]]:
     """
     Serie horaria de una estación (últimas `hours` horas hasta `when`).
@@ -171,7 +176,11 @@ def fetch_station_series(
     }
 
     log.info("OGIMET station series %s", params)
-    resp = requests.get(OGIMET_URL, params=params, timeout=DEFAULT_TIMEOUT)
+    resp = requests.get(
+        OGIMET_URL,
+        params=params,
+        timeout=timeout if timeout is not None else DEFAULT_TIMEOUT,
+    )
     resp.raise_for_status()
     text = resp.text
     if "<html" in text.lower():

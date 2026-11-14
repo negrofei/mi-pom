@@ -15,7 +15,8 @@ log = logging.getLogger(__name__)
 
 AW_METAR_URL = "https://aviationweather.gov/api/data/metar"
 AW_TAF_URL = "https://aviationweather.gov/api/data/taf"
-DEFAULT_TIMEOUT = 45
+# (connect, read) — con VPN no bloquear el worker de gunicorn
+DEFAULT_TIMEOUT: float | tuple[float, float] = (3.0, 12.0)
 USER_AGENT = "mi-pom/1.0 (argentina-metar-viewer; https://github.com/negrofei/mi-pom)"
 
 # Colores estándar de categoría de vuelo
@@ -205,10 +206,17 @@ def _normalize_metar(row: dict, airports: dict[str, dict]) -> dict[str, Any]:
     }
 
 
-def _fetch_metar_rows(ids: list[str], hours: int, include_taf: bool) -> list[dict]:
+def _fetch_metar_rows(
+    ids: list[str],
+    hours: int,
+    include_taf: bool,
+    *,
+    timeout: float | tuple[float, float] | None = None,
+) -> list[dict]:
     hours = max(1, min(int(hours), 48))
     chunk_size = 80
     rows: list[dict] = []
+    to = timeout if timeout is not None else DEFAULT_TIMEOUT
     for i in range(0, len(ids), chunk_size):
         chunk = ids[i : i + chunk_size]
         params = {
@@ -221,7 +229,7 @@ def _fetch_metar_rows(ids: list[str], hours: int, include_taf: bool) -> list[dic
         resp = requests.get(
             AW_METAR_URL,
             params=params,
-            timeout=DEFAULT_TIMEOUT,
+            timeout=to,
             headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
         )
         if resp.status_code == 204:
@@ -240,6 +248,7 @@ def fetch_argentina_metars(
     include_taf: bool = True,
     timeline: str = "latest",
     when: Optional[datetime] = None,
+    timeout: float | tuple[float, float] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Trae METARs (y TAF opcional) para el catálogo de aeródromos.
@@ -251,7 +260,7 @@ def fetch_argentina_metars(
     if not ids:
         return []
 
-    rows = _fetch_metar_rows(ids, hours, include_taf)
+    rows = _fetch_metar_rows(ids, hours, include_taf, timeout=timeout)
     normalized = [_normalize_metar(r, airports) for r in rows if r.get("icaoId")]
     normalized = [n for n in normalized if n["icao"] in airports]
 
@@ -281,13 +290,14 @@ def fetch_station_metars(
     airports: dict[str, dict],
     hours: int = 24,
     include_taf: bool = True,
+    timeout: float | tuple[float, float] | None = None,
 ) -> list[dict[str, Any]]:
     """Serie de METARs de un aeródromo (más reciente primero)."""
     icao = str(icao).upper().strip()
     if icao not in airports:
         raise KeyError(f"Aeródromo {icao} no está en el catálogo")
     hours = max(1, min(int(hours), 48))
-    rows = _fetch_metar_rows([icao], hours, include_taf)
+    rows = _fetch_metar_rows([icao], hours, include_taf, timeout=timeout)
     normalized = [_normalize_metar(r, airports) for r in rows if r.get("icaoId")]
     normalized = [n for n in normalized if n["icao"] == icao]
     normalized.sort(key=lambda n: n.get("obs_iso") or "", reverse=True)
@@ -298,6 +308,7 @@ def fetch_argentina_specis(
     *,
     airports: dict[str, dict],
     hours: int = 6,
+    timeout: float | tuple[float, float] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Solo mensajes SPECI recientes (AviationWeather).
@@ -308,7 +319,7 @@ def fetch_argentina_specis(
     ids = sorted(airports.keys())
     if not ids:
         return []
-    rows = _fetch_metar_rows(ids, hours, include_taf=False)
+    rows = _fetch_metar_rows(ids, hours, include_taf=False, timeout=timeout)
     out = []
     for r in rows:
         if not r.get("icaoId"):
