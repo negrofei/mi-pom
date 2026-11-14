@@ -39,6 +39,8 @@
   const cfgColorBase = document.getElementById("cfgColorBase");
   const cfgColorVis = document.getElementById("cfgColorVis");
   const cfgColorRawMessages = document.getElementById("cfgColorRawMessages");
+  const cfgMetarShowSynop = document.getElementById("cfgMetarShowSynop");
+  const metarShowSynopWrap = document.getElementById("metarShowSynopWrap");
   const btnProductSynop = document.getElementById("btnProductSynop");
   const btnProductMetar = document.getElementById("btnProductMetar");
   const btnProductLookup = document.getElementById("btnProductLookup");
@@ -85,6 +87,7 @@
     lookupHours: 6,
     lookupTaf: true,
     colorRawMessages: true,
+    metarShowSynop: true,
   };
 
   function productFromPage() {
@@ -359,6 +362,7 @@
     applyFirChecks(settings.firs);
     applyColorByUi(settings.colorBy);
     if (cfgColorRawMessages) cfgColorRawMessages.checked = settings.colorRawMessages !== false;
+    if (cfgMetarShowSynop) cfgMetarShowSynop.checked = settings.metarShowSynop !== false;
     if (lookupIds) lookupIds.value = settings.lookupIds || defaults.lookupIds;
     if (lookupHours) lookupHours.value = String(settings.lookupHours || defaults.lookupHours);
     if (lookupTaf) lookupTaf.checked = settings.lookupTaf !== false;
@@ -379,6 +383,7 @@
       lookupHours: lookupHours ? Number(lookupHours.value) : settings.lookupHours,
       lookupTaf: lookupTaf ? !!lookupTaf.checked : settings.lookupTaf,
       colorRawMessages: cfgColorRawMessages ? !!cfgColorRawMessages.checked : settings.colorRawMessages !== false,
+      metarShowSynop: cfgMetarShowSynop ? !!cfgMetarShowSynop.checked : settings.metarShowSynop !== false,
     };
     cfgGapLabel.textContent = settings.plotGap.toFixed(2);
     saveSettings(settings);
@@ -402,6 +407,7 @@
     const gapRow = cfgPlotGap && cfgPlotGap.closest(".config-row");
     if (gapRow) gapRow.classList.toggle("hidden", isMetar || isLookup);
     if (colorByWrap) colorByWrap.classList.toggle("hidden", !isMetar);
+    if (metarShowSynopWrap) metarShowSynopWrap.classList.toggle("hidden", !isMetar);
     const timelineFs = cfgTimelineExact && cfgTimelineExact.closest(".config-fieldset");
     if (timelineFs) timelineFs.classList.toggle("hidden", isMetar || isLookup);
     if (btnLoad) btnLoad.classList.toggle("hidden", isLookup);
@@ -977,10 +983,13 @@
       const w = Math.round(BASE_W * gap);
       const h = Math.round(BASE_H * gap);
 
+      const showSynop = settings.metarShowSynop !== false;
+
       for (const raw of data.stations || []) {
         if (raw.lat == null || raw.lng == null) continue;
         if (raw.nil) continue;
         if (!firAllowed(raw)) continue;
+        if (!showSynop && raw.product === "SYNOP") continue;
 
         const obs = MetarPlot.fromSurveillance(raw);
         if (!obs) continue;
@@ -1283,6 +1292,9 @@
   });
   if (cfgColorRawMessages) {
     cfgColorRawMessages.addEventListener("change", () => onConfigChange(true));
+  }
+  if (cfgMetarShowSynop) {
+    cfgMetarShowSynop.addEventListener("change", () => onConfigChange(true));
   }
   cfgFirAll.addEventListener("change", () => {
     const on = cfgFirAll.checked;
