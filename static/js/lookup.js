@@ -146,6 +146,11 @@
             ${taf && taf.raw ? " · TAF" : ""}
             ${latestIso ? ` · ref ${esc(latestIso)}` : ""}
           </div>
+          ${
+            global.MetarPlot && typeof global.MetarPlot.wrfForecastLinkHtml === "function"
+              ? global.MetarPlot.wrfForecastLinkHtml(st.icao)
+              : ""
+          }
         </header>
         <div class="lookup-split">
           <div class="lookup-col lookup-col-obs">

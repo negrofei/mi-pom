@@ -45,31 +45,32 @@
       .replace(/"/g, "&quot;");
   }
 
-  function cloudCoverSymbol(n, x, y, r) {
+  function cloudCoverSymbol(n, x, y, r, ink) {
+    const color = ink || "#111";
     const code = n == null || n === "" || n === "/" ? null : String(n);
     if (code == null) {
-      return `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#111" stroke-width="1.6" stroke-dasharray="2 2"/>`;
+      return `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${color}" stroke-width="1.6" stroke-dasharray="2 2"/>`;
     }
     const c = Number(code);
-    const base = `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="#111" stroke-width="1.6"/>`;
+    const base = `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${color}" stroke-width="1.6"/>`;
     if (c === 0) return base;
     if (c === 9) {
       // cielo obscurecido: X
       return (
         base +
-        `<path d="M${x - r * 0.55} ${y - r * 0.55} L${x + r * 0.55} ${y + r * 0.55} M${x + r * 0.55} ${y - r * 0.55} L${x - r * 0.55} ${y + r * 0.55}" stroke="#111" stroke-width="1.8"/>`
+        `<path d="M${x - r * 0.55} ${y - r * 0.55} L${x + r * 0.55} ${y + r * 0.55} M${x + r * 0.55} ${y - r * 0.55} L${x - r * 0.55} ${y + r * 0.55}" stroke="${color}" stroke-width="1.8"/>`
       );
     }
     // Rellenos por oktas (aproximación)
     const clips = {
-      1: `<path d="M${x} ${y - r} A${r} ${r} 0 0 1 ${x + 0.01} ${y - r} L${x} ${y} Z" fill="#111"/>`,
-      2: `<path d="M${x} ${y - r} A${r} ${r} 0 0 1 ${x + r} ${y} L${x} ${y} Z" fill="#111"/>`,
-      3: `<path d="M${x} ${y - r} A${r} ${r} 0 0 1 ${x + r * 0.7} ${y + r * 0.7} L${x} ${y} Z" fill="#111"/>`,
-      4: `<path d="M${x} ${y - r} A${r} ${r} 0 0 1 ${x} ${y + r} L${x} ${y} Z" fill="#111"/>`,
-      5: `<path d="M${x} ${y - r} A${r} ${r} 0 1 1 ${x - r * 0.7} ${y + r * 0.7} L${x} ${y} Z" fill="#111"/>`,
-      6: `<path d="M${x} ${y - r} A${r} ${r} 0 1 1 ${x - r} ${y} L${x} ${y} Z" fill="#111"/>`,
-      7: `${base}<circle cx="${x}" cy="${y}" r="${r - 0.5}" fill="#111"/><circle cx="${x}" cy="${y}" r="${r * 0.28}" fill="#fff"/>`,
-      8: `<circle cx="${x}" cy="${y}" r="${r}" fill="#111" stroke="#111" stroke-width="1.6"/>`,
+      1: `<path d="M${x} ${y - r} A${r} ${r} 0 0 1 ${x + 0.01} ${y - r} L${x} ${y} Z" fill="${color}"/>`,
+      2: `<path d="M${x} ${y - r} A${r} ${r} 0 0 1 ${x + r} ${y} L${x} ${y} Z" fill="${color}"/>`,
+      3: `<path d="M${x} ${y - r} A${r} ${r} 0 0 1 ${x + r * 0.7} ${y + r * 0.7} L${x} ${y} Z" fill="${color}"/>`,
+      4: `<path d="M${x} ${y - r} A${r} ${r} 0 0 1 ${x} ${y + r} L${x} ${y} Z" fill="${color}"/>`,
+      5: `<path d="M${x} ${y - r} A${r} ${r} 0 1 1 ${x - r * 0.7} ${y + r * 0.7} L${x} ${y} Z" fill="${color}"/>`,
+      6: `<path d="M${x} ${y - r} A${r} ${r} 0 1 1 ${x - r} ${y} L${x} ${y} Z" fill="${color}"/>`,
+      7: `${base}<circle cx="${x}" cy="${y}" r="${r - 0.5}" fill="${color}"/><circle cx="${x}" cy="${y}" r="${r * 0.28}" fill="#fff"/>`,
+      8: `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="${color}" stroke-width="1.6"/>`,
     };
     if (c === 7) return clips[7];
     if (c === 8) return clips[8];

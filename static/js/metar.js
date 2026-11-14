@@ -1096,6 +1096,23 @@
     }
   }
 
+  function wrfForecastUrl(icao) {
+    const code = String(icao || "")
+      .toUpperCase()
+      .replace(/[^A-Z]/g, "");
+    if (code.length !== 4) return null;
+    return `http://127.0.0.1:8765/meteogramas/${code}`;
+  }
+
+  function wrfForecastLinkHtml(icao) {
+    const url = wrfForecastUrl(icao);
+    if (!url) return "";
+    const code = String(icao).toUpperCase();
+    return `<a class="btn ghost wrf-forecast-link" href="${esc(
+      url
+    )}" target="_blank" rel="noopener noreferrer">Ver pronóstico WRF para ${esc(code)}</a>`;
+  }
+
   function speciPanelHtml(speci) {
     if (!speci) return "";
     const cat = catMeta(speci.flt_cat);
@@ -1267,6 +1284,7 @@
               )}" data-nombre="${esc(a.nombre || a.icao)}">Historial METAR/SPECI 24 h</button>`
             : ""
         }
+        ${wrfForecastLinkHtml(a.icao)}
         <div class="av-grid">
           <div class="av-card">
             <div class="av-label">Visibilidad</div>
@@ -1668,6 +1686,8 @@
     annotateTafRawHtml,
     setColorRawMessages,
     isColorRawMessages,
+    wrfForecastUrl,
+    wrfForecastLinkHtml,
     baseHeightStyle,
     skyState,
     coverAmount,

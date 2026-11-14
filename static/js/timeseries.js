@@ -98,7 +98,30 @@
     return Math.round((Number(m) * M_TO_FT) / 50) * 50; // redondeo a 50 ft
   }
 
-  function makeCloudBand({ base_ft, thickness_m, cover, label, raw, ns, kind }) {
+  /** cb | tcu | null a partir de género sec.3 / CL sec.1 / nombre. */
+  function convectiveKind({ genus, genus_name, cl, label, raw }) {
+    const name = String(genus_name || label || "").toLowerCase();
+    const tok = String(raw || "").toUpperCase();
+    if (
+      String(genus) === "9" ||
+      cl === "3" ||
+      cl === "9" ||
+      /\bcb\b|cumulonimbus/.test(name) ||
+      /\bCB\b/.test(tok)
+    ) {
+      return "cb";
+    }
+    if (
+      cl === "2" ||
+      /\btcu\b|towering|torre|congestus/.test(name) ||
+      /\bTCU\b/.test(tok)
+    ) {
+      return "tcu";
+    }
+    return null;
+  }
+
+  function makeCloudBand({ base_ft, thickness_m, cover, label, raw, ns, kind, convective }) {
     const thickFt = Math.max(100, metersToFeet(thickness_m));
     return {
       height_ft: base_ft,
@@ -110,6 +133,7 @@
       raw: raw || null,
       ns,
       kind: kind || null,
+      convective: convective || null,
     };
   }
 
@@ -127,15 +151,22 @@
       const cover = l.ns != null && l.ns !== "/" ? Number(l.ns) : null;
       if (cover == null || Number.isNaN(cover)) return;
       const thick = thicknessFromGenus(l.genus);
+      const label = l.genus_name || (l.genus != null ? `C=${l.genus}` : null);
       out.push(
         makeCloudBand({
           base_ft: ft,
           thickness_m: thick,
           cover,
-          label: l.genus_name || (l.genus != null ? `C=${l.genus}` : null),
+          label,
           raw: l.raw || null,
           ns: l.ns,
           kind: "sec.3",
+          convective: convectiveKind({
+            genus: l.genus,
+            genus_name: l.genus_name,
+            label,
+            raw: l.raw,
+          }),
         })
       );
     });
@@ -152,20 +183,22 @@
         THICKNESS_M.Sc;
       if (ft != null && cover != null && !Number.isNaN(cover)) {
         const cl = obs.cl != null ? String(obs.cl) : null;
+        const label =
+          cl != null
+            ? `CL=${cl} · h=${h} (sec.1)`
+            : h != null
+              ? `h=${h} (sec.1)`
+              : "sec.1";
         out.push(
           makeCloudBand({
             base_ft: ft,
             thickness_m: thick,
             cover,
-            label:
-              cl != null
-                ? `CL=${cl} · h=${h} (sec.1)`
-                : h != null
-                  ? `h=${h} (sec.1)`
-                  : "sec.1",
+            label,
             raw: null,
             ns: String(coverRaw),
             kind: "sec.1",
+            convective: convectiveKind({ cl, label }),
           })
         );
       }
@@ -654,17 +687,37 @@
         }`;
       });
       const tipTxt = tip("Nubosidad (base + espesor típico)", tipLines.concat([hourLabel(p)]));
-      // Marcas: base (círculo) y tope (rayita)
+      // Marcas: espesor (rayita) + círculo de oktas SYNOP (N) en la base
       const marks = layers
         .map((c) => {
           const yBase = cy(c.height_ft);
           const yTop = cy(c.top_ft != null ? c.top_ft : c.height_ft);
-          const g = Math.round(220 - (c.cover / 8) * 180);
           const yLo = Math.min(yBase, yTop);
           const yHi = Math.max(yBase, yTop);
+          const nRaw =
+            c.ns != null && c.ns !== "/" && !Number.isNaN(Number(c.ns))
+              ? Number(c.ns)
+              : Number(c.cover);
+          const nCode =
+            nRaw != null && !Number.isNaN(nRaw)
+              ? String(Math.max(0, Math.min(9, Math.round(nRaw))))
+              : "9999";
+          const r = 5.5;
+          const ink =
+            c.convective === "cb"
+              ? "#c62828"
+              : c.convective === "tcu"
+                ? "#ef6c00"
+                : "#111";
+          const oktas =
+            S() && typeof S().cloudCoverSymbol === "function"
+              ? S().cloudCoverSymbol(nCode === "9999" ? null : nCode, x, yBase, r, ink)
+              : `<image href="${IMG}/simbolos/N${nCode}.png" xlink:href="${IMG}/simbolos/N${nCode}.png" x="${
+                  x - r
+                }" y="${yBase - r}" width="${r * 2}" height="${r * 2}" />`;
           return (
             `<line x1="${x}" y1="${yLo}" x2="${x}" y2="${yHi}" stroke="rgba(30,30,30,0.35)" stroke-width="1.2" />` +
-            `<circle cx="${x}" cy="${yBase}" r="2.4" fill="rgb(${g},${g},${g})" stroke="#222" stroke-width="0.7" />`
+            oktas
           );
         })
         .join("");

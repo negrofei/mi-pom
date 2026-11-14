@@ -873,6 +873,23 @@ html:not([data-theme="dark"]) .btn.theme-toggle .theme-icon-light { display: non
   margin: 0.35rem 0 0.85rem;
 }
 
+a.wrf-forecast-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0 0 0.85rem;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.lookup-station-head a.wrf-forecast-link {
+  width: auto;
+  margin: 0.35rem 0 0;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+}
+
 .vis-legend {
   display: flex;
   flex-wrap: wrap;
