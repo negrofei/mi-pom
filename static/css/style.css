@@ -1869,6 +1869,36 @@ a.wrf-forecast-link {
   min-width: min(100%, 220px);
 }
 
+.lookup-field.lookup-preset {
+  flex: 0 1 220px;
+  min-width: min(100%, 180px);
+}
+
+.lookup-field.lookup-preset select {
+  font-family: inherit;
+  min-width: 11rem;
+}
+
+.lookup-save-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.75rem;
+  align-items: flex-end;
+  flex: 1 1 100%;
+  padding-top: 0.15rem;
+  border-top: 1px dashed var(--line);
+  margin-top: 0.15rem;
+}
+
+.lookup-field.lookup-save-name {
+  flex: 0 1 10rem;
+  min-width: 7rem;
+}
+
+.lookup-delete-btn.hidden {
+  display: none;
+}
+
 .lookup-field span {
   font-weight: 600;
 }
