@@ -182,6 +182,21 @@
         </div>
       </header>
       <form id="lookupForm" class="lookup-form" action="#" method="get">
+        <label class="lookup-field lookup-preset">
+          <span>Selección</span>
+          <select id="lookupPreset" name="preset">
+            <option value="manual">Personalizada</option>
+            <optgroup label="FIR" id="lookupPresetFirGroup">
+              <option value="fir:EZE">FIR EZE · Ezeiza</option>
+              <option value="fir:CBA">FIR CBA · Córdoba</option>
+              <option value="fir:DOZ">FIR DOZ · Mendoza</option>
+              <option value="fir:SIS">FIR SIS · Resistencia</option>
+              <option value="fir:CRV">FIR CRV · Comodoro Rivadavia</option>
+            </optgroup>
+            <optgroup label="Guardadas" id="lookupPresetCustomGroup" hidden></optgroup>
+          </select>
+          <small id="lookupPresetHint">Elegí FIR, una selección guardada, o editá a mano</small>
+        </label>
         <label class="lookup-field lookup-ids">
           <span>Estaciones (OACI)</span>
           <input type="text" id="lookupIds" name="ids" placeholder="SAZR, SABE, SAZN" autocomplete="off" spellcheck="false" />
@@ -204,6 +219,14 @@
           <span>Incluir TAF</span>
         </label>
         <button type="submit" id="lookupSubmit" class="btn primary">Consultar</button>
+        <div class="lookup-save-row">
+          <label class="lookup-field lookup-save-name">
+            <span>Guardar selección</span>
+            <input type="text" id="lookupSaveName" name="saveName" placeholder="ej. AER" maxlength="32" autocomplete="off" spellcheck="false" />
+          </label>
+          <button type="button" id="lookupSaveBtn" class="btn">Guardar</button>
+          <button type="button" id="lookupDeleteBtn" class="btn lookup-delete-btn hidden">Eliminar</button>
+        </div>
       </form>
       <div class="lookup-status" id="lookupStatus" aria-live="polite"></div>
       <div class="lookup-results" id="lookupResults"></div>

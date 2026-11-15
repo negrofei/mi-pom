@@ -2,6 +2,18 @@
  * Pestaña Consulta (/consulta): METAR/SPECI | TAF + enmienda.
  */
 (function (global) {
+  const FIR_OPTIONS = [
+    { code: "EZE", name: "Ezeiza" },
+    { code: "CBA", name: "Córdoba" },
+    { code: "DOZ", name: "Mendoza" },
+    { code: "SIS", name: "Resistencia" },
+    { code: "CRV", name: "Comodoro Rivadavia" },
+  ];
+  const ID_LIMIT = 40;
+
+  let airportsCache = null;
+  let airportsPromise = null;
+
   function esc(s) {
     return String(s ?? "")
       .replace(/&/g, "&amp;")
@@ -29,7 +41,133 @@
       .map((t) => t.replace(/[^A-Z]/g, ""))
       .filter((t) => t.length === 4)
       .filter((t, i, arr) => arr.indexOf(t) === i)
-      .slice(0, 40);
+      .slice(0, ID_LIMIT);
+  }
+
+  function formatIds(ids) {
+    return (Array.isArray(ids) ? ids : parseIdsInput(ids)).join(", ");
+  }
+
+  function normalizePresetName(name) {
+    return String(name || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .slice(0, 32);
+  }
+
+  function sanitizePresets(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const item of raw) {
+      if (!item || typeof item !== "object") continue;
+      const name = normalizePresetName(item.name);
+      if (!name) continue;
+      const key = name.toUpperCase();
+      if (seen.has(key)) continue;
+      const ids = parseIdsInput(Array.isArray(item.ids) ? item.ids.join(",") : item.ids);
+      if (!ids.length) continue;
+      seen.add(key);
+      out.push({ name, ids });
+    }
+    return out.slice(0, 40);
+  }
+
+  function customPresetKey(name) {
+    return `custom:${normalizePresetName(name)}`;
+  }
+
+  function firPresetKey(code) {
+    return `fir:${String(code || "").toUpperCase()}`;
+  }
+
+  async function loadAirports() {
+    if (airportsCache) return airportsCache;
+    if (airportsPromise) return airportsPromise;
+    airportsPromise = fetch("/api/airports")
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data.airports) ? data.airports : [];
+        airportsCache = list
+          .map((a) => ({
+            icao: String(a.icao || "")
+              .toUpperCase()
+              .replace(/[^A-Z0-9]/g, ""),
+            fir: String(a.fir || "").toUpperCase(),
+            nombre: a.nombre || "",
+          }))
+          .filter((a) => a.icao.length === 4);
+        return airportsCache;
+      })
+      .catch((err) => {
+        airportsPromise = null;
+        throw err;
+      });
+    return airportsPromise;
+  }
+
+  function icaosForFir(airports, firCode) {
+    const fir = String(firCode || "").toUpperCase();
+    return (airports || [])
+      .filter((a) => a.fir === fir)
+      .map((a) => a.icao)
+      .filter((t, i, arr) => arr.indexOf(t) === i)
+      .sort()
+      .slice(0, ID_LIMIT);
+  }
+
+  function resolveSelection(key, { airports = [], presets = [] } = {}) {
+    const k = String(key || "manual");
+    if (k === "manual" || !k) {
+      return { mode: "manual", key: "manual", ids: null, label: "Personalizada" };
+    }
+    if (k.startsWith("fir:")) {
+      const fir = k.slice(4).toUpperCase();
+      const meta = FIR_OPTIONS.find((f) => f.code === fir);
+      const ids = icaosForFir(airports, fir);
+      return {
+        mode: "fir",
+        key: firPresetKey(fir),
+        fir,
+        ids,
+        label: meta ? `FIR ${fir} · ${meta.name}` : `FIR ${fir}`,
+      };
+    }
+    if (k.startsWith("custom:")) {
+      const name = normalizePresetName(k.slice(7));
+      const preset = sanitizePresets(presets).find(
+        (p) => p.name.toUpperCase() === name.toUpperCase()
+      );
+      return {
+        mode: "custom",
+        key: customPresetKey(name),
+        name,
+        ids: preset ? [...preset.ids] : [],
+        label: name || "Guardada",
+        missing: !preset,
+      };
+    }
+    return { mode: "manual", key: "manual", ids: null, label: "Personalizada" };
+  }
+
+  function upsertPreset(presets, name, ids) {
+    const cleanName = normalizePresetName(name);
+    const cleanIds = parseIdsInput(Array.isArray(ids) ? ids.join(",") : ids);
+    if (!cleanName) throw new Error("Indicá un nombre para la selección");
+    if (!cleanIds.length) throw new Error("Indicá al menos un ICAO para guardar");
+    const next = sanitizePresets(presets).filter(
+      (p) => p.name.toUpperCase() !== cleanName.toUpperCase()
+    );
+    next.unshift({ name: cleanName, ids: cleanIds });
+    return sanitizePresets(next);
+  }
+
+  function removePreset(presets, name) {
+    const cleanName = normalizePresetName(name);
+    if (!cleanName) return sanitizePresets(presets);
+    return sanitizePresets(presets).filter(
+      (p) => p.name.toUpperCase() !== cleanName.toUpperCase()
+    );
   }
 
   function highlight(raw, reasons, side) {
@@ -192,7 +330,19 @@
   }
 
   global.AwLookup = {
+    FIR_OPTIONS,
+    ID_LIMIT,
     parseIdsInput,
+    formatIds,
+    normalizePresetName,
+    sanitizePresets,
+    customPresetKey,
+    firPresetKey,
+    loadAirports,
+    icaosForFir,
+    resolveSelection,
+    upsertPreset,
+    removePreset,
     resultsHtml,
     runLookup,
     stationHtml,

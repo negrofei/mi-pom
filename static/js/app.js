@@ -46,9 +46,15 @@
   const btnProductLookup = document.getElementById("btnProductLookup");
   const lookupPanel = document.getElementById("lookupPanel");
   const lookupForm = document.getElementById("lookupForm");
+  const lookupPreset = document.getElementById("lookupPreset");
+  const lookupPresetCustomGroup = document.getElementById("lookupPresetCustomGroup");
+  const lookupPresetHint = document.getElementById("lookupPresetHint");
   const lookupIds = document.getElementById("lookupIds");
   const lookupHours = document.getElementById("lookupHours");
   const lookupTaf = document.getElementById("lookupTaf");
+  const lookupSaveName = document.getElementById("lookupSaveName");
+  const lookupSaveBtn = document.getElementById("lookupSaveBtn");
+  const lookupDeleteBtn = document.getElementById("lookupDeleteBtn");
   const lookupStatus = document.getElementById("lookupStatus");
   const lookupResults = document.getElementById("lookupResults");
   const lookupSubmit = document.getElementById("lookupSubmit");
@@ -86,6 +92,8 @@
     lookupIds: "SAZR, SABE",
     lookupHours: 6,
     lookupTaf: true,
+    lookupPreset: "manual",
+    lookupPresets: [],
     colorRawMessages: true,
     metarShowSynop: true,
   };
@@ -131,7 +139,23 @@
       if (!COLOR_BY.includes(parsed.colorBy)) {
         parsed.colorBy = "flight";
       }
-      return { ...defaults, ...parsed, firs: parsed.firs.filter((c) => ALL_FIRS.includes(c)) };
+      const presets =
+        window.AwLookup && typeof window.AwLookup.sanitizePresets === "function"
+          ? window.AwLookup.sanitizePresets(parsed.lookupPresets)
+          : Array.isArray(parsed.lookupPresets)
+            ? parsed.lookupPresets
+            : [];
+      const presetKey =
+        typeof parsed.lookupPreset === "string" && parsed.lookupPreset
+          ? parsed.lookupPreset
+          : "manual";
+      return {
+        ...defaults,
+        ...parsed,
+        firs: parsed.firs.filter((c) => ALL_FIRS.includes(c)),
+        lookupPresets: presets,
+        lookupPreset: presetKey,
+      };
     } catch {
       return { ...defaults, firs: [...ALL_FIRS] };
     }
@@ -210,6 +234,8 @@
   let activeSpeciList = [];
   let activeTafAmendList = [];
   let lastFocusedMarker = null;
+  let lookupAirports = [];
+  let lookupApplyingPreset = false;
 
   const map = L.map("map", {
     center: [-40.5, -64.5],
@@ -352,6 +378,103 @@
     }
   }
 
+  function lookupPresetsList() {
+    if (window.AwLookup && typeof AwLookup.sanitizePresets === "function") {
+      return AwLookup.sanitizePresets(settings.lookupPresets);
+    }
+    return Array.isArray(settings.lookupPresets) ? settings.lookupPresets : [];
+  }
+
+  function refreshLookupPresetOptions() {
+    if (!lookupPreset || !lookupPresetCustomGroup) return;
+    const presets = lookupPresetsList();
+    settings.lookupPresets = presets;
+    lookupPresetCustomGroup.innerHTML = "";
+    if (!presets.length) {
+      lookupPresetCustomGroup.hidden = true;
+    } else {
+      lookupPresetCustomGroup.hidden = false;
+      for (const p of presets) {
+        const opt = document.createElement("option");
+        opt.value = AwLookup.customPresetKey(p.name);
+        opt.textContent = `${p.name} (${p.ids.length})`;
+        lookupPresetCustomGroup.appendChild(opt);
+      }
+    }
+    const key = settings.lookupPreset || "manual";
+    const hasKey = [...lookupPreset.options].some((o) => o.value === key);
+    lookupPreset.value = hasKey ? key : "manual";
+    if (!hasKey) settings.lookupPreset = "manual";
+    updateLookupPresetChrome();
+  }
+
+  function updateLookupPresetChrome() {
+    const key = lookupPreset ? lookupPreset.value : settings.lookupPreset || "manual";
+    const isCustom = key.startsWith("custom:");
+    if (lookupDeleteBtn) lookupDeleteBtn.classList.toggle("hidden", !isCustom);
+    if (lookupSaveName && isCustom && window.AwLookup) {
+      const name = AwLookup.normalizePresetName(key.slice(7));
+      if (name && !lookupSaveName.value.trim()) lookupSaveName.value = name;
+    }
+    if (!lookupPresetHint || !window.AwLookup) return;
+    const resolved = AwLookup.resolveSelection(key, {
+      airports: lookupAirports,
+      presets: lookupPresetsList(),
+    });
+    if (resolved.mode === "fir") {
+      const n = (resolved.ids || []).length;
+      lookupPresetHint.textContent = n
+        ? `${n} estaciones del catálogo · ${resolved.label}`
+        : `Sin estaciones en catálogo para ${resolved.label}`;
+    } else if (resolved.mode === "custom") {
+      const n = (resolved.ids || []).length;
+      lookupPresetHint.textContent = resolved.missing
+        ? `Selección «${resolved.name}» no encontrada`
+        : `${n} estaciones · ${resolved.name}`;
+    } else {
+      lookupPresetHint.textContent = "Elegí FIR, una selección guardada, o editá a mano";
+    }
+  }
+
+  async function ensureLookupAirports() {
+    if (!window.AwLookup || typeof AwLookup.loadAirports !== "function") return [];
+    if (lookupAirports.length) return lookupAirports;
+    try {
+      lookupAirports = await AwLookup.loadAirports();
+    } catch (err) {
+      console.warn("No se pudo cargar catálogo de aeropuertos", err);
+      lookupAirports = [];
+    }
+    return lookupAirports;
+  }
+
+  async function applyLookupPreset(key, { persist = true, fillIds = true } = {}) {
+    if (!window.AwLookup) return;
+    await ensureLookupAirports();
+    const resolved = AwLookup.resolveSelection(key || "manual", {
+      airports: lookupAirports,
+      presets: lookupPresetsList(),
+    });
+    settings.lookupPreset = resolved.key || "manual";
+    lookupApplyingPreset = true;
+    try {
+      if (lookupPreset) {
+        const hasKey = [...lookupPreset.options].some((o) => o.value === settings.lookupPreset);
+        lookupPreset.value = hasKey ? settings.lookupPreset : "manual";
+        if (!hasKey) settings.lookupPreset = "manual";
+      }
+      if (fillIds && resolved.ids) {
+        const formatted = AwLookup.formatIds(resolved.ids);
+        if (lookupIds) lookupIds.value = formatted;
+        settings.lookupIds = formatted;
+      }
+      updateLookupPresetChrome();
+      if (persist) saveSettings(settings);
+    } finally {
+      lookupApplyingPreset = false;
+    }
+  }
+
   function applySettingsToUi() {
     cfgAutorefresh.checked = !!settings.autorefresh;
     chkNil.checked = !!settings.includeNil;
@@ -366,6 +489,7 @@
     if (lookupIds) lookupIds.value = settings.lookupIds || defaults.lookupIds;
     if (lookupHours) lookupHours.value = String(settings.lookupHours || defaults.lookupHours);
     if (lookupTaf) lookupTaf.checked = settings.lookupTaf !== false;
+    refreshLookupPresetOptions();
     applyColorRawPref();
     applyProductUi();
   }
@@ -382,6 +506,8 @@
       lookupIds: lookupIds ? lookupIds.value : settings.lookupIds,
       lookupHours: lookupHours ? Number(lookupHours.value) : settings.lookupHours,
       lookupTaf: lookupTaf ? !!lookupTaf.checked : settings.lookupTaf,
+      lookupPreset: lookupPreset ? lookupPreset.value : settings.lookupPreset || "manual",
+      lookupPresets: lookupPresetsList(),
       colorRawMessages: cfgColorRawMessages ? !!cfgColorRawMessages.checked : settings.colorRawMessages !== false,
       metarShowSynop: cfgMetarShowSynop ? !!cfgMetarShowSynop.checked : settings.metarShowSynop !== false,
     };
@@ -762,12 +888,15 @@
       statusEl.textContent = "Módulo de consulta no disponible";
       return;
     }
+    await ensureLookupAirports();
     const ids = AwLookup.parseIdsInput(lookupIds ? lookupIds.value : settings.lookupIds);
     const hours = Number(lookupHours && lookupHours.value) || settings.lookupHours || 6;
     const includeTaf = lookupTaf ? !!lookupTaf.checked : settings.lookupTaf !== false;
     settings.lookupIds = lookupIds ? lookupIds.value : settings.lookupIds;
     settings.lookupHours = hours;
     settings.lookupTaf = includeTaf;
+    settings.lookupPreset = lookupPreset ? lookupPreset.value : settings.lookupPreset || "manual";
+    settings.lookupPresets = lookupPresetsList();
     saveSettings(settings);
 
     if (!ids.length) {
@@ -1326,6 +1455,71 @@
       loadLookup();
     });
   }
+  if (lookupPreset) {
+    lookupPreset.addEventListener("change", () => {
+      applyLookupPreset(lookupPreset.value, { persist: true, fillIds: true });
+    });
+  }
+  if (lookupIds) {
+    lookupIds.addEventListener("input", () => {
+      if (lookupApplyingPreset) return;
+      if (lookupPreset && lookupPreset.value !== "manual") {
+        lookupPreset.value = "manual";
+        settings.lookupPreset = "manual";
+        updateLookupPresetChrome();
+        saveSettings(settings);
+      }
+    });
+  }
+  if (lookupSaveBtn) {
+    lookupSaveBtn.addEventListener("click", () => {
+      if (!window.AwLookup) return;
+      try {
+        const name =
+          (lookupSaveName && lookupSaveName.value) ||
+          (lookupPreset && lookupPreset.value.startsWith("custom:")
+            ? lookupPreset.value.slice(7)
+            : "");
+        const ids = AwLookup.parseIdsInput(lookupIds ? lookupIds.value : "");
+        settings.lookupPresets = AwLookup.upsertPreset(lookupPresetsList(), name, ids);
+        settings.lookupPreset = AwLookup.customPresetKey(name);
+        settings.lookupIds = AwLookup.formatIds(ids);
+        if (lookupIds) lookupIds.value = settings.lookupIds;
+        refreshLookupPresetOptions();
+        saveSettings(settings);
+        if (lookupStatus) {
+          lookupStatus.textContent = `Selección «${AwLookup.normalizePresetName(name)}» guardada (${ids.length} estaciones)`;
+        }
+      } catch (err) {
+        if (lookupStatus) lookupStatus.textContent = String(err.message || err);
+      }
+    });
+  }
+  if (lookupDeleteBtn) {
+    lookupDeleteBtn.addEventListener("click", () => {
+      if (!window.AwLookup || !lookupPreset) return;
+      const key = lookupPreset.value;
+      if (!key.startsWith("custom:")) return;
+      const name = AwLookup.normalizePresetName(key.slice(7));
+      settings.lookupPresets = AwLookup.removePreset(lookupPresetsList(), name);
+      settings.lookupPreset = "manual";
+      refreshLookupPresetOptions();
+      if (lookupPreset) lookupPreset.value = "manual";
+      updateLookupPresetChrome();
+      saveSettings(settings);
+      if (lookupStatus) lookupStatus.textContent = `Selección «${name}» eliminada`;
+    });
+  }
+  // Catálogo para FIR + rehidratación de presets guardados
+  ensureLookupAirports().then(() => {
+    refreshLookupPresetOptions();
+    const key = settings.lookupPreset || "manual";
+    if (key !== "manual") {
+      applyLookupPreset(key, { persist: false, fillIds: true });
+    } else {
+      updateLookupPresetChrome();
+    }
+  });
   if (btnSpeciList) {
     btnSpeciList.addEventListener("click", () => {
       const open = speciListPanel && speciListPanel.classList.contains("hidden");
